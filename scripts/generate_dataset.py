@@ -45,8 +45,8 @@ def main() -> None:
         help="Отключить RAG у кассира (для сравнения с RAG-версией).",
     )
     parser.add_argument(
-        "--model", type=str, default="gpt-4o-mini",
-        help="Модель OpenAI (по умолчанию gpt-4o-mini).",
+        "--model", type=str, default=None,
+        help="Модель LLM; если не указана, берётся из API_MODEL/.env.",
     )
     parser.add_argument(
         "--max_turns", type=int, default=20,
@@ -60,13 +60,15 @@ def main() -> None:
     rag_top_k = 0 if args.no_rag else 3
     mode_label = "non-RAG" if args.no_rag else "RAG"
 
-    print(f"=== Генерация {num} диалогов ({mode_label}, model={model}) ===")
-    print(f"    output_dir={out_dir}  max_turns={args.max_turns}")
-    print()
-
     gen = ProfileGenerator()
     client_agent = ClientAgent(model=model)
     cashier_agent = CashierAgent(model=model, rag_top_k=rag_top_k)
+    print(
+        f"=== Генерация {num} диалогов "
+        f"({mode_label}, model={client_agent.model}) ==="
+    )
+    print(f"    output_dir={out_dir}  max_turns={args.max_turns}")
+    print()
 
     ok = 0
     errors = 0

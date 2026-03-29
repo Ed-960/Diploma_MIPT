@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcd_voice.dialog.pipeline import DialogPipeline
 from mcd_voice.llm.agent import _normalize_base_url, _resolve_model, get_llm_runtime_config
 
 
@@ -48,3 +49,11 @@ def test_runtime_config_for_ollama(monkeypatch) -> None:
         "model": "qwen3:1.7b",
         "base_url": "http://localhost:11434/v1",
     }
+
+
+def test_dialog_pipeline_uses_env_model(monkeypatch) -> None:
+    monkeypatch.setenv("API_MODEL", "qwen3:1.7b")
+
+    pipeline = DialogPipeline()
+
+    assert pipeline.model == "qwen3:1.7b"

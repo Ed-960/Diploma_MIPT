@@ -9,7 +9,7 @@ import _bootstrap
 
 _bootstrap.ensure_src()
 
-from mcd_voice.llm import CashierAgent, ClientAgent, DEFAULT_MODEL
+from mcd_voice.llm import CashierAgent, ClientAgent
 from mcd_voice.profile import generate_profile, generate_text_description, profile_to_json
 
 if __name__ == "__main__":
@@ -19,8 +19,8 @@ if __name__ == "__main__":
     print(f"\nОписание для LLM: {generate_text_description(profile)}\n")
 
     try:
-        client = ClientAgent(model=DEFAULT_MODEL)
-        cashier = CashierAgent(model=DEFAULT_MODEL)
+        client = ClientAgent()
+        cashier = CashierAgent()
     except RuntimeError as e:
         print(f"Пропуск: {e}")
         raise SystemExit(1)

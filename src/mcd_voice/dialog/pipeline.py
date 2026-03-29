@@ -17,7 +17,8 @@ import re
 from typing import Any
 
 from mcd_voice.dialog.catalog import MenuCatalog
-from mcd_voice.llm import CashierAgent, ClientAgent, DEFAULT_MODEL
+from mcd_voice.llm import CashierAgent, ClientAgent
+from mcd_voice.llm.agent import _resolve_model
 from mcd_voice.profile import ProfileGenerator
 from mcd_voice.profile.generator import get_allergen_blacklist
 
@@ -182,7 +183,8 @@ class DialogPipeline:
         cashier_agent: CashierAgent | None = None,
     ) -> None:
         self.max_turns = max_turns
-        self.model = model or DEFAULT_MODEL
+        # При отсутствии явной модели берем API_MODEL из env.
+        self.model = _resolve_model(model)
         self._profiles = profile_generator or ProfileGenerator()
         self._catalog = menu_catalog or MenuCatalog()
         self._client_agent = client_agent
