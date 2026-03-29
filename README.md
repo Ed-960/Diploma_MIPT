@@ -19,6 +19,25 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
+## Настройка `.env` (рекомендуется)
+
+Скрипты из `scripts/` автоматически читают файл `.env` в корне проекта.
+Это удобно, чтобы не писать `export ...` перед каждым запуском.
+
+Пример `.env` для OpenAI:
+
+```env
+OPENAI_API_KEY=sk-...
+```
+
+Пример `.env` для Ollama:
+
+```env
+API_PROVIDER=ollama
+API_MODEL=qwen3:4b
+OLLAMA_URL=http://127.0.0.1:11434/v1
+```
+
 ## Сценарии использования
 
 ### 1. Загрузка меню в Chroma (обязательно первый шаг)
@@ -57,6 +76,7 @@ python scripts/dialog_demo.py
 
 Примечание: `OLLAMA_URL` можно указывать как `http://localhost:11434/v1`
 или полным путём до `.../v1/chat/completions` — код сам нормализует URL.
+Если эти переменные уже записаны в `.env`, `export` не требуется.
 
 ### 5. Массовая генерация диалогов
 
