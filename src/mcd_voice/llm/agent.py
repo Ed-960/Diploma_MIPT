@@ -1,9 +1,10 @@
 """
-Агенты ClientAgent и CashierAgent поверх OpenAI Chat Completions.
+Агенты ClientAgent и CashierAgent поверх OpenAI-compatible Chat Completions.
 
 Конфигурация:
   - DEFAULT_MODEL — модель по умолчанию (gpt-4o).
-  - OPENAI_API_KEY — из окружения (не хардкодить).
+  - OPENAI_API_KEY — для облака OpenAI.
+  - API_PROVIDER=ollama + API_MODEL + OLLAMA_URL — для локального OpenAI-compatible API.
   - RAG_DISTANCE_THRESHOLD — если ближайший результат дальше порога,
     считаем «нет подходящих позиций».
 """
@@ -28,13 +29,67 @@ HistoryEntry = dict[str, str]
 
 # ── Shared helpers ────────────────────────────────────────────────────
 
+def _normalize_base_url(url: str) -> str:
+    """Приводит URL OpenAI-compatible API к base_url."""
+    base = url.strip().rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[: -len("/chat/completions")]
+    return base
+
+
+def _resolve_model(explicit_model: str | None) -> str:
+    """Явная модель приоритетнее, иначе API_MODEL, иначе DEFAULT_MODEL."""
+    if explicit_model:
+        return explicit_model
+    return os.environ.get("API_MODEL", DEFAULT_MODEL)
+
+
 def _get_openai_client(timeout: float = 60.0) -> OpenAI:
+    provider = os.environ.get("API_PROVIDER", "openai").strip().lower()
+
+    if provider == "ollama":
+        raw_url = os.environ.get("OLLAMA_URL") or os.environ.get("OPENAI_BASE_URL")
+        if not raw_url:
+            raise RuntimeError(
+                "Для API_PROVIDER=ollama задайте OLLAMA_URL "
+                "(например http://localhost:11434/v1)."
+            )
+        base_url = _normalize_base_url(raw_url)
+        # Для большинства локальных OpenAI-compatible серверов ключ не обязателен.
+        api_key = os.environ.get("OPENAI_API_KEY", "ollama")
+        return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+
     api_key = os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("OPENAI_BASE_URL")
     if not api_key:
         raise RuntimeError(
-            "Задайте переменную окружения OPENAI_API_KEY для вызова API."
+            "Задайте OPENAI_API_KEY для облачного OpenAI или "
+            "используйте API_PROVIDER=ollama с OLLAMA_URL."
         )
-    return OpenAI(api_key=api_key, timeout=timeout)
+    kwargs: dict[str, Any] = {"api_key": api_key, "timeout": timeout}
+    if base_url:
+        kwargs["base_url"] = _normalize_base_url(base_url)
+    return OpenAI(**kwargs)
+
+
+def get_llm_runtime_config() -> dict[str, str]:
+    """Возвращает итоговую runtime-конфигурацию LLM из env."""
+    provider = os.environ.get("API_PROVIDER", "openai").strip().lower() or "openai"
+    model = _resolve_model(None)
+    if provider == "ollama":
+        raw_url = os.environ.get("OLLAMA_URL") or os.environ.get("OPENAI_BASE_URL", "")
+        return {
+            "provider": provider,
+            "model": model,
+            "base_url": _normalize_base_url(raw_url) if raw_url else "",
+        }
+    return {
+        "provider": provider,
+        "model": model,
+        "base_url": _normalize_base_url(os.environ.get("OPENAI_BASE_URL", ""))
+        if os.environ.get("OPENAI_BASE_URL")
+        else "",
+    }
 
 
 def _call_llm(
@@ -86,10 +141,10 @@ class ClientAgent:
 
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         timeout: float = 60.0,
     ) -> None:
-        self.model = model
+        self.model = _resolve_model(model)
         self._openai = _get_openai_client(timeout)
 
     def generate_response(
@@ -131,12 +186,12 @@ class CashierAgent:
 
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         timeout: float = 60.0,
         rag_top_k: int = 3,
         distance_threshold: float = RAG_DISTANCE_THRESHOLD,
     ) -> None:
-        self.model = model
+        self.model = _resolve_model(model)
         self.rag_top_k = rag_top_k
         self.distance_threshold = distance_threshold
         self._openai = _get_openai_client(timeout)

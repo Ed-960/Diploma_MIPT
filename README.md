@@ -39,12 +39,24 @@ pytest tests/ -v
 python scripts/profile_demo.py
 ```
 
-### 4. Один диалог (нужен OPENAI_API_KEY)
+### 4. Один диалог (нужен LLM API)
 
 ```bash
+# Вариант 1: облачный OpenAI
 export OPENAI_API_KEY=sk-...
 python scripts/dialog_demo.py
 ```
+
+```bash
+# Вариант 2: локальный Ollama через OpenAI-compatible API
+export API_PROVIDER=ollama
+export API_MODEL=qwen3:1.7b
+export OLLAMA_URL=http://localhost:11434/v1/chat/completions
+python scripts/dialog_demo.py
+```
+
+Примечание: `OLLAMA_URL` можно указывать как `http://localhost:11434/v1`
+или полным путём до `.../v1/chat/completions` — код сам нормализует URL.
 
 ### 5. Массовая генерация диалогов
 
