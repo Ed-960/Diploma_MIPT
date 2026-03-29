@@ -67,27 +67,34 @@ def ingest_menu_clear_existing(
     (или переданный bundle из load_menu_from_json).
     Возвращает число записей в коллекции.
     """
+    print("Инициализация Chroma и модели эмбеддингов (первый раз может занять минуты — идёт загрузка MiniLM)…")
     configure_hf_cache()
     collection = get_or_create_menu_collection()
     ids, documents, metadatas = (
         bundle if bundle is not None else load_menu_from_json()
     )
+    print(f"Индексация {len(ids)} позиций в Chroma (расчёт эмбеддингов)…")
     existing = collection.get()
     if existing["ids"]:
         collection.delete(ids=existing["ids"])
     collection.add(ids=ids, documents=documents, metadatas=metadatas)
+    print("Индексация завершена.")
     return collection.count()
 
 
-def main() -> None:
+def main(*, run_demo: bool = True) -> None:
     bundle = load_menu_from_json()
     print(f"Загружено позиций меню: {len(bundle[0])}")
     count = ingest_menu_clear_existing(bundle)
     print(f"Данные загружены в коллекцию '{COLLECTION_MENU}'. Всего записей: {count}")
 
+    if not run_demo:
+        return
+
     collection = get_menu_collection()
     print("\n=== Пример поиска (query + where) ===")
     query = "что есть из курицы без молока"
+    print("(демо-запрос к индексу, ещё один проход эмбеддинга для текста запроса)…")
     results = collection.query(
         query_texts=[query],
         n_results=3,
@@ -104,6 +111,7 @@ def main() -> None:
         print(f"   Калории: {energy} ккал")
         print(f"   Аллергены: {ag}")
         print(f"   (distance: {dist:.4f})")
+    print("\nГотово.")
 
 
 if __name__ == "__main__":
