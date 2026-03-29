@@ -1,18 +1,22 @@
 """
 Проверки search_menu: семантика, аллергены, калории.
 
-Перед запуском: python load_menu_to_chroma.py
+Перед запуском: python scripts/load_chroma.py
 
-Запуск:
-  python test_menu_search.py           — демо + автопроверки корректности
-  python test_menu_search.py --demo    — только печать сценариев
-  python test_menu_search.py --check   — только assert-проверки (тихо при успехе)
+Запуск из корня репозитория:
+  python scripts/test_menu_search.py
+  python scripts/test_menu_search.py --demo
+  python scripts/test_menu_search.py --check
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+
+import _bootstrap
+
+_bootstrap.ensure_src()
 
 from mcd_voice.menu.search import search_menu
 from mcd_voice.menu.search_checks import run_correctness_checks
@@ -59,7 +63,6 @@ def run_demos() -> None:
         rows_f,
     )
 
-    # Не больше N ккал (метаданные energy)
     cap = 250.0
     rows_cal = search_menu(
         "drink or light snack",
@@ -74,7 +77,6 @@ def run_demos() -> None:
         extra=f"\nФильтр: max_energy={cap}",
     )
 
-    # Комбинация: без молока и не выше порога калорий
     cap2 = 400.0
     rows_combo = search_menu(
         "burger",

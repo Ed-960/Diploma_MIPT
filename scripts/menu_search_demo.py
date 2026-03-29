@@ -1,14 +1,11 @@
-"""
-Обратная совместимость: семантический поиск по меню.
+"""Демо search_menu. Запуск: python scripts/menu_search_demo.py"""
 
-Предпочтительно: `from mcd_voice.menu.search import search_menu`
-или `from mcd_voice import search_menu`.
-"""
+import _bootstrap
+
+_bootstrap.ensure_src()
 
 from mcd_voice.menu.chroma import configure_hf_cache
 from mcd_voice.menu.search import search_menu
-
-__all__ = ["search_menu"]
 
 if __name__ == "__main__":
     configure_hf_cache()

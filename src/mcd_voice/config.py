@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Корень репозитория (родитель каталога пакета mcd_voice)
+# Корень репозитория: .../src/mcd_voice/config.py → вверх на два уровня
 PACKAGE_ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = PACKAGE_ROOT.parent
+PROJECT_ROOT = PACKAGE_ROOT.parent.parent
 
 CHROMA_DIR = PROJECT_ROOT / "chroma_db"
 MCD_JSON_PATH = PROJECT_ROOT / "mcd.json"

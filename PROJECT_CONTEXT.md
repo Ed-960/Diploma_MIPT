@@ -4,103 +4,129 @@
 
 ## Цель проекта
 
-Разработка голосового ассистента для ресторанов быстрого питания (на примере McDonald’s) с персонализированными диалогами на английском без экрана. Комбинация **RAG** (меню) и **REG** (профили клиентов), генерация множества синтетических диалогов (целевой масштаб — порядка 3000), анализ ошибок и итерация по промптам.
+Разработка голосового ассистента для ресторанов быстрого питания (на примере McDonald's) с персонализированными диалогами на английском без экрана. Комбинация **RAG** (меню) и **REG** (профили клиентов), генерация множества синтетических диалогов (целевой масштаб — порядка 3000), анализ ошибок и итерация по промптам.
 
 ---
 
 ## Структура пакета (Python)
 
-Основная логика в пакете **`mcd_voice/`**; в корне — тонкие CLI-обёртки для привычного запуска.
+Весь прикладной код — в **`src/mcd_voice/`** (слои: **menu** → RAG, **profile** → REG, **llm** → агенты, **dialog** → конвейер). Запуск сценариев — **`scripts/`** (не смешивать с библиотекой). Дерево: **`docs/ARCHITECTURE.md`**.
 
 | Путь | Назначение |
 |------|------------|
-| `mcd_voice/config.py` | Пути (`PROJECT_ROOT`, `CHROMA_DIR`, `mcd.json`), константы модели, `NO_ALLERGEN_SENTINEL`, имя коллекции. |
-| `mcd_voice/menu/parsing.py` | Разбор `allergy`, сборка текста для эмбеддинга, нормализация allergens для вывода. |
-| `mcd_voice/menu/dataset.py` | `load_menu_from_json()` → `ids`, `documents`, `metadatas`. |
-| `mcd_voice/menu/chroma.py` | Кэш HF, клиент Chroma, `ingest_menu_clear_existing()`, `main()` загрузки. |
-| `mcd_voice/menu/search.py` | `search_menu()`, `build_where()`: аллергены + опционально `max_energy` / `min_energy` (ккал в метаданных). |
-| `load_menu_to_chroma.py` | Обёртка: `from mcd_voice.menu.chroma import main`. |
-| `menu_search.py` | Обратная совместимость: реэкспорт `search_menu`. |
-| `test_menu_search.py` | Ручные проверки (импорт из `mcd_voice.menu.search`). |
+| `src/mcd_voice/config.py` | Пути, константы Chroma/эмбеддингов. |
+| `src/mcd_voice/menu/` | Парсинг меню, Chroma, `search_menu`, `build_where`, тестовые проверки. |
+| `src/mcd_voice/profile/` | `ProfileGenerator`, `generate_profile()`, companions — REG. |
+| `src/mcd_voice/llm/` | `ClientAgent`, `CashierAgent`, системные промпты (психотип, группа). |
+| `src/mcd_voice/dialog/` | `DialogPipeline`, multi-person order_state, валидация per-person, сохранение/загрузка JSON, `aggregate_stats`. |
+| `scripts/load_chroma.py` | Загрузка меню в Chroma. |
+| `scripts/generate_dataset.py` | Массовая генерация диалогов (RAG/non-RAG). |
+| `scripts/compare_rag.py` | Сравнение RAG vs non-RAG по summary.json. |
+| `scripts/profile_demo.py`, `agents_demo.py`, `dialog_demo.py` | Демо REG / LLM / диалог. |
+| `scripts/test_menu_search.py` | Ручные проверки + `--check` / `--demo`. |
+| `tests/` | pytest (55 тестов): RAG, REG, парсинг, валидация, save/load. |
 
-Импорт для конвейера: `from mcd_voice import search_menu` или `from mcd_voice.menu.search import search_menu`.
+Импорт (после `pip install -e .`): `from mcd_voice.dialog import simulate_dialog`, `from mcd_voice.profile import generate_profile` и т.д.
 
 ## Реализованные артефакты (данные и окружение)
 
 | Файл | Назначение |
 |------|------------|
-| `mcd.json` | Меню: сейчас **42** позиции (число может меняться при правках файла). |
-| `requirements.txt` | `chromadb`, `sentence-transformers`. |
-| `chroma_db/` | Persistent-БД Chroma (генерируется при запуске загрузки). |
+| `mcd.json` | Меню: **42** позиции. |
+| `requirements.txt` | `chromadb`, `sentence-transformers`, `openai`. |
+| `chroma_db/` | Persistent-БД Chroma (генерируется `scripts/load_chroma.py`). |
 | `.cache/huggingface/` | Кэш модели эмбеддингов (в проекте, чтобы не зависеть от `~/.cache`). |
 
-### RAG / меню (фактическая реализация)
+### RAG / меню
 
-- **Текст документа для эмбеддинга:** `name` + при наличии `description`, `ingredients`, `tag` (пустые поля пропускаются).
-- **Поле `allergy` в JSON:** разбор по запятой, исключение `No Allergens`.
+- **Текст документа для эмбеддинга:** `name` + `description`, `ingredients`, `tag` (пустые поля пропускаются).
 - **Модель эмбеддингов:** `sentence-transformers/all-MiniLM-L6-v2` (384-мерные векторы).
-- **Chroma:** `PersistentClient`, каталог `./chroma_db` относительно корня проекта, коллекция `menu`, **`metadata={"hnsw:space": "cosine"}`**.
-- **Метаданные `allergens`:** список строк (токены как в `mcd.json`). Пустой список в Chroma недопустим — используется маркер `__none__`. Фильтр `where={"allergens": {"$not_contains": "Milk"}}` рассчитан на **список**, не на строку с запятыми.
-- **Токены для чёрного списка** в поиске должны совпадать с данными (например, `Cereal containing gluten`, а не условное `Gluten`).
+- **Chroma:** `PersistentClient`, каталог `./chroma_db`, коллекция `menu`, `metadata={"hnsw:space": "cosine"}`.
+- **Метаданные `allergens`:** список строк. Пустой → маркер `__none__`. Фильтр `$not_contains`.
+- **Distance threshold:** `0.60` — если ближайший результат дальше, кассир отвечает «нет в меню».
 
 ---
 
-## Архитектура (диплом + план)
+## Архитектура (реализовано)
 
-### 1. Меню (RAG) — см. таблицу выше
+### 1. Меню (RAG)
+
+Семантический поиск с фильтрами: аллергены (blacklist), энергетическая ценность (min/max). Distance threshold для fallback.
 
 ### 2. Генератор профилей (REG)
 
-Стохастический граф: пол, возраст, психотип, язык, ограничения (`isVegan`, `noFish`, `noMilk`, …), калории, `childQuant`, `friendsQuant`. Выход — JSON профиля.
+Стохастический граф на основе российской статистики (Росстат 2024, ВЦИОМ 2025, CMD):
+- **sex**: male 46%, female 54%.
+- **age**: young (18–30) 25%, middle (31–55) 50%, senior (56–80) 25%.
+- **psycho**: regular 50%, friendly 15%, impatient 15%, polite_and_respectful 10%, indecisive 10%.
+- **language**: RU 90%, EN 10%.
+- **calApprValue**: N(2200, 300) муж. / N(1800, 300) жен.; overweight-коррекция.
+- **Пищевые ограничения**: noMilk 61%, noSugar 8%, noBeef 4%, isVegan 4%, noFish 2%, noNuts 2%, noEggs 1%, noGluten 1%.
+- **childQuant/friendsQuant**: распределения ВЦИОМ.
+- **companions**: массив детей (возраст 3–14, свои ограничения с повышенными вероятностями: noMilk 5%, noEggs 3%, noNuts 2%, noGluten 1%) и друзей (полный набор ограничений).
+
+Функции: `generate_profile()`, `get_allergen_blacklist()`, `get_group_allergen_blacklist()`, `generate_text_description()`.
 
 ### 3. LLM-агенты
 
-Клиент и кассир с системными промптами; единый вызов LLM (конфиг модели). **В репозитории класс `Agent` пока может отсутствовать** — запланировано.
+- **ClientAgent**: знает профиль, companions, заказывает за всю группу.
+- **CashierAgent**: адаптируется к психотипу клиента, знает состав группы (дети + ограничения), поочерёдно опрашивает, использует RAG с distance threshold, fallback «нет в меню».
+- Полная история диалога передаётся обоим агентам на каждом ходу.
 
-### 4. Конвейер диалога
+### 4. Конвейер диалога (multi-person)
 
-Профиль → агенты → цикл: реплика клиента → при необходимости RAG → реплика кассира → обновление заказа → условия выхода → валидация → сохранение.
+- **order_state**: массив `persons` (self + companions), каждый со своими items, energy, allergens.
+- **Парсинг количеств**: `"3 Big Mac"` → quantity=3.
+- **Детекция персоны**: `"for my wife"` → spouse, `"for the oldest"` → child_oldest.
+- **Эвристики завершения**: regex-паттерны для кассира и клиента.
+- Кассир начинает диалог (drive-through greeting).
 
-### 5. Валидация и аналитика
+### 5. Валидация (per-person)
 
-- `allergen_violation`, `calorie_warning`, `hallucination`.
-- **`incomplete_order` / отсутствие «детских» позиций при `childQuant > 0`:** не обязана трактоваться как жёсткая ошибка. В реальности дети могут есть общие блюда; удобнее считать метрикой качества (например, предлагал ли кассир детское меню) или ввести флаг вроде `no_kids_menu_offered`. Упрощённая модель: один агент-клиент формулирует заказ за группу; полноценный поочерёдный опрос сопровождающих — возможное **расширение** (в профиле уже есть `childQuant`, `friendsQuant`; при необходимости — поля вроде `childAges`).
+- `allergen_violation`: проверка blacklist каждого участника по его ограничениям.
+- `calorie_warning`: общая энергия > 1.5× calApprValue.
+- `empty_order`: ни одной позиции.
+- `total_items`, `total_energy`, `turns`.
 
-### 6. Масштабирование
+### 6. Сохранение и анализ (только JSON)
 
-Пакетная генерация диалогов, кэширование эмбеддингов и при необходимости асинхронные вызовы LLM.
+- Каждый диалог → `dialog_NNNN.json` (profile, history, order_state, flags).
+- `aggregate_stats()` → `summary.json` (плоские сводки для анализа).
+- `compare_rag.py` → сравнение двух наборов, группировка, интерпретация, диаграмма.
 
 ---
 
-## Структура данных (эскизы)
-
-### Позиция меню (`mcd.json`)
-
-Поля включают `name`, `description`, `ingredients`, `tag`, `allergy`, `energy`, макронутриенты, `serving_size` и т.д. Поля **`category` в текущем файле нет** — в метаданных Chroma задаётся пустая строка.
+## Структура данных
 
 ### Профиль клиента (пример)
 
 ```json
 {
   "sex": "male",
-  "age": 32,
+  "age": 38,
   "psycho": "impatient",
   "language": "EN",
-  "calApprValue": 2200,
-  "isVegan": false,
+  "calApprValue": 2150,
   "noMilk": true,
-  "childQuant": 2,
-  "friendsQuant": 0
+  "companions": [
+    {"role": "child", "label": "child_1", "age": 5,
+     "restrictions": {"noMilk": true, "noEggs": false, "noNuts": false, "noGluten": false}},
+    {"role": "friend", "label": "friend_1",
+     "restrictions": {"noMilk": false, "isVegan": true}}
+  ]
 }
 ```
 
-### Заказ (пример)
+### Заказ (multi-person)
 
 ```json
 {
-  "items": [{ "name": "Big Mac", "quantity": 1, "modifications": [] }],
-  "total_energy": 530,
-  "allergens_in_order": ["Cereal containing gluten", "Milk", "Soya"]
+  "persons": [
+    {"role": "self", "label": "customer", "items": [{"name": "McChicken®", "quantity": 2}],
+     "total_energy": 800, "allergens": ["Cereal containing gluten"]},
+    {"role": "child", "label": "child_1", "items": [...], ...}
+  ],
+  "order_complete": false
 }
 ```
 
@@ -110,46 +136,42 @@
 
 - Python 3.10+
 - ChromaDB, sentence-transformers (`all-MiniLM-L6-v2`)
-- OpenAI / litellm — для LLM (план)
-- json, csv; при необходимости pandas, argparse, визуализация
+- OpenAI API (gpt-4o / gpt-4o-mini)
+- json; matplotlib (опционально, для диаграмм)
 
 ---
 
-## Этапы разработки
-
-| Статус | Этап |
-|--------|------|
-| Сделано | Загрузка `mcd.json` в Chroma, косинус, метаданные, `menu_search.py`, тесты `test_menu_search.py` |
-| Далее | REG, агенты, конвейер диалога, валидация, массовая генерация |
-| Опционально | Docker, другие эмбеддинги (OpenAI), фильтры по калориям/категориям |
-
----
-
-## Как запустить (текущий код)
+## Как запустить
 
 ```bash
-cd /path/to/diploma_project
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python load_menu_to_chroma.py    # создать/обновить chroma_db
-python test_menu_search.py       # демо + проверки (или --check / --demo)
-pip install -r requirements-dev.txt
-pytest tests/ -q                 # pytest (нужна загруженная Chroma)
+cd diploma_project
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+export OPENAI_API_KEY=sk-...
+
+# 1. Загрузить меню в Chroma
+python scripts/load_chroma.py
+
+# 2. Тесты (55 тестов, без API)
+pytest tests/ -v
+
+# 3. Демо
+python scripts/profile_demo.py
+python scripts/dialog_demo.py        # один диалог (API)
+
+# 4. Массовая генерация
+python scripts/generate_dataset.py --num_dialogs 100 --output_dir dialogs_rag
+python scripts/generate_dataset.py --num_dialogs 100 --output_dir dialogs_norag --no_rag
+
+# 5. Сравнение
+python scripts/compare_rag.py --rag_dir dialogs_rag --norag_dir dialogs_norag
 ```
-
-Ключи API хранить в переменных окружения, не в коде.
-
----
-
-## Docker
-
-**Не обязателен.** Для диплома достаточно `venv` + `requirements.txt`. Docker полезен для воспроизводимости и демо «одной командой»; при желании — простой `Dockerfile` на официальном образе Python.
 
 ---
 
 ## Примечания для Cursor / ИИ
 
-- Опираться на этот файл и на фактические имена модулей в репозитории.
-- Новые модули — по смыслу: профиль, агенты, пайплайн, валидация (имена могут отличаться от ранних набросков).
-- При повторной загрузке меню `load_menu_to_chroma.py` удаляет старые id коллекции перед `add`, дубликатов по id нет.
-- Для интеграции RAG в конвейер: `from mcd_voice import search_menu` (или `mcd_voice.menu.search`), маппинг флагов профиля (`noMilk`, …) в токены аллергенов как в `mcd.json`.
+- Опираться на этот файл и на фактические имена модулей.
+- Прикладной код — только в **`src/mcd_voice/`**, скрипты — **`scripts/`**.
+- Маппинг флагов → токены аллергенов: единственный источник `_FLAG_TO_ALLERGEN` в `generator.py`.
+- CSV не используется — только JSON (summary.json, dialog_*.json).
