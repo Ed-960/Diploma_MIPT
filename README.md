@@ -36,6 +36,8 @@ OPENAI_API_KEY=sk-...
 API_PROVIDER=ollama
 API_MODEL=qwen3:4b
 OLLAMA_URL=http://127.0.0.1:11434/v1
+EMBEDDING_DEVICE=auto
+EMBEDDING_BATCH_SIZE=16
 ```
 
 ## Сценарии использования
@@ -51,6 +53,16 @@ python scripts/load_chroma.py
 ```bash
 python scripts/load_chroma.py --no-demo
 ```
+
+Если строки появляются **с задержкой** (особенно в IDE), запускайте с небуферизованным выводом:
+
+```bash
+PYTHONUNBUFFERED=1 python scripts/load_chroma.py
+```
+
+Параметры эмбеддингов:
+- `EMBEDDING_DEVICE=auto|cuda|cpu` — девайс MiniLM (по умолчанию `auto`).
+- `EMBEDDING_BATCH_SIZE=16` — размер батча при индексации (меньше = стабильнее, но медленнее).
 
 ### 2. Тесты (без API-ключа)
 
