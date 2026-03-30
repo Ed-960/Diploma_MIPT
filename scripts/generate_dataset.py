@@ -28,6 +28,38 @@ from mcd_voice.llm import CashierAgent, ClientAgent
 from mcd_voice.profile import ProfileGenerator
 
 
+def _find_next_id(output_dir: str) -> int:
+    """Return the next available dialog_id (max existing + 1, or 1 if empty)."""
+    from pathlib import Path
+    import re
+    d = Path(output_dir)
+    if not d.is_dir():
+        return 1
+    max_id = 0
+    for f in d.glob("dialog_*.json"):
+        m = re.search(r"dialog_(\d+)\.json$", f.name)
+        if m:
+            max_id = max(max_id, int(m.group(1)))
+    return max_id + 1
+
+
+def _make_dialog_progress_printer(dialog_id: int, total: int):
+    def _printer(event: dict[str, object]) -> None:
+        stage = event["stage"]
+        prefix = f"  [dialog {dialog_id}/{total}]"
+        if stage == "greeting_start":
+            print(f"{prefix} greeting...", flush=True)
+        elif stage == "turn_start":
+            print(
+                f"{prefix} turn {event['turn']}/{event['max_turns']}",
+                flush=True,
+            )
+        elif stage == "finished":
+            print(f"{prefix} done: {event['message']}", flush=True)
+
+    return _printer
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Массовая генерация синтетических диалогов (диплом).",
@@ -52,6 +84,16 @@ def main() -> None:
         "--max_turns", type=int, default=20,
         help="Максимум ходов в одном диалоге (по умолчанию 20).",
     )
+    parser.add_argument(
+        "--rag_trace",
+        action="store_true",
+        help="Сохранять в validation_flags.rag_trace события RAG (удлиняет JSON).",
+    )
+    parser.add_argument(
+        "--llm_trace",
+        action="store_true",
+        help="Сохранять в validation_flags.llm_trace вызовы mini-LLM/LLM (preview).",
+    )
     args = parser.parse_args()
 
     num = args.num_dialogs
@@ -67,15 +109,23 @@ def main() -> None:
         f"=== Генерация {num} диалогов "
         f"({mode_label}, model={client_agent.model}) ==="
     )
-    print(f"    output_dir={out_dir}  max_turns={args.max_turns}")
+    print(
+        f"    output_dir={out_dir}  max_turns={args.max_turns}"
+        f"  rag_trace={args.rag_trace}  llm_trace={args.llm_trace}"
+    )
     print()
+
+    start_id = _find_next_id(out_dir)
+    if start_id > 1:
+        print(f"    В «{out_dir}» уже есть файлы; нумерация с {start_id}.")
 
     ok = 0
     errors = 0
     t0 = time.time()
 
     try:
-        for dialog_id in range(1, num + 1):
+        for i in range(num):
+            dialog_id = start_id + i
             profile = gen.generate()
             try:
                 history, profile, order, flags = simulate_dialog(
@@ -83,33 +133,41 @@ def main() -> None:
                     max_turns=args.max_turns,
                     client_agent=client_agent,
                     cashier_agent=cashier_agent,
+                    progress_callback=_make_dialog_progress_printer(i + 1, num),
+                    collect_rag_trace=args.rag_trace,
+                    collect_llm_trace=args.llm_trace,
                 )
                 save_dialog(dialog_id, profile, history, order, flags, output_dir=out_dir)
                 ok += 1
             except Exception:
                 errors += 1
-                print(f"  [!] Ошибка в диалоге {dialog_id}:")
+                print(f"  [!] Ошибка в диалоге {dialog_id} (#{i+1}/{num}):")
                 traceback.print_exc(limit=2, file=sys.stdout)
 
-            if dialog_id % 10 == 0 or dialog_id == num:
+            if (i + 1) % 10 == 0 or (i + 1) == num:
+                done = i + 1
                 elapsed = time.time() - t0
-                rate = dialog_id / elapsed if elapsed > 0 else 0
+                rate = done / elapsed if elapsed > 0 else 0
+                rate_s = f"{rate:.4f}" if rate < 0.01 else f"{rate:.2f}"
                 print(
-                    f"  [{dialog_id}/{num}]  ok={ok}  errors={errors}  "
-                    f"elapsed={elapsed:.1f}s  rate={rate:.2f} d/s"
+                    f"  [{done}/{num}]  ok={ok}  errors={errors}  "
+                    f"elapsed={elapsed:.1f}s  rate={rate_s} d/s"
                 )
 
     except KeyboardInterrupt:
-        print(f"\n  Прервано пользователем на диалоге {dialog_id}.")
+        print(f"\n  Прервано пользователем на диалоге {dialog_id} (#{i+1}/{num}).")
 
     elapsed_total = time.time() - t0
     print(f"\n=== Итого ===")
     print(f"  Успешно: {ok}  Ошибок: {errors}  Время: {elapsed_total:.1f}s")
 
-    # JSON-сводка
+    # JSON-сводка по всем dialog_*.json в output_dir (не только этот запуск).
     if ok > 0:
         summaries = aggregate_stats(out_dir)
-        print(f"  summary.json: {len(summaries)} записей")
+        print(
+            f"  summary.json: {len(summaries)} записей "
+            f"(все файлы в «{out_dir}»; в этом запуске ок={ok})."
+        )
         _print_stats(summaries)
 
 

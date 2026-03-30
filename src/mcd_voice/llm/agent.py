@@ -1,12 +1,17 @@
 """
 Агенты ClientAgent и CashierAgent поверх OpenAI-compatible Chat Completions.
 
-Конфигурация:
-  - DEFAULT_MODEL — модель по умолчанию (gpt-4o).
-  - OPENAI_API_KEY — для облака OpenAI.
-  - API_PROVIDER=ollama + API_MODEL + OLLAMA_URL — для локального OpenAI-compatible API.
-  - RAG_DISTANCE_THRESHOLD — если ближайший результат дальше порога,
-    считаем «нет подходящих позиций».
+Конфигурация через переменные окружения:
+  API_PROVIDER   — "openai" (по умолчанию) или "ollama".
+  API_MODEL      — основная модель для диалога (приоритетнее DEFAULT_MODEL).
+  REWRITE_MODEL  — маленькая/быстрая модель для query rewriting перед RAG.
+                   Используется из .env как основной источник для mini-LLM.
+                   Если не задана, используется API_MODEL.
+  OPENAI_API_KEY — для облачного OpenAI.
+  OLLAMA_URL     — base URL для Ollama (http://localhost:11434/v1).
+  RAG_DISTANCE_THRESHOLD  — жёсткий порог уверенного попадания (косинусное расстояние, 0..∞).
+  RAG_SOFT_DISTANCE_MAX   — мягкий порог: если лучший хит хуже жёсткого, но не хуже этого,
+                             позиции всё равно подставляются в контекст с предупреждением.
 """
 
 from __future__ import annotations
@@ -21,31 +26,34 @@ from mcd_voice.llm.prompts import get_cashier_system_prompt, get_client_system_p
 from mcd_voice.menu.search import search_menu
 from mcd_voice.profile.generator import get_group_allergen_blacklist
 
+# ── Константы ─────────────────────────────────────────────────────────────────
+
 DEFAULT_MODEL = "gpt-4o"
-RAG_DISTANCE_THRESHOLD = 0.60
+
+RAG_DISTANCE_THRESHOLD: float = 0.60
+RAG_SOFT_DISTANCE_MAX: float = float(
+    os.environ.get("RAG_SOFT_DISTANCE_MAX") or "1.15"
+)
 
 HistoryEntry = dict[str, str]
 
 
-# ── Shared helpers ────────────────────────────────────────────────────
+# ── LLM-клиент ────────────────────────────────────────────────────────────────
 
 def _normalize_base_url(url: str) -> str:
-    """Приводит URL OpenAI-compatible API к base_url."""
     base = url.strip().rstrip("/")
     if base.endswith("/chat/completions"):
         base = base[: -len("/chat/completions")]
     return base
 
 
-def _resolve_model(explicit_model: str | None) -> str:
-    """Явная модель приоритетнее, иначе API_MODEL, иначе DEFAULT_MODEL."""
-    if explicit_model:
-        return explicit_model
-    return os.environ.get("API_MODEL", DEFAULT_MODEL)
+def _resolve_model(explicit: str | None) -> str:
+    """Явный аргумент > API_MODEL из env > DEFAULT_MODEL."""
+    return explicit or os.environ.get("API_MODEL") or DEFAULT_MODEL
 
 
-def _get_openai_client(timeout: float = 60.0) -> OpenAI:
-    provider = os.environ.get("API_PROVIDER", "openai").strip().lower()
+def _build_openai_client(timeout: float = 60.0) -> OpenAI:
+    provider = (os.environ.get("API_PROVIDER") or "openai").strip().lower()
 
     if provider == "ollama":
         raw_url = os.environ.get("OLLAMA_URL") or os.environ.get("OPENAI_BASE_URL")
@@ -54,43 +62,38 @@ def _get_openai_client(timeout: float = 60.0) -> OpenAI:
                 "Для API_PROVIDER=ollama задайте OLLAMA_URL "
                 "(например http://localhost:11434/v1)."
             )
-        base_url = _normalize_base_url(raw_url)
-        # Для большинства локальных OpenAI-compatible серверов ключ не обязателен.
-        api_key = os.environ.get("OPENAI_API_KEY", "ollama")
-        return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        return OpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY", "ollama"),
+            base_url=_normalize_base_url(raw_url),
+            timeout=timeout,
+        )
 
     api_key = os.environ.get("OPENAI_API_KEY")
-    base_url = os.environ.get("OPENAI_BASE_URL")
     if not api_key:
         raise RuntimeError(
             "Задайте OPENAI_API_KEY для облачного OpenAI или "
             "используйте API_PROVIDER=ollama с OLLAMA_URL."
         )
     kwargs: dict[str, Any] = {"api_key": api_key, "timeout": timeout}
-    if base_url:
-        kwargs["base_url"] = _normalize_base_url(base_url)
+    raw_base = os.environ.get("OPENAI_BASE_URL")
+    if raw_base:
+        kwargs["base_url"] = _normalize_base_url(raw_base)
     return OpenAI(**kwargs)
 
 
 def get_llm_runtime_config() -> dict[str, str]:
-    """Возвращает итоговую runtime-конфигурацию LLM из env."""
-    provider = os.environ.get("API_PROVIDER", "openai").strip().lower() or "openai"
+    """Текущая runtime-конфигурация LLM из env (для логов и отладки)."""
+    provider = (os.environ.get("API_PROVIDER") or "openai").strip().lower()
     model = _resolve_model(None)
-    if provider == "ollama":
-        raw_url = os.environ.get("OLLAMA_URL") or os.environ.get("OPENAI_BASE_URL", "")
-        return {
-            "provider": provider,
-            "model": model,
-            "base_url": _normalize_base_url(raw_url) if raw_url else "",
-        }
+    raw_url = os.environ.get("OLLAMA_URL") or os.environ.get("OPENAI_BASE_URL") or ""
     return {
         "provider": provider,
         "model": model,
-        "base_url": _normalize_base_url(os.environ.get("OPENAI_BASE_URL", ""))
-        if os.environ.get("OPENAI_BASE_URL")
-        else "",
+        "base_url": _normalize_base_url(raw_url) if raw_url else "",
     }
 
+
+# ── Низкоуровневые helpers ────────────────────────────────────────────────────
 
 def _call_llm(
     client: OpenAI,
@@ -99,22 +102,22 @@ def _call_llm(
     messages: list[dict[str, str]],
     temperature: float = 0.8,
 ) -> str:
-    api_messages: list[dict[str, str]] = [{"role": "system", "content": system}]
-    api_messages.extend(messages)
+    """Один Chat Completions вызов; бросает RuntimeError при пустом ответе."""
+    payload = [{"role": "system", "content": system}, *messages]
     try:
         resp = client.chat.completions.create(
             model=model,
-            messages=api_messages,
+            messages=payload,
             temperature=temperature,
         )
         content = resp.choices[0].message.content
         if not content:
             raise RuntimeError("Пустой ответ от модели.")
         return content.strip()
-    except APITimeoutError as e:
-        raise RuntimeError(f"Таймаут OpenAI API: {e}") from e
-    except OpenAIError as e:
-        raise RuntimeError(f"Ошибка OpenAI API: {e}") from e
+    except APITimeoutError as exc:
+        raise RuntimeError(f"Таймаут OpenAI API: {exc}") from exc
+    except OpenAIError as exc:
+        raise RuntimeError(f"Ошибка OpenAI API: {exc}") from exc
 
 
 def _history_to_messages(
@@ -123,66 +126,81 @@ def _history_to_messages(
     my_role: str,
 ) -> list[dict[str, str]]:
     """
-    Конвертирует внутреннюю историю в формат OpenAI messages.
-    Реплики «моей» роли → assistant, чужие → user.
+    Преобразует внутреннюю историю в формат OpenAI messages.
+    Реплики говорящего агента → assistant, остальные → user.
     """
-    out: list[dict[str, str]] = []
-    for entry in history:
-        speaker = entry["speaker"]
-        oai_role = "assistant" if speaker == my_role else "user"
-        out.append({"role": oai_role, "content": entry["text"]})
-    return out
+    return [
+        {
+            "role": "assistant" if entry["speaker"] == my_role else "user",
+            "content": entry["text"],
+        }
+        for entry in history
+    ]
 
 
-# ── ClientAgent ───────────────────────────────────────────────────────
+# ── ClientAgent ───────────────────────────────────────────────────────────────
 
 class ClientAgent:
-    """Агент-клиент: генерирует реплики на основе профиля и полной истории."""
+    """Агент-клиент: генерирует реплики на основе профиля и истории диалога."""
 
-    def __init__(
-        self,
-        model: str | None = None,
-        timeout: float = 60.0,
-    ) -> None:
+    def __init__(self, model: str | None = None, timeout: float = 60.0) -> None:
         self.model = _resolve_model(model)
-        self._openai = _get_openai_client(timeout)
+        self._client = _build_openai_client(timeout)
 
     def generate_response(
         self,
         profile: dict[str, Any],
         history: list[HistoryEntry],
+        *,
+        llm_trace: list[dict[str, Any]] | None = None,
     ) -> str:
         system = get_client_system_prompt(profile)
-
         if not history:
-            lang = profile.get("language", "EN")
-            opener = (
+            seed = (
                 "You just pulled up to the drive-through speaker. "
                 "Say one short opening line as the customer."
-                if lang == "EN"
-                else "Вы подъехали к окну заказа. "
-                "Скажите одну короткую реплику в роли клиента."
             )
-            messages = [{"role": "user", "content": opener}]
+            messages: list[dict[str, str]] = [{"role": "user", "content": seed}]
         else:
             messages = _history_to_messages(history, my_role="client")
+        try:
+            response = _call_llm(self._client, self.model, system, messages)
+        except Exception as exc:
+            _trace(
+                llm_trace,
+                {
+                    "event": "llm_error",
+                    "agent": "client",
+                    "model": self.model,
+                    "messages_count": len(messages),
+                    "messages_preview": _messages_preview(messages),
+                    "error": str(exc),
+                },
+            )
+            raise
+        _trace(
+            llm_trace,
+            {
+                "event": "llm_call",
+                "agent": "client",
+                "model": self.model,
+                "messages_count": len(messages),
+                "messages_preview": _messages_preview(messages),
+                "response_preview": _preview(response),
+            },
+        )
+        return response
 
-        return _call_llm(self._openai, self.model, system, messages)
 
-
-# ── CashierAgent ──────────────────────────────────────────────────────
-
-_RAG_KEYWORDS = (
-    "menu", "recommend", "what do you", "what's good", "suggest",
-    "options", "anything spicy", "healthy", "vegetarian", "allerg",
-    "what can", "do you have", "what kind", "something",
-    "меню", "порекомендуй", "что есть", "что посоветуешь", "какие есть",
-    "что-нибудь", "посоветуй",
-)
-
+# ── CashierAgent ──────────────────────────────────────────────────────────────
 
 class CashierAgent:
-    """Агент-кассир с RAG, адаптацией к психотипу и поддержкой групп."""
+    """
+    Агент-кассир: формирует ответы с учётом профиля клиента, истории,
+    текущего заказа и семантического поиска по меню (RAG).
+    """
+
+    _FALLBACK_QUERY = "popular menu items burger chicken fries"
 
     def __init__(
         self,
@@ -190,11 +208,18 @@ class CashierAgent:
         timeout: float = 60.0,
         rag_top_k: int = 3,
         distance_threshold: float = RAG_DISTANCE_THRESHOLD,
+        rewrite_model: str | None = None,
     ) -> None:
         self.model = _resolve_model(model)
         self.rag_top_k = rag_top_k
         self.distance_threshold = distance_threshold
-        self._openai = _get_openai_client(timeout)
+        self._client = _build_openai_client(timeout)
+        # Mini-LLM для query rewriting: используем REWRITE_MODEL из .env.
+        # Параметр rewrite_model оставлен для обратной совместимости, но не применяется.
+        _ = rewrite_model
+        self._rewrite_model = os.environ.get("REWRITE_MODEL") or self.model
+
+    # ── Публичный интерфейс ───────────────────────────────────────────────────
 
     def generate_response(
         self,
@@ -202,61 +227,151 @@ class CashierAgent:
         history: list[HistoryEntry],
         order_state: dict[str, Any],
         query: str | None = None,
+        *,
+        rag_trace: list[dict[str, Any]] | None = None,
+        rag_meta: dict[str, Any] | None = None,
+        llm_trace: list[dict[str, Any]] | None = None,
     ) -> str:
-        client_text = query or self._last_client_text(history)
-
-        rag_context = ""
-        if self.rag_top_k > 0 and client_text and self._needs_rag(client_text):
-            rag_context = self._do_rag(client_text, profile)
-
+        client_text = query or _last_client_text(history)
+        rag_context = self._resolve_rag_context(
+            client_text,
+            profile,
+            rag_trace=rag_trace,
+            rag_meta=rag_meta,
+            llm_trace=llm_trace,
+        )
         system = self._build_system(profile, order_state, rag_context)
         messages = _history_to_messages(history, my_role="cashier")
+        try:
+            response = _call_llm(self._client, self.model, system, messages)
+        except Exception as exc:
+            _trace(
+                llm_trace,
+                {
+                    "event": "llm_error",
+                    "agent": "cashier",
+                    "model": self.model,
+                    "messages_count": len(messages),
+                    "messages_preview": _messages_preview(messages),
+                    "system_preview": _preview(system),
+                    "error": str(exc),
+                },
+            )
+            raise
+        _trace(
+            llm_trace,
+            {
+                "event": "llm_call",
+                "agent": "cashier",
+                "model": self.model,
+                "messages_count": len(messages),
+                "messages_preview": _messages_preview(messages),
+                "system_preview": _preview(system),
+                "response_preview": _preview(response),
+            },
+        )
+        return response
 
-        return _call_llm(self._openai, self.model, system, messages)
+    # ── RAG ───────────────────────────────────────────────────────────────────
 
-    # ── Внутренние методы ─────────────────────────────────────────────
+    def _resolve_rag_context(
+        self,
+        client_text: str,
+        profile: dict[str, Any],
+        *,
+        rag_trace: list[dict[str, Any]] | None,
+        rag_meta: dict[str, Any] | None,
+        llm_trace: list[dict[str, Any]] | None,
+    ) -> str:
+        """
+        Запускает семантический поиск по меню и возвращает контекст для промпта.
 
-    @staticmethod
-    def _last_client_text(history: list[HistoryEntry]) -> str:
-        for entry in reversed(history):
-            if entry["speaker"] == "client":
-                return entry["text"]
-        return ""
+        Нет keyword-фильтрации: запрос всегда идёт в Chroma.
+        Если семантическое расстояние слишком большое — контекст пустой
+        (модель не засоряется нерелевантным меню).
+        Если клиент ещё не говорил (приветствие) — используется fallback-запрос.
+        """
+        base_trace = {**(rag_meta or {}), "client_query": client_text[:800]}
 
-    @staticmethod
-    def _needs_rag(text: str) -> bool:
-        t = text.lower()
-        if any(k in t for k in _RAG_KEYWORDS):
-            return True
-        if "what" in t and "have" in t:
-            return True
-        if "что" in t and ("есть" in t or "можно" in t):
-            return True
-        return False
+        if self.rag_top_k <= 0:
+            _trace(rag_trace, {**base_trace, "event": "rag_disabled", "rag_top_k": 0})
+            return ""
 
-    def _do_rag(self, text: str, profile: dict[str, Any]) -> str:
+        if client_text:
+            search_query = _rewrite_query(
+                client_text,
+                self._client,
+                self._rewrite_model,
+                llm_trace=llm_trace,
+                trace_meta=rag_meta,
+            )
+            is_fallback = False
+        else:
+            search_query = self._FALLBACK_QUERY
+            is_fallback = True
+
+        context, info = self._do_rag(search_query, profile)
+        _trace(rag_trace, {
+            **base_trace,
+            "event": "rag",
+            "search_query": search_query,
+            "rewrite_model": self._rewrite_model,
+            **({"fallback": True} if is_fallback else {}),
+            **info,
+            "context_preview": _preview(context),
+        })
+        return context
+
+    def _do_rag(
+        self,
+        text: str,
+        profile: dict[str, Any],
+    ) -> tuple[str, dict[str, Any]]:
+        """
+        Семантический поиск в Chroma с фильтрацией по аллергенам группы.
+        Возвращает (текст для system prompt, метаданные для rag_trace).
+        Применяет два порога: жёсткий (уверенный hit) и мягкий (fallback с предупреждением).
+        """
         blacklist = get_group_allergen_blacklist(profile)
         rows = search_menu(
             text,
-            allergens_blacklist=blacklist if blacklist else None,
+            allergens_blacklist=blacklist or None,
             top_k=self.rag_top_k,
         )
+        soft_max = RAG_SOFT_DISTANCE_MAX
+        info: dict[str, Any] = {
+            "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+            "metric": "cosine_distance",
+            "top_k": self.rag_top_k,
+            "distance_threshold": self.distance_threshold,
+            "soft_distance_max": soft_max,
+            "allergen_blacklist_tokens": list(blacklist),
+            "candidates": [
+                {"name": r["name"], "distance": r["distance"], "energy": r["energy"]}
+                for r in rows
+            ],
+        }
+
         if not rows:
-            return "(no matching menu items found for this request)"
+            info["outcome"] = "no_chroma_hits"
+            return "(no matching menu items found for this request)", info
 
-        # Distance threshold: если ближайший результат слишком далеко,
-        # считаем что ничего подходящего нет
-        best_dist = rows[0]["distance"]
-        if best_dist > self.distance_threshold:
-            return "(no matching menu items found — closest match too distant)"
+        best = rows[0]["distance"]
+        info["best_distance"] = best
 
-        lines: list[str] = []
-        for r in rows:
-            if r["distance"] > self.distance_threshold:
-                break
-            ag = ", ".join(r["allergens"]) if r["allergens"] else "none listed"
-            lines.append(f"- {r['name']} (~{r['energy']} kcal, allergens: {ag})")
-        return "\n".join(lines)
+        if best <= self.distance_threshold:
+            lines, used = _render_rows(rows, max_dist=self.distance_threshold)
+            info.update(outcome="injected", injected_hits=used)
+            return "\n".join(lines), info
+
+        if best <= soft_max:
+            lines, used = _render_rows(rows, max_dist=soft_max)
+            if lines:
+                info.update(outcome="injected_soft", injected_hits=used)
+                return _SOFT_PREFIX + "\n".join(lines), info
+
+        info["outcome"] = "above_threshold"
+        return "(no matching menu items found — closest match too distant)", info
 
     @staticmethod
     def _build_system(
@@ -264,16 +379,126 @@ class CashierAgent:
         order_state: dict[str, Any],
         rag_context: str,
     ) -> str:
+        """Собирает системный промпт: базовый + опциональные блоки RAG и заказа."""
         base = get_cashier_system_prompt(profile)
         extras: list[str] = []
         if rag_context:
             extras.append(f"Relevant menu items (RAG):\n{rag_context}")
-        persons = order_state.get("persons", [])
-        has_items = any(p.get("items") for p in persons)
-        if has_items:
+        if any(p.get("items") for p in order_state.get("persons", [])):
             extras.append(
-                f"Current order state:\n{json.dumps(order_state, ensure_ascii=False)}"
+                "Current order state:\n"
+                + json.dumps(order_state, ensure_ascii=False)
             )
-        if extras:
-            return base + "\n\n--- Context ---\n" + "\n\n".join(extras)
-        return base
+        if not extras:
+            return base
+        return base + "\n\n--- Context ---\n" + "\n\n".join(extras)
+
+
+# ── Приватные helpers ─────────────────────────────────────────────────────────
+
+def _last_client_text(history: list[HistoryEntry]) -> str:
+    for entry in reversed(history):
+        if entry["speaker"] == "client":
+            return entry["text"]
+    return ""
+
+
+def _render_rows(
+    rows: list[dict[str, Any]],
+    *,
+    max_dist: float,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Форматирует строки меню для промпта и список использованных хитов."""
+    lines, used = [], []
+    for r in rows:
+        if r["distance"] > max_dist:
+            break
+        allergens = ", ".join(r["allergens"]) if r["allergens"] else "none listed"
+        lines.append(f"- {r['name']} (~{r['energy']} kcal, allergens: {allergens})")
+        used.append({"name": r["name"], "distance": r["distance"]})
+    return lines, used
+
+
+_SOFT_PREFIX = (
+    "Semantic match is weak; below are real menu rows (allergen filter applied). "
+    "Use exact names and calories; do NOT claim the menu is empty or has no "
+    "suitable items if the list is non-empty.\n\n"
+)
+
+
+def _rewrite_query(
+    client_text: str,
+    client: OpenAI,
+    model: str,
+    *,
+    llm_trace: list[dict[str, Any]] | None = None,
+    trace_meta: dict[str, Any] | None = None,
+) -> str:
+    """
+    Rewrites a conversational customer message into a concise menu search query.
+
+    Example: "I'm lactose intolerant, what can my 6-year-old have?"
+             → "children's meal without dairy"
+
+    Falls back to the original text if the LLM call fails.
+    """
+    system = (
+        "You extract a short food search query (3–8 words, English) "
+        "from a customer's drive-through message. "
+        "Focus on food type, category, or dietary need. "
+        "Reply with ONLY the query — no explanation, no punctuation at the end. "
+        "If there is no food intent, reply: general menu items"
+    )
+    messages = [{"role": "user", "content": client_text}]
+    try:
+        rewritten = _call_llm(
+            client, model, system,
+            messages,
+            temperature=0.0,
+        )
+        _trace(
+            llm_trace,
+            {
+                "event": "llm_rewrite",
+                **(trace_meta or {}),
+                "model": model,
+                "rewrite_input": _preview(client_text),
+                "messages_preview": _messages_preview(messages),
+                "rewrite_output": _preview(rewritten),
+            },
+        )
+        return rewritten
+    except Exception:
+        _trace(
+            llm_trace,
+            {
+                "event": "llm_rewrite_fallback",
+                **(trace_meta or {}),
+                "model": model,
+                "rewrite_input": _preview(client_text),
+                "messages_preview": _messages_preview(messages),
+                "rewrite_output": _preview(client_text),
+            },
+        )
+        return client_text
+
+
+def _preview(text: str, limit: int = 1200) -> str:
+    return text[:limit] + "…" if len(text) > limit else text
+
+
+def _messages_preview(
+    messages: list[dict[str, str]],
+    *,
+    max_items: int = 3,
+) -> list[dict[str, str]]:
+    tail = messages[-max_items:]
+    return [{"role": m["role"], "content": _preview(m["content"], 280)} for m in tail]
+
+
+def _trace(
+    rag_trace: list[dict[str, Any]] | None,
+    event: dict[str, Any],
+) -> None:
+    if rag_trace is not None:
+        rag_trace.append(event)

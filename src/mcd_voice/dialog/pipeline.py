@@ -12,9 +12,10 @@ order_state имеет многопользовательскую структу
 
 from __future__ import annotations
 
+import inspect
 import json
 import re
-from typing import Any
+from typing import Any, Callable
 
 from mcd_voice.dialog.catalog import MenuCatalog
 from mcd_voice.llm import CashierAgent, ClientAgent
@@ -28,17 +29,18 @@ from mcd_voice.profile.generator import get_allergen_blacklist
 _CASHIER_FINALIZE_PATTERNS = re.compile(
     r"your total|that will be|that.?ll be|order is ready|anything else\?|"
     r"enjoy your meal|have a great|have a nice|here you go|"
-    r"ваш заказ|итого|приятного аппетита|что-нибудь ещё\?",
+    r"see you|drive.?through|pull.?forward",
     re.IGNORECASE,
 )
 
 _CLIENT_CONFIRM_PATTERNS = re.compile(
     r"\bthat.?s all\b|\bthat.?s it\b|\bno thanks\b|\bnope\b|"
     r"\bjust that\b|\bnothing else\b|\bi.?m good\b|\bbye\b|"
-    r"\bthank you\b|\bthanks\b|"
-    r"\bэто всё\b|\bнет, спасибо\b|\bвсё\b|\bспасибо\b|\bдо свидания\b",
+    r"\bthank you\b|\bthanks\b|\ball set\b|\bsounds good\b|\bperfect\b",
     re.IGNORECASE,
 )
+
+ProgressCallback = Callable[[dict[str, Any]], None]
 
 
 def _cashier_signals_end(text: str) -> bool:
@@ -181,6 +183,9 @@ class DialogPipeline:
         menu_catalog: MenuCatalog | None = None,
         client_agent: ClientAgent | None = None,
         cashier_agent: CashierAgent | None = None,
+        progress_callback: ProgressCallback | None = None,
+        collect_rag_trace: bool = False,
+        collect_llm_trace: bool = False,
     ) -> None:
         self.max_turns = max_turns
         # При отсутствии явной модели берем API_MODEL из env.
@@ -189,11 +194,19 @@ class DialogPipeline:
         self._catalog = menu_catalog or MenuCatalog()
         self._client_agent = client_agent
         self._cashier_agent = cashier_agent
+        self._progress_callback = progress_callback
+        self._collect_rag_trace = collect_rag_trace
+        self._collect_llm_trace = collect_llm_trace
 
     def run(
         self,
         profile: dict[str, Any] | None = None,
     ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
+        self._emit_progress(
+            "prepare",
+            max_turns=self.max_turns,
+            message="Подготовка профиля, меню и order_state.",
+        )
         if profile is None:
             profile = self._profiles.generate()
 
@@ -205,21 +218,99 @@ class DialogPipeline:
 
         history: list[dict[str, str]] = []
         order_state = build_initial_order_state(profile)
+        rag_trace: list[dict[str, Any]] | None = (
+            [] if self._collect_rag_trace else None
+        )
+        llm_trace: list[dict[str, Any]] | None = (
+            [] if self._collect_llm_trace else None
+        )
 
-        greeting = cashier.generate_response(profile, history, order_state)
+        self._emit_progress(
+            "greeting_start",
+            message="Кассир формирует приветствие.",
+        )
+        cashier_kwargs: dict[str, Any] = {
+            "rag_trace": rag_trace,
+            "rag_meta": {"call": "greeting"},
+        }
+        if llm_trace is not None and _accepts_kwarg(cashier.generate_response, "llm_trace"):
+            cashier_kwargs["llm_trace"] = llm_trace
+        greeting = cashier.generate_response(profile, history, order_state, **cashier_kwargs)
         history.append({"speaker": "cashier", "text": greeting})
+        self._emit_progress(
+            "greeting_done",
+            history_len=len(history),
+            message="Приветствие готово.",
+        )
 
         cashier_signaled = False
 
         for turn in range(1, self.max_turns + 1):
-            client_msg = client.generate_response(profile, history)
+            self._emit_progress(
+                "turn_start",
+                turn=turn,
+                max_turns=self.max_turns,
+                history_len=len(history),
+                message=f"Ход {turn}/{self.max_turns}.",
+            )
+            self._emit_progress(
+                "client_thinking",
+                turn=turn,
+                max_turns=self.max_turns,
+                message="Клиент формирует ответ.",
+            )
+            client_kwargs: dict[str, Any] = {}
+            if llm_trace is not None and _accepts_kwarg(client.generate_response, "llm_trace"):
+                client_kwargs["llm_trace"] = llm_trace
+            client_msg = client.generate_response(profile, history, **client_kwargs)
             history.append({"speaker": "client", "text": client_msg})
+            self._emit_progress(
+                "client_done",
+                turn=turn,
+                max_turns=self.max_turns,
+                history_len=len(history),
+                text=client_msg,
+                message="Клиент ответил.",
+            )
 
             if cashier_signaled and _client_confirms_end(client_msg):
+                self._emit_progress(
+                    "finished",
+                    turn=turn,
+                    max_turns=self.max_turns,
+                    history_len=len(history),
+                    reason="client_confirmed_end",
+                    message="Клиент подтвердил завершение диалога.",
+                )
                 break
 
-            cashier_msg = cashier.generate_response(profile, history, order_state)
+            self._emit_progress(
+                "cashier_thinking",
+                turn=turn,
+                max_turns=self.max_turns,
+                message="Кассир формирует ответ.",
+            )
+            cashier_kwargs = {
+                "rag_trace": rag_trace,
+                "rag_meta": {"call": "turn", "turn": turn},
+            }
+            if llm_trace is not None and _accepts_kwarg(cashier.generate_response, "llm_trace"):
+                cashier_kwargs["llm_trace"] = llm_trace
+            cashier_msg = cashier.generate_response(
+                profile,
+                history,
+                order_state,
+                **cashier_kwargs,
+            )
             history.append({"speaker": "cashier", "text": cashier_msg})
+            self._emit_progress(
+                "cashier_done",
+                turn=turn,
+                max_turns=self.max_turns,
+                history_len=len(history),
+                text=cashier_msg,
+                message="Кассир ответил.",
+            )
 
             # Обновляем заказ по обеим репликам (клиент может назвать блюдо,
             # кассир может подтвердить или предложить)
@@ -232,8 +323,28 @@ class DialogPipeline:
 
             cashier_signaled = _cashier_signals_end(cashier_msg)
 
+        else:
+            self._emit_progress(
+                "finished",
+                turn=self.max_turns,
+                max_turns=self.max_turns,
+                history_len=len(history),
+                reason="max_turns_reached",
+                message="Диалог остановлен по лимиту max_turns.",
+            )
+
         flags = validate_dialog(profile, order_state, history)
+        if rag_trace is not None:
+            flags = {**flags, "rag_trace": rag_trace}
+        if llm_trace is not None:
+            flags = {**flags, "llm_trace": llm_trace}
         return history, profile, order_state, flags
+
+    def _emit_progress(self, stage: str, **payload: Any) -> None:
+        if self._progress_callback is None:
+            return
+        event = {"stage": stage, **payload}
+        self._progress_callback(event)
 
     # ── Внутренние методы ─────────────────────────────────────────────
 
@@ -360,6 +471,9 @@ def simulate_dialog(
     model: str | None = None,
     client_agent: ClientAgent | None = None,
     cashier_agent: CashierAgent | None = None,
+    progress_callback: ProgressCallback | None = None,
+    collect_rag_trace: bool = False,
+    collect_llm_trace: bool = False,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Функциональный фасад: один диалог с валидацией."""
     pipeline = DialogPipeline(
@@ -367,6 +481,9 @@ def simulate_dialog(
         model=model,
         client_agent=client_agent,
         cashier_agent=cashier_agent,
+        progress_callback=progress_callback,
+        collect_rag_trace=collect_rag_trace,
+        collect_llm_trace=collect_llm_trace,
     )
     return pipeline.run(profile=profile)
 
@@ -374,8 +491,30 @@ def simulate_dialog(
 def generate_dialog(
     max_turns: int = 20,
     model: str | None = None,
+    progress_callback: ProgressCallback | None = None,
+    collect_rag_trace: bool = False,
+    collect_llm_trace: bool = False,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
-    return simulate_dialog(max_turns=max_turns, model=model)
+    return simulate_dialog(
+        max_turns=max_turns,
+        model=model,
+        progress_callback=progress_callback,
+        collect_rag_trace=collect_rag_trace,
+        collect_llm_trace=collect_llm_trace,
+    )
+
+
+def _accepts_kwarg(func: Callable[..., Any], key: str) -> bool:
+    try:
+        signature = inspect.signature(func)
+    except (TypeError, ValueError):
+        return False
+    if key in signature.parameters:
+        return True
+    return any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in signature.parameters.values()
+    )
 
 
 def print_dialog(

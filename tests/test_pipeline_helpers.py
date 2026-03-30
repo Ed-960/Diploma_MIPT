@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from mcd_voice.dialog.pipeline import (
+    DialogPipeline,
     _detect_target_person,
     _resolve_person_index,
     build_initial_order_state,
@@ -231,3 +232,131 @@ class TestValidateDialog:
         ]
         flags = validate_dialog(family_profile, os, history)
         assert flags["turns"] == 3
+
+
+class _StubCatalog:
+    def load(self) -> tuple[list[str], dict[str, float]]:
+        return ["Big Mac"], {"Big Mac": 550.0}
+
+
+class _StubClientAgent:
+    def generate_response(self, profile: dict, history: list[dict[str, str]]) -> str:
+        return "Big Mac please"
+
+
+class _StubCashierAgent:
+    def __init__(self) -> None:
+        self._calls = 0
+
+    def generate_response(
+        self,
+        profile: dict,
+        history: list[dict[str, str]],
+        order_state: dict[str, object],
+        **_: object,
+    ) -> str:
+        self._calls += 1
+        if self._calls == 1:
+            return "Hello, what would you like?"
+        return "That will be all, thank you."
+
+
+class _TraceClientAgent:
+    def generate_response(
+        self,
+        profile: dict,
+        history: list[dict[str, str]],
+        *,
+        llm_trace: list[dict] | None = None,
+    ) -> str:
+        if llm_trace is not None:
+            llm_trace.append({"event": "llm_call", "agent": "client", "model": "stub"})
+        return "Big Mac please"
+
+
+class _TraceCashierAgent:
+    def __init__(self) -> None:
+        self._calls = 0
+
+    def generate_response(
+        self,
+        profile: dict,
+        history: list[dict[str, str]],
+        order_state: dict[str, object],
+        *,
+        llm_trace: list[dict] | None = None,
+        **_: object,
+    ) -> str:
+        self._calls += 1
+        if llm_trace is not None:
+            llm_trace.append({"event": "llm_call", "agent": "cashier", "model": "stub"})
+        if self._calls == 1:
+            return "Hello, what would you like?"
+        return "That will be all, thank you."
+
+
+def test_dialog_pipeline_collect_rag_trace_empty_with_stub_cashier(
+    monkeypatch, family_profile,
+) -> None:
+    pipeline = DialogPipeline(
+        max_turns=1,
+        menu_catalog=_StubCatalog(),
+        client_agent=_StubClientAgent(),
+        cashier_agent=_StubCashierAgent(),
+        collect_rag_trace=True,
+    )
+    monkeypatch.setattr(pipeline, "_build_allergen_map", lambda: {"Big Mac": []})
+
+    _, _, _, flags = pipeline.run(profile=family_profile)
+
+    assert "rag_trace" in flags
+    assert flags["rag_trace"] == []
+
+
+def test_dialog_pipeline_collect_llm_trace_with_trace_agents(
+    monkeypatch, family_profile,
+) -> None:
+    pipeline = DialogPipeline(
+        max_turns=1,
+        menu_catalog=_StubCatalog(),
+        client_agent=_TraceClientAgent(),
+        cashier_agent=_TraceCashierAgent(),
+        collect_llm_trace=True,
+    )
+    monkeypatch.setattr(pipeline, "_build_allergen_map", lambda: {"Big Mac": []})
+
+    _, _, _, flags = pipeline.run(profile=family_profile)
+
+    assert "llm_trace" in flags
+    assert len(flags["llm_trace"]) == 3
+    assert flags["llm_trace"][0]["agent"] == "cashier"
+    assert flags["llm_trace"][1]["agent"] == "client"
+    assert flags["llm_trace"][2]["agent"] == "cashier"
+
+
+def test_dialog_pipeline_emits_progress_events(monkeypatch, family_profile) -> None:
+    events: list[dict[str, object]] = []
+    pipeline = DialogPipeline(
+        max_turns=1,
+        menu_catalog=_StubCatalog(),
+        client_agent=_StubClientAgent(),
+        cashier_agent=_StubCashierAgent(),
+        progress_callback=events.append,
+    )
+    monkeypatch.setattr(pipeline, "_build_allergen_map", lambda: {"Big Mac": []})
+
+    history, _, _, flags = pipeline.run(profile=family_profile)
+
+    assert history
+    assert flags["turns"] == len(history)
+    assert [event["stage"] for event in events] == [
+        "prepare",
+        "greeting_start",
+        "greeting_done",
+        "turn_start",
+        "client_thinking",
+        "client_done",
+        "cashier_thinking",
+        "cashier_done",
+        "finished",
+    ]

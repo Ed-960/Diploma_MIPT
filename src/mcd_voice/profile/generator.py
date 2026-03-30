@@ -50,7 +50,7 @@ _PSYCHO_WEIGHTS: list[tuple[Psycho, float]] = [
     ("indecisive", 0.10),
 ]
 
-_LANG_WEIGHTS: dict[Language, float] = {"RU": 0.90, "EN": 0.10}
+_LANG_WEIGHTS: dict[Language, float] = {"EN": 1.0, "RU": 0.0}
 
 _CAL_BASE: dict[Sex, int] = {"male": 2200, "female": 1800}
 _CAL_STD = 300
