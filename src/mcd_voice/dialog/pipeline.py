@@ -28,7 +28,7 @@ from mcd_voice.profile.generator import get_allergen_blacklist
 
 _CASHIER_FINALIZE_PATTERNS = re.compile(
     r"your total|that will be|that.?ll be|order is ready|anything else\?|"
-    r"enjoy your meal|have a great|have a nice|here you go|"
+    r"order is confirmed|confirm(ed)? your order|enjoy your meal|have a great|have a nice|here you go|"
     r"see you|drive.?through|pull.?forward",
     re.IGNORECASE,
 )
@@ -36,7 +36,8 @@ _CASHIER_FINALIZE_PATTERNS = re.compile(
 _CLIENT_CONFIRM_PATTERNS = re.compile(
     r"\bthat.?s all\b|\bthat.?s it\b|\bno thanks\b|\bnope\b|"
     r"\bjust that\b|\bnothing else\b|\bi.?m good\b|\bbye\b|"
-    r"\bthank you\b|\bthanks\b|\ball set\b|\bsounds good\b|\bperfect\b",
+    r"\bthank you\b|\bthanks\b|\ball set\b|\bsounds good\b|\bperfect\b|"
+    r"\bgot it\b|\bpickup now\b|\border ready\b",
     re.IGNORECASE,
 )
 
@@ -56,6 +57,17 @@ def _client_confirms_end(text: str) -> bool:
 _QTY_PATTERN = re.compile(r"\b(\d{1,2})\s+", re.IGNORECASE)
 
 
+def _normalize_item_text(text: str) -> str:
+    """
+    Нормализация названий для мягкого матчинга:
+    убираем trademark-символы и пунктуацию, схлопываем пробелы.
+    """
+    s = text.lower()
+    s = re.sub(r"[®™℠]", "", s)
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return " ".join(s.split())
+
+
 def parse_order_from_text(
     text: str,
     menu_names: list[str],
@@ -64,21 +76,21 @@ def parse_order_from_text(
     Извлекает (item_name, quantity) из текста.
     Ищет «N <item_name>» или просто «<item_name>» (qty=1).
     """
-    lower = text.lower()
+    lower = _normalize_item_text(text)
     found: list[tuple[str, int]] = []
     seen: set[str] = set()
 
     for name in menu_names:
-        if len(name) < 4:
+        name_norm = _normalize_item_text(name)
+        if len(name_norm) < 4:
             continue
-        name_lower = name.lower()
-        idx = lower.find(name_lower)
+        idx = lower.find(name_norm)
         if idx == -1 or name in seen:
             continue
         seen.add(name)
 
         qty = 1
-        prefix = lower[max(0, idx - 10):idx].strip()
+        prefix = lower[max(0, idx - 24):idx].strip()
         m = re.search(r"(\d{1,2})\s*$", prefix)
         if m:
             qty = int(m.group(1))
@@ -186,6 +198,8 @@ class DialogPipeline:
         progress_callback: ProgressCallback | None = None,
         collect_rag_trace: bool = False,
         collect_llm_trace: bool = False,
+        emit_trace_progress: bool = False,
+        trace_verbose: bool = False,
     ) -> None:
         self.max_turns = max_turns
         # При отсутствии явной модели берем API_MODEL из env.
@@ -197,6 +211,8 @@ class DialogPipeline:
         self._progress_callback = progress_callback
         self._collect_rag_trace = collect_rag_trace
         self._collect_llm_trace = collect_llm_trace
+        self._emit_trace_progress = emit_trace_progress
+        self._trace_verbose = trace_verbose
 
     def run(
         self,
@@ -213,8 +229,12 @@ class DialogPipeline:
         menu_names, energy_by_name = self._catalog.load()
         allergen_map = self._build_allergen_map()
 
-        client = self._client_agent or ClientAgent(model=self.model)
-        cashier = self._cashier_agent or CashierAgent(model=self.model)
+        client = self._client_agent or ClientAgent(
+            model=self.model, trace_verbose=self._trace_verbose,
+        )
+        cashier = self._cashier_agent or CashierAgent(
+            model=self.model, trace_verbose=self._trace_verbose,
+        )
 
         history: list[dict[str, str]] = []
         order_state = build_initial_order_state(profile)
@@ -224,6 +244,8 @@ class DialogPipeline:
         llm_trace: list[dict[str, Any]] | None = (
             [] if self._collect_llm_trace else None
         )
+        n_rag = 0
+        n_llm = 0
 
         self._emit_progress(
             "greeting_start",
@@ -241,6 +263,9 @@ class DialogPipeline:
             "greeting_done",
             history_len=len(history),
             message="Приветствие готово.",
+        )
+        n_rag, n_llm = self._flush_trace_delta(
+            rag_trace, llm_trace, n_rag, n_llm, label="greeting",
         )
 
         cashier_signaled = False
@@ -272,8 +297,12 @@ class DialogPipeline:
                 text=client_msg,
                 message="Клиент ответил.",
             )
+            n_rag, n_llm = self._flush_trace_delta(
+                rag_trace, llm_trace, n_rag, n_llm, label="client", turn=turn,
+            )
 
             if cashier_signaled and _client_confirms_end(client_msg):
+                order_state["order_complete"] = True
                 self._emit_progress(
                     "finished",
                     turn=turn,
@@ -311,17 +340,23 @@ class DialogPipeline:
                 text=cashier_msg,
                 message="Кассир ответил.",
             )
+            n_rag, n_llm = self._flush_trace_delta(
+                rag_trace, llm_trace, n_rag, n_llm, label="cashier", turn=turn,
+            )
 
-            # Обновляем заказ по обеим репликам (клиент может назвать блюдо,
-            # кассир может подтвердить или предложить)
+            # Обновляем заказ только по реплике клиента: так не добавляем
+            # предложения кассира, которые клиент не подтверждал.
             self._update_order(
                 client_msg, menu_names, order_state, energy_by_name, allergen_map,
             )
-            self._update_order(
-                cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
-            )
 
             cashier_signaled = _cashier_signals_end(cashier_msg)
+            if cashier_signaled:
+                # Финальная реплика кассира обычно содержит итоговый состав заказа;
+                # это безопаснее, чем парсить любые промежуточные предложения.
+                self._update_order(
+                    cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+                )
 
         else:
             self._emit_progress(
@@ -346,6 +381,42 @@ class DialogPipeline:
         event = {"stage": stage, **payload}
         self._progress_callback(event)
 
+    def _flush_trace_delta(
+        self,
+        rag_trace: list[dict[str, Any]] | None,
+        llm_trace: list[dict[str, Any]] | None,
+        n_rag: int,
+        n_llm: int,
+        *,
+        label: str,
+        turn: int | None = None,
+    ) -> tuple[int, int]:
+        """Отправляет в progress_callback новые события rag_trace / llm_trace (для консоли)."""
+        if not self._emit_trace_progress or self._progress_callback is None:
+            return (
+                len(rag_trace) if rag_trace is not None else n_rag,
+                len(llm_trace) if llm_trace is not None else n_llm,
+            )
+        new_rag = rag_trace[n_rag:] if rag_trace is not None else []
+        new_llm = llm_trace[n_llm:] if llm_trace is not None else []
+        if not new_rag and not new_llm:
+            return (
+                len(rag_trace) if rag_trace is not None else n_rag,
+                len(llm_trace) if llm_trace is not None else n_llm,
+            )
+        payload: dict[str, Any] = {
+            "label": label,
+            "rag_events": list(new_rag),
+            "llm_events": list(new_llm),
+        }
+        if turn is not None:
+            payload["turn"] = turn
+        self._emit_progress("trace_delta", **payload)
+        return (
+            len(rag_trace) if rag_trace is not None else n_rag,
+            len(llm_trace) if llm_trace is not None else n_llm,
+        )
+
     # ── Внутренние методы ─────────────────────────────────────────────
 
     def _build_allergen_map(self) -> dict[str, list[str]]:
@@ -369,11 +440,13 @@ class DialogPipeline:
             return
 
         persons = order_state["persons"]
+        group_size = max(1, len(persons))
         target_key = _detect_target_person(text)
         target_idx = _resolve_person_index(target_key, persons)
 
         person = persons[target_idx]
         for name, qty in parsed:
+            qty = _apply_group_quantity_hint(text, qty, group_size)
             existing = next((it for it in person["items"] if it["name"] == name), None)
             if existing:
                 existing["quantity"] = max(existing["quantity"], qty)
@@ -474,6 +547,8 @@ def simulate_dialog(
     progress_callback: ProgressCallback | None = None,
     collect_rag_trace: bool = False,
     collect_llm_trace: bool = False,
+    emit_trace_progress: bool = False,
+    trace_verbose: bool = False,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Функциональный фасад: один диалог с валидацией."""
     pipeline = DialogPipeline(
@@ -484,6 +559,8 @@ def simulate_dialog(
         progress_callback=progress_callback,
         collect_rag_trace=collect_rag_trace,
         collect_llm_trace=collect_llm_trace,
+        emit_trace_progress=emit_trace_progress,
+        trace_verbose=trace_verbose,
     )
     return pipeline.run(profile=profile)
 
@@ -494,6 +571,8 @@ def generate_dialog(
     progress_callback: ProgressCallback | None = None,
     collect_rag_trace: bool = False,
     collect_llm_trace: bool = False,
+    emit_trace_progress: bool = False,
+    trace_verbose: bool = False,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
     return simulate_dialog(
         max_turns=max_turns,
@@ -501,6 +580,8 @@ def generate_dialog(
         progress_callback=progress_callback,
         collect_rag_trace=collect_rag_trace,
         collect_llm_trace=collect_llm_trace,
+        emit_trace_progress=emit_trace_progress,
+        trace_verbose=trace_verbose,
     )
 
 
@@ -515,6 +596,21 @@ def _accepts_kwarg(func: Callable[..., Any], key: str) -> bool:
         param.kind == inspect.Parameter.VAR_KEYWORD
         for param in signature.parameters.values()
     )
+
+
+def _apply_group_quantity_hint(text: str, qty: int, group_size: int) -> int:
+    """If client says 'for everyone/all of us', lift qty to group size."""
+    if qty != 1 or group_size <= 1:
+        return qty
+    lower = text.lower()
+    if (
+        "for everyone" in lower
+        or "for all of us" in lower
+        or "for all" in lower
+        or "for us all" in lower
+    ):
+        return group_size
+    return qty
 
 
 def print_dialog(

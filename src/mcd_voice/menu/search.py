@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from mcd_voice.menu.chroma import configure_hf_cache, get_menu_collection
@@ -68,6 +69,7 @@ def search_menu(
     *,
     max_energy: float | None = None,
     min_energy: float | None = None,
+    chroma_trace: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Семантический поиск с опциональными фильтрами метаданных.
@@ -93,9 +95,51 @@ def search_menu(
     if where is not None:
         kwargs["where"] = where
 
-    results = collection.query(**kwargs)
+    if chroma_trace is not None:
+        chroma_trace.append(
+            {
+                "event": "chroma_request",
+                "query_texts": list(kwargs["query_texts"]),
+                "n_results": int(kwargs["n_results"]),
+                "where": kwargs.get("where"),
+            },
+        )
+
+    t_query = time.perf_counter()
+    try:
+        results = collection.query(**kwargs)
+    except Exception as exc:
+        # WSL/Windows GPU stack can occasionally crash with torch.AcceleratorError.
+        # Retry once on CPU to keep generation alive.
+        msg = str(exc)
+        if "CUDA error" not in msg and "AcceleratorError" not in msg:
+            raise
+        print(
+            "  [!] CUDA error during Chroma query; retrying embeddings on CPU once.",
+            flush=True,
+        )
+        # Do not mutate global EMBEDDING_DEVICE: in parallel mode this would
+        # silently force all other workers onto CPU.
+        collection = get_menu_collection(device="cpu")
+        results = collection.query(**kwargs)
+    query_ms = (time.perf_counter() - t_query) * 1000.0
+
     metas0 = results["metadatas"][0]
     dists0 = results["distances"][0]
+
+    if chroma_trace is not None:
+        ids0 = (results.get("ids") or [[]])[0] or []
+        docs0 = (results.get("documents") or [[]])[0] or []
+        chroma_trace.append(
+            {
+                "event": "chroma_response",
+                "query_duration_ms": round(query_ms, 2),
+                "ids": list(ids0),
+                "distances": [float(x) for x in dists0],
+                "metadatas": list(metas0),
+                "documents": list(docs0),
+            },
+        )
 
     out: list[dict[str, Any]] = []
     for meta, dist in zip(metas0, dists0):

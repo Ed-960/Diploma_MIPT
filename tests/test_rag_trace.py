@@ -44,9 +44,9 @@ def test_rag_always_runs_even_for_closing_phrase(
         rag_trace=trace,
         rag_meta={"call": "turn", "turn": 1},
     )
-    assert len(trace) == 1
-    assert trace[0]["event"] == "rag"
-    assert trace[0]["outcome"] in _VALID_OUTCOMES
+    rag_ev = [e for e in trace if e.get("event") == "rag"]
+    assert len(rag_ev) == 1
+    assert rag_ev[0]["outcome"] in _VALID_OUTCOMES
 
 
 def test_rag_runs_for_menu_query(
@@ -66,8 +66,9 @@ def test_rag_runs_for_menu_query(
         rag_trace=trace,
         rag_meta={"call": "turn", "turn": 2},
     )
-    assert len(trace) == 1
-    event = trace[0]
+    rag_ev = [e for e in trace if e.get("event") == "rag"]
+    assert len(rag_ev) == 1
+    event = rag_ev[0]
     assert event["event"] == "rag"
     assert event["call"] == "turn"
     assert event["turn"] == 2
@@ -110,6 +111,6 @@ def test_rag_uses_fallback_query_when_no_client_text(
         rag_trace=trace,
         rag_meta={"call": "greeting"},
     )
-    assert len(trace) == 1
-    assert trace[0]["event"] == "rag"
-    assert trace[0].get("fallback") is True
+    rag_ev = [e for e in trace if e.get("event") == "rag"]
+    assert len(rag_ev) == 1
+    assert rag_ev[0].get("fallback") is True

@@ -58,6 +58,8 @@ _CAL_MIN, _CAL_MAX = 800, 3500
 _OVERWEIGHT_PROB = 0.40
 _OVERWEIGHT_REDUCTION = 200
 
+# Маргинальные доли для взрослого; совместное распределение задаётся в
+# _sample_adult_dietary_flags (сначала ветка isVegan, затем условные броски).
 _DIETARY_PROBS: dict[str, float] = {
     "noMilk":   0.61,
     "noFish":   0.02,
@@ -121,14 +123,7 @@ class ProfileGenerator:
 
         cal = self._sample_calories(sex)
 
-        flags: dict[str, bool] = {}
-        for key, prob in _DIETARY_PROBS.items():
-            flags[key] = r.random() < prob
-        if flags["isVegan"]:
-            flags["noMilk"] = True
-            flags["noFish"] = True
-            flags["noBeef"] = True
-            flags["noEggs"] = True
+        flags = self._sample_adult_dietary_flags()
 
         child_quant = r.choices(
             [v for v, _ in _CHILD_WEIGHTS], [w for _, w in _CHILD_WEIGHTS],
@@ -151,6 +146,41 @@ class ProfileGenerator:
             "companions": companions,
         }
 
+    def _sample_adult_dietary_flags(self) -> dict[str, bool]:
+        """
+        Пищевые ограничения взрослого (или друга с тем же распределением).
+
+        1) С вероятностью ``isVegan`` из ``_DIETARY_PROBS`` клиент — веган: тогда
+           ``noMilk``, ``noFish``, ``noBeef``, ``noEggs`` всегда True (животные
+           продукты исключены); ``noNuts``, ``noGluten``, ``noSugar`` семплируются
+           **независимо** с теми же маргиналами — возможны веган + орехи и т.д.
+
+        2) Иначе ``isVegan`` False; остальные семь флагов — **независимые** броски
+           по своим вероятностям (как в статистике по отдельным ограничениям).
+
+        Маргинальные доли совпадают с прежней схемой «все независимо + принудительная
+        правка при вегане», но порядок семплирования отражает смысл полей.
+        """
+        r = self._rng
+        p_vegan = _DIETARY_PROBS["isVegan"]
+        flags: dict[str, bool] = {}
+        if r.random() < p_vegan:
+            flags["isVegan"] = True
+            flags["noMilk"] = True
+            flags["noFish"] = True
+            flags["noBeef"] = True
+            flags["noEggs"] = True
+            flags["noNuts"] = r.random() < _DIETARY_PROBS["noNuts"]
+            flags["noGluten"] = r.random() < _DIETARY_PROBS["noGluten"]
+            flags["noSugar"] = r.random() < _DIETARY_PROBS["noSugar"]
+        else:
+            flags["isVegan"] = False
+            for key, prob in _DIETARY_PROBS.items():
+                if key == "isVegan":
+                    continue
+                flags[key] = r.random() < prob
+        return flags
+
     # ── Компаньоны ────────────────────────────────────────────────────
 
     def _generate_companions(
@@ -170,14 +200,7 @@ class ProfileGenerator:
                 "restrictions": restrictions,
             })
         for i in range(friends_quant):
-            friend_flags: dict[str, bool] = {}
-            for key, prob in _DIETARY_PROBS.items():
-                friend_flags[key] = r.random() < prob
-            if friend_flags.get("isVegan"):
-                friend_flags["noMilk"] = True
-                friend_flags["noFish"] = True
-                friend_flags["noBeef"] = True
-                friend_flags["noEggs"] = True
+            friend_flags = self._sample_adult_dietary_flags()
             companions.append({
                 "role": "friend",
                 "label": _FRIEND_NAMES[i] if i < len(_FRIEND_NAMES) else f"friend_{i+1}",

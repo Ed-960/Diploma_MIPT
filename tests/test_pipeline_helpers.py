@@ -104,6 +104,13 @@ class TestParseOrderFromText:
         )
         assert result == [("McFlurry with Oreo Cookies", 1)]
 
+    def test_trademark_symbol_tolerant_match(self):
+        result = parse_order_from_text(
+            "Yes, confirm large Chicken McNuggets and coffee",
+            ["Chicken McNuggets®", "Black Coffee®"],
+        )
+        assert ("Chicken McNuggets®", 1) in result
+
     def test_no_match(self):
         result = parse_order_from_text("Nothing from the menu", MENU_NAMES)
         assert result == []
@@ -295,6 +302,45 @@ class _TraceCashierAgent:
         return "That will be all, thank you."
 
 
+class _ConfirmingClientAgent:
+    def __init__(self) -> None:
+        self._calls = 0
+
+    def generate_response(self, profile: dict, history: list[dict[str, str]]) -> str:
+        self._calls += 1
+        if self._calls == 1:
+            return "Big Mac please"
+        return "That's all, thanks"
+
+
+class _PassiveClientAgent:
+    def __init__(self) -> None:
+        self._calls = 0
+
+    def generate_response(self, profile: dict, history: list[dict[str, str]]) -> str:
+        self._calls += 1
+        if self._calls == 1:
+            return "What do you recommend?"
+        return "Yes, that's all, thanks"
+
+
+class _ConfirmingSummaryCashier:
+    def __init__(self) -> None:
+        self._calls = 0
+
+    def generate_response(
+        self,
+        profile: dict,
+        history: list[dict[str, str]],
+        order_state: dict[str, object],
+        **_: object,
+    ) -> str:
+        self._calls += 1
+        if self._calls == 1:
+            return "Hello, what would you like?"
+        return "Your order is confirmed: Big Mac. Enjoy your meal!"
+
+
 def test_dialog_pipeline_collect_rag_trace_empty_with_stub_cashier(
     monkeypatch, family_profile,
 ) -> None:
@@ -311,6 +357,83 @@ def test_dialog_pipeline_collect_rag_trace_empty_with_stub_cashier(
 
     assert "rag_trace" in flags
     assert flags["rag_trace"] == []
+
+
+class _TraceEmitClient:
+    def generate_response(
+        self,
+        profile: dict,
+        history: list[dict[str, str]],
+        *,
+        llm_trace: list[dict] | None = None,
+        **_: object,
+    ) -> str:
+        if llm_trace is not None:
+            llm_trace.append({
+                "event": "llm_call",
+                "agent": "client",
+                "model": "stub",
+                "response_preview": "client says hi",
+            })
+        return "client text"
+
+
+class _TraceEmitCashier:
+    def __init__(self) -> None:
+        self._n = 0
+
+    def generate_response(
+        self,
+        profile: dict,
+        history: list[dict[str, str]],
+        order_state: dict[str, object],
+        *,
+        rag_trace: list[dict] | None = None,
+        llm_trace: list[dict] | None = None,
+        **_: object,
+    ) -> str:
+        self._n += 1
+        if rag_trace is not None:
+            rag_trace.append({
+                "event": "rag",
+                "search_query": f"q{self._n}",
+                "outcome": "injected",
+                "best_distance": 0.1,
+                "candidates": [{"name": "Big Mac", "distance": 0.1, "energy": 500}],
+            })
+        if llm_trace is not None:
+            llm_trace.append({
+                "event": "llm_call",
+                "agent": "cashier",
+                "model": "stub",
+                "response_preview": f"cashier {self._n}",
+            })
+        return f"cashier reply {self._n}"
+
+
+def test_dialog_pipeline_emit_trace_progress_trace_delta(
+    monkeypatch, family_profile,
+) -> None:
+    events: list[dict[str, object]] = []
+    pipeline = DialogPipeline(
+        max_turns=1,
+        menu_catalog=_StubCatalog(),
+        client_agent=_TraceEmitClient(),
+        cashier_agent=_TraceEmitCashier(),
+        progress_callback=events.append,
+        collect_rag_trace=True,
+        collect_llm_trace=True,
+        emit_trace_progress=True,
+    )
+    monkeypatch.setattr(pipeline, "_build_allergen_map", lambda: {"Big Mac": []})
+
+    pipeline.run(profile=family_profile)
+
+    deltas = [e for e in events if e.get("stage") == "trace_delta"]
+    assert len(deltas) >= 3
+    assert deltas[0].get("label") == "greeting"
+    assert any(d.get("label") == "client" for d in deltas)
+    assert any(d.get("label") == "cashier" for d in deltas)
 
 
 def test_dialog_pipeline_collect_llm_trace_with_trace_agents(
@@ -360,3 +483,36 @@ def test_dialog_pipeline_emits_progress_events(monkeypatch, family_profile) -> N
         "cashier_done",
         "finished",
     ]
+
+
+def test_dialog_pipeline_sets_order_complete_on_confirm(
+    monkeypatch, family_profile,
+) -> None:
+    pipeline = DialogPipeline(
+        max_turns=3,
+        menu_catalog=_StubCatalog(),
+        client_agent=_ConfirmingClientAgent(),
+        cashier_agent=_StubCashierAgent(),
+    )
+    monkeypatch.setattr(pipeline, "_build_allergen_map", lambda: {"Big Mac": []})
+
+    _, _, order_state, _ = pipeline.run(profile=family_profile)
+
+    assert order_state["order_complete"] is True
+
+
+def test_dialog_pipeline_parses_final_cashier_summary(
+    monkeypatch, family_profile,
+) -> None:
+    pipeline = DialogPipeline(
+        max_turns=3,
+        menu_catalog=_StubCatalog(),
+        client_agent=_PassiveClientAgent(),
+        cashier_agent=_ConfirmingSummaryCashier(),
+    )
+    monkeypatch.setattr(pipeline, "_build_allergen_map", lambda: {"Big Mac": []})
+
+    _, _, order_state, flags = pipeline.run(profile=family_profile)
+
+    assert flags["empty_order"] is False
+    assert order_state["persons"][0]["items"] == [{"name": "Big Mac", "quantity": 1}]

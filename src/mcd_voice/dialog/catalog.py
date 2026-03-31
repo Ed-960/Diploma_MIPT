@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -16,8 +17,29 @@ class MenuCatalog:
         self._path = json_path or MCD_JSON_PATH
 
     def load(self) -> tuple[list[str], dict[str, float]]:
+        """
+        Возвращает:
+          - уникальный список названий (порядок первого вхождения);
+          - словарь name → средняя калорийность по всем размерам.
+
+        mcd.json содержит несколько записей с одинаковым именем (разные размеры
+        порций). Дедупликация имён предотвращает многократный матчинг одного
+        блюда в parse_order_from_text; усреднение даёт нейтральную оценку.
+        """
         with open(self._path, "r", encoding="utf-8") as f:
             items: list[dict[str, Any]] = json.load(f)
-        names = [it["name"] for it in items]
-        energy = {it["name"]: float(it.get("energy", 0)) for it in items}
-        return names, energy
+
+        seen_names: list[str] = []
+        energy_acc: dict[str, list[float]] = defaultdict(list)
+
+        for it in items:
+            name = it["name"]
+            if name not in energy_acc:
+                seen_names.append(name)
+            energy_acc[name].append(float(it.get("energy", 0)))
+
+        energy = {
+            name: round(sum(vals) / len(vals), 2)
+            for name, vals in energy_acc.items()
+        }
+        return seen_names, energy

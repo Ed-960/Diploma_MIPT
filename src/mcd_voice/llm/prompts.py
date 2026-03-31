@@ -72,7 +72,9 @@ def get_cashier_system_prompt(profile: dict[str, Any] | None = None) -> str:
         "",
         "RULES:",
         "- Suggest items from the 'Relevant menu items' block in context (if provided). "
-        "Use ONLY those exact item names and calorie values.",
+        "Use ONLY those exact item names.",
+        "- Keep calorie values internal by default. Mention calories ONLY when the customer "
+        "explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.",
         "- If no items are in context, ask what type of food the customer wants.",
         "- If context says 'no matching items', apologize briefly and ask them "
         "to rephrase or pick a category.",
@@ -81,6 +83,8 @@ def get_cashier_system_prompt(profile: dict[str, Any] | None = None) -> str:
         "- NEVER invent item names, prices, or calorie numbers.",
         "- No emoji, no markdown bold/italic, no special formatting.",
         "- Keep replies to 2–3 sentences, like a real drive-through.",
+        "- Speak naturally like a human cashier; do not dump technical nutrition details "
+        "unless asked.",
         "- When the customer picks an item, confirm the name and ask if they want "
         "anything else (drink, fries, dessert).",
         "- Before finalising, repeat the full order and ask for confirmation.",

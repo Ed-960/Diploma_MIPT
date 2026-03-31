@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any
 
 from openai import APITimeoutError, OpenAI, OpenAIError
@@ -104,20 +105,29 @@ def _call_llm(
 ) -> str:
     """Один Chat Completions вызов; бросает RuntimeError при пустом ответе."""
     payload = [{"role": "system", "content": system}, *messages]
-    try:
-        resp = client.chat.completions.create(
-            model=model,
-            messages=payload,
-            temperature=temperature,
-        )
-        content = resp.choices[0].message.content
-        if not content:
-            raise RuntimeError("Пустой ответ от модели.")
-        return content.strip()
-    except APITimeoutError as exc:
-        raise RuntimeError(f"Таймаут OpenAI API: {exc}") from exc
-    except OpenAIError as exc:
-        raise RuntimeError(f"Ошибка OpenAI API: {exc}") from exc
+    timeout_err: APITimeoutError | None = None
+    for attempt in range(3):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=payload,
+                temperature=temperature,
+            )
+            content = resp.choices[0].message.content
+            if not content:
+                raise RuntimeError("Пустой ответ от модели.")
+            return content.strip()
+        except APITimeoutError as exc:
+            timeout_err = exc
+            if attempt < 2:
+                # brief backoff for transient local Ollama stalls
+                time.sleep(0.7 * (attempt + 1))
+                continue
+            raise RuntimeError(f"Таймаут OpenAI API: {exc}") from exc
+        except OpenAIError as exc:
+            raise RuntimeError(f"Ошибка OpenAI API: {exc}") from exc
+    # unreachable, but keeps type checkers happy
+    raise RuntimeError(f"Таймаут OpenAI API: {timeout_err}")
 
 
 def _history_to_messages(
@@ -143,9 +153,16 @@ def _history_to_messages(
 class ClientAgent:
     """Агент-клиент: генерирует реплики на основе профиля и истории диалога."""
 
-    def __init__(self, model: str | None = None, timeout: float = 60.0) -> None:
+    def __init__(
+        self,
+        model: str | None = None,
+        timeout: float = 60.0,
+        *,
+        trace_verbose: bool = False,
+    ) -> None:
         self.model = _resolve_model(model)
         self._client = _build_openai_client(timeout)
+        self._trace_verbose = trace_verbose
 
     def generate_response(
         self,
@@ -164,30 +181,33 @@ class ClientAgent:
         else:
             messages = _history_to_messages(history, my_role="client")
         try:
+            t0 = time.perf_counter()
             response = _call_llm(self._client, self.model, system, messages)
+            dt_ms = (time.perf_counter() - t0) * 1000.0
         except Exception as exc:
             _trace(
                 llm_trace,
-                {
-                    "event": "llm_error",
-                    "agent": "client",
-                    "model": self.model,
-                    "messages_count": len(messages),
-                    "messages_preview": _messages_preview(messages),
-                    "error": str(exc),
-                },
+                _llm_error_payload(
+                    agent="client",
+                    model=self.model,
+                    messages=messages,
+                    system=system,
+                    error=str(exc),
+                    verbose=self._trace_verbose,
+                ),
             )
             raise
         _trace(
             llm_trace,
-            {
-                "event": "llm_call",
-                "agent": "client",
-                "model": self.model,
-                "messages_count": len(messages),
-                "messages_preview": _messages_preview(messages),
-                "response_preview": _preview(response),
-            },
+            _llm_call_payload(
+                agent="client",
+                model=self.model,
+                system=system,
+                messages=messages,
+                response=response,
+                duration_ms=dt_ms,
+                verbose=self._trace_verbose,
+            ),
         )
         return response
 
@@ -209,11 +229,14 @@ class CashierAgent:
         rag_top_k: int = 3,
         distance_threshold: float = RAG_DISTANCE_THRESHOLD,
         rewrite_model: str | None = None,
+        *,
+        trace_verbose: bool = False,
     ) -> None:
         self.model = _resolve_model(model)
         self.rag_top_k = rag_top_k
         self.distance_threshold = distance_threshold
         self._client = _build_openai_client(timeout)
+        self._trace_verbose = trace_verbose
         # Mini-LLM для query rewriting: используем REWRITE_MODEL из .env.
         # Параметр rewrite_model оставлен для обратной совместимости, но не применяется.
         _ = rewrite_model
@@ -243,32 +266,33 @@ class CashierAgent:
         system = self._build_system(profile, order_state, rag_context)
         messages = _history_to_messages(history, my_role="cashier")
         try:
+            t0 = time.perf_counter()
             response = _call_llm(self._client, self.model, system, messages)
+            dt_ms = (time.perf_counter() - t0) * 1000.0
         except Exception as exc:
             _trace(
                 llm_trace,
-                {
-                    "event": "llm_error",
-                    "agent": "cashier",
-                    "model": self.model,
-                    "messages_count": len(messages),
-                    "messages_preview": _messages_preview(messages),
-                    "system_preview": _preview(system),
-                    "error": str(exc),
-                },
+                _llm_error_payload(
+                    agent="cashier",
+                    model=self.model,
+                    messages=messages,
+                    system=system,
+                    error=str(exc),
+                    verbose=self._trace_verbose,
+                ),
             )
             raise
         _trace(
             llm_trace,
-            {
-                "event": "llm_call",
-                "agent": "cashier",
-                "model": self.model,
-                "messages_count": len(messages),
-                "messages_preview": _messages_preview(messages),
-                "system_preview": _preview(system),
-                "response_preview": _preview(response),
-            },
+            _llm_call_payload(
+                agent="cashier",
+                model=self.model,
+                system=system,
+                messages=messages,
+                response=response,
+                duration_ms=dt_ms,
+                verbose=self._trace_verbose,
+            ),
         )
         return response
 
@@ -304,13 +328,16 @@ class CashierAgent:
                 self._rewrite_model,
                 llm_trace=llm_trace,
                 trace_meta=rag_meta,
+                trace_verbose=self._trace_verbose,
             )
             is_fallback = False
         else:
             search_query = self._FALLBACK_QUERY
             is_fallback = True
 
-        context, info = self._do_rag(search_query, profile)
+        context, info = self._do_rag(
+            search_query, profile, rag_trace=rag_trace,
+        )
         _trace(rag_trace, {
             **base_trace,
             "event": "rag",
@@ -326,6 +353,8 @@ class CashierAgent:
         self,
         text: str,
         profile: dict[str, Any],
+        *,
+        rag_trace: list[dict[str, Any]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Семантический поиск в Chroma с фильтрацией по аллергенам группы.
@@ -333,11 +362,15 @@ class CashierAgent:
         Применяет два порога: жёсткий (уверенный hit) и мягкий (fallback с предупреждением).
         """
         blacklist = get_group_allergen_blacklist(profile)
+        chroma_buf: list[dict[str, Any]] = []
         rows = search_menu(
             text,
             allergens_blacklist=blacklist or None,
             top_k=self.rag_top_k,
+            chroma_trace=chroma_buf if rag_trace is not None else None,
         )
+        for ev in chroma_buf:
+            _trace(rag_trace, ev)
         soft_max = RAG_SOFT_DISTANCE_MAX
         info: dict[str, Any] = {
             "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
@@ -408,14 +441,40 @@ def _render_rows(
     *,
     max_dist: float,
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    """Форматирует строки меню для промпта и список использованных хитов."""
-    lines, used = [], []
+    """
+    Форматирует строки меню для промпта и список использованных хитов.
+
+    mcd.json содержит несколько вариантов одного блюда (разные размеры порций).
+    Дедупликация по имени объединяет их в одну строку с диапазоном калорий,
+    чтобы не занимать лишние слоты top_k одинаковыми позициями.
+    """
+    # Собираем квалифицированные строки (в пределах порога)
+    by_name: dict[str, dict[str, Any]] = {}
+    name_energies: dict[str, list[float]] = {}
+    order: list[str] = []  # сохраняем порядок первого вхождения
     for r in rows:
         if r["distance"] > max_dist:
-            break
+            continue
+        name = r["name"]
+        if name not in by_name:
+            by_name[name] = r
+            name_energies[name] = []
+            order.append(name)
+        name_energies[name].append(float(r["energy"]))
+
+    lines: list[str] = []
+    used: list[dict[str, Any]] = []
+    for name in order:
+        r = by_name[name]
         allergens = ", ".join(r["allergens"]) if r["allergens"] else "none listed"
-        lines.append(f"- {r['name']} (~{r['energy']} kcal, allergens: {allergens})")
-        used.append({"name": r["name"], "distance": r["distance"]})
+        energies = name_energies[name]
+        if len(energies) > 1:
+            lo, hi = round(min(energies), 1), round(max(energies), 1)
+            energy_str = f"~{lo}–{hi}"
+        else:
+            energy_str = f"~{energies[0]}"
+        lines.append(f"- {name} ({energy_str} kcal, allergens: {allergens})")
+        used.append({"name": name, "distance": r["distance"]})
     return lines, used
 
 
@@ -433,6 +492,7 @@ def _rewrite_query(
     *,
     llm_trace: list[dict[str, Any]] | None = None,
     trace_meta: dict[str, Any] | None = None,
+    trace_verbose: bool = False,
 ) -> str:
     """
     Rewrites a conversational customer message into a concise menu search query.
@@ -451,20 +511,35 @@ def _rewrite_query(
     )
     messages = [{"role": "user", "content": client_text}]
     try:
+        t0 = time.perf_counter()
         rewritten = _call_llm(
             client, model, system,
             messages,
             temperature=0.0,
         )
+        dt_ms = (time.perf_counter() - t0) * 1000.0
         _trace(
             llm_trace,
             {
                 "event": "llm_rewrite",
                 **(trace_meta or {}),
                 "model": model,
-                "rewrite_input": _preview(client_text),
-                "messages_preview": _messages_preview(messages),
-                "rewrite_output": _preview(rewritten),
+                "kind": "mini_llm_menu_query_rewrite",
+                "rewrite_duration_ms": round(dt_ms, 2),
+                **(
+                    {
+                        "rewrite_system": system,
+                        "rewrite_input": client_text,
+                        "rewrite_messages": messages,
+                        "rewrite_output": rewritten,
+                    }
+                    if trace_verbose
+                    else {
+                        "rewrite_input": _preview(client_text),
+                        "messages_preview": _messages_preview(messages),
+                        "rewrite_output": _preview(rewritten),
+                    }
+                ),
             },
         )
         return rewritten
@@ -475,12 +550,78 @@ def _rewrite_query(
                 "event": "llm_rewrite_fallback",
                 **(trace_meta or {}),
                 "model": model,
-                "rewrite_input": _preview(client_text),
-                "messages_preview": _messages_preview(messages),
-                "rewrite_output": _preview(client_text),
+                "kind": "mini_llm_menu_query_rewrite",
+                **(
+                    {
+                        "rewrite_system": system,
+                        "rewrite_input": client_text,
+                        "rewrite_messages": messages,
+                        "rewrite_output": client_text,
+                    }
+                    if trace_verbose
+                    else {
+                        "rewrite_input": _preview(client_text),
+                        "messages_preview": _messages_preview(messages),
+                        "rewrite_output": _preview(client_text),
+                    }
+                ),
             },
         )
         return client_text
+
+
+def _llm_call_payload(
+    *,
+    agent: str,
+    model: str,
+    system: str,
+    messages: list[dict[str, str]],
+    response: str,
+    duration_ms: float,
+    verbose: bool,
+) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "event": "llm_call",
+        "agent": agent,
+        "model": model,
+        "kind": "dialog_llm",
+        "messages_count": len(messages),
+        "duration_ms": round(duration_ms, 2),
+    }
+    if verbose:
+        base["system"] = system
+        base["messages"] = [{"role": m["role"], "content": m["content"]} for m in messages]
+        base["response"] = response
+    else:
+        base["system_preview"] = _preview(system)
+        base["messages_preview"] = _messages_preview(messages)
+        base["response_preview"] = _preview(response)
+    return base
+
+
+def _llm_error_payload(
+    *,
+    agent: str,
+    model: str,
+    messages: list[dict[str, str]],
+    system: str,
+    error: str,
+    verbose: bool,
+) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "event": "llm_error",
+        "agent": agent,
+        "model": model,
+        "messages_count": len(messages),
+        "error": error,
+    }
+    if verbose:
+        base["system"] = system
+        base["messages"] = [{"role": m["role"], "content": m["content"]} for m in messages]
+    else:
+        base["system_preview"] = _preview(system)
+        base["messages_preview"] = _messages_preview(messages)
+    return base
 
 
 def _preview(text: str, limit: int = 1200) -> str:

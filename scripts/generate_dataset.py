@@ -14,18 +14,41 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
+import os
+import random
 import sys
+import threading
 import time
 import traceback
+from typing import Any
 
 import _bootstrap
 
 _bootstrap.ensure_src()
 
 from mcd_voice.dialog.pipeline import simulate_dialog
+from mcd_voice.dialog.trace_format import (
+    format_trace_event_pretty,
+    summarize_llm_event,
+    summarize_rag_event,
+)
 from mcd_voice.dialog.save_dialog import aggregate_stats, save_dialog
-from mcd_voice.llm import CashierAgent, ClientAgent
+from mcd_voice.llm import CashierAgent, ClientAgent, get_llm_runtime_config
+from mcd_voice.llm.agent import _resolve_model as _resolve_llm_model
 from mcd_voice.profile import ProfileGenerator
+
+
+def _load_profiles(path: str) -> list[dict]:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError("profiles_file must contain a JSON array of profiles")
+    profiles = [p for p in data if isinstance(p, dict)]
+    if not profiles:
+        raise ValueError("profiles_file contains no valid profiles")
+    return profiles
 
 
 def _find_next_id(output_dir: str) -> int:
@@ -43,7 +66,13 @@ def _find_next_id(output_dir: str) -> int:
     return max_id + 1
 
 
-def _make_dialog_progress_printer(dialog_id: int, total: int):
+def _make_dialog_progress_printer(
+    dialog_id: int,
+    total: int,
+    *,
+    print_trace: bool = False,
+    trace_verbose: bool = False,
+):
     def _printer(event: dict[str, object]) -> None:
         stage = event["stage"]
         prefix = f"  [dialog {dialog_id}/{total}]"
@@ -54,10 +83,80 @@ def _make_dialog_progress_printer(dialog_id: int, total: int):
                 f"{prefix} turn {event['turn']}/{event['max_turns']}",
                 flush=True,
             )
+        elif stage == "trace_delta" and print_trace:
+            label = event.get("label", "")
+            turn = event.get("turn")
+            turn_s = f" turn={turn}" if turn is not None else ""
+            print(f"{prefix} --- trace: {label}{turn_s} ---", flush=True)
+            for ev in event.get("rag_events") or []:
+                block = (
+                    format_trace_event_pretty(ev)
+                    if trace_verbose
+                    else summarize_rag_event(ev)
+                )
+                for line in block.splitlines():
+                    print(f"{prefix}   | {line}", flush=True)
+            for ev in event.get("llm_events") or []:
+                block = (
+                    format_trace_event_pretty(ev)
+                    if trace_verbose
+                    else summarize_llm_event(ev)
+                )
+                for line in block.splitlines():
+                    print(f"{prefix}   | {line}", flush=True)
         elif stage == "finished":
             print(f"{prefix} done: {event['message']}", flush=True)
 
     return _printer
+
+
+def _run_one_dialog(
+    *,
+    idx: int,
+    dialog_id: int,
+    total: int,
+    profile: dict,
+    out_dir: str,
+    max_turns: int,
+    client_model: str | None,
+    cashier_model: str | None,
+    rag_top_k: int,
+    collect_rag: bool,
+    collect_llm: bool,
+    print_trace: bool,
+    trace_verbose: bool,
+    print_lock: threading.Lock,
+) -> None:
+    # Создаём агентов внутри воркера: меньше shared-state, стабильнее при параллели.
+    client_agent = ClientAgent(model=client_model, trace_verbose=trace_verbose)
+    cashier_agent = CashierAgent(
+        model=cashier_model,
+        rag_top_k=rag_top_k,
+        trace_verbose=trace_verbose,
+    )
+    progress = _make_dialog_progress_printer(
+        idx + 1,
+        total,
+        print_trace=print_trace,
+        trace_verbose=trace_verbose,
+    )
+
+    def _thread_safe_progress(event: dict[str, object]) -> None:
+        with print_lock:
+            progress(event)
+
+    history, profile_out, order, flags = simulate_dialog(
+        profile=profile,
+        max_turns=max_turns,
+        client_agent=client_agent,
+        cashier_agent=cashier_agent,
+        progress_callback=_thread_safe_progress,
+        collect_rag_trace=collect_rag,
+        collect_llm_trace=collect_llm,
+        emit_trace_progress=print_trace,
+        trace_verbose=trace_verbose,
+    )
+    save_dialog(dialog_id, profile_out, history, order, flags, output_dir=out_dir)
 
 
 def main() -> None:
@@ -81,8 +180,28 @@ def main() -> None:
         help="Модель LLM; если не указана, берётся из API_MODEL/.env.",
     )
     parser.add_argument(
+        "--client_model", type=str, default=None,
+        help="Отдельная модель для клиента (если не задано, используется --model/API_MODEL).",
+    )
+    parser.add_argument(
+        "--cashier_model", type=str, default=None,
+        help="Отдельная модель для кассира (если не задано, используется --model/API_MODEL).",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Seed для воспроизводимой генерации профилей (on-the-fly).",
+    )
+    parser.add_argument(
+        "--profiles_file", type=str, default=None,
+        help="JSON-массив профилей; если задан, диалоги строятся строго по нему.",
+    )
+    parser.add_argument(
         "--max_turns", type=int, default=20,
         help="Максимум ходов в одном диалоге (по умолчанию 20).",
+    )
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Число параллельных воркеров (потоки). 1 = последовательный режим.",
     )
     parser.add_argument(
         "--rag_trace",
@@ -94,26 +213,79 @@ def main() -> None:
         action="store_true",
         help="Сохранять в validation_flags.llm_trace вызовы mini-LLM/LLM (preview).",
     )
+    parser.add_argument(
+        "--print_trace",
+        action="store_true",
+        help="Печатать в консоль шаги RAG/mini-LLM/LLM (включает сбор rag_trace+llm_trace).",
+    )
+    parser.add_argument(
+        "--trace_verbose",
+        action="store_true",
+        help="Полные тела промптов/ответов и сырые Chroma (сильно удлиняет JSON при rag/llm trace).",
+    )
     args = parser.parse_args()
 
     num = args.num_dialogs
     out_dir = args.output_dir
-    model = args.model
+    default_model = args.model
+    client_model = args.client_model or default_model
+    cashier_model = args.cashier_model or default_model
     rag_top_k = 0 if args.no_rag else 3
     mode_label = "non-RAG" if args.no_rag else "RAG"
+    workers = max(1, args.workers)
 
-    gen = ProfileGenerator()
-    client_agent = ClientAgent(model=model)
-    cashier_agent = CashierAgent(model=model, rag_top_k=rag_top_k)
+    collect_rag = args.rag_trace or args.print_trace
+    collect_llm = args.llm_trace or args.print_trace
+
+    rng = random.Random(args.seed) if args.seed is not None else None
+    gen = ProfileGenerator(rng=rng)
+    profiles: list[dict] | None = None
+    if args.profiles_file:
+        profiles = _load_profiles(args.profiles_file)
+        if num > len(profiles):
+            print(
+                f"  [!] num_dialogs={num}, но в profiles_file только {len(profiles)} профилей; "
+                f"будет сгенерировано {len(profiles)} диалогов.",
+                flush=True,
+            )
+            num = len(profiles)
+    # Профили подготавливаем заранее (детерминированность и отсутствие shared RNG в потоках).
+    profiles_for_run = [
+        profiles[i] if profiles is not None else gen.generate()
+        for i in range(num)
+    ]
+    display_client_model = _resolve_llm_model(client_model)
+    display_cashier_model = _resolve_llm_model(cashier_model)
     print(
         f"=== Генерация {num} диалогов "
-        f"({mode_label}, model={client_agent.model}) ==="
+        f"({mode_label}, client_model={display_client_model}, cashier_model={display_cashier_model}) ==="
     )
     print(
         f"    output_dir={out_dir}  max_turns={args.max_turns}"
-        f"  rag_trace={args.rag_trace}  llm_trace={args.llm_trace}"
+        f"  workers={workers}"
+        f"  rag_trace={collect_rag}  llm_trace={collect_llm}"
+        f"  print_trace={args.print_trace}  trace_verbose={args.trace_verbose}"
+        f"  seed={args.seed}"
+        f"  profiles_file={'yes' if args.profiles_file else 'no'}"
     )
+    if args.print_trace or args.trace_verbose:
+        rt = get_llm_runtime_config()
+        rw = os.environ.get("REWRITE_MODEL") or display_client_model
+        print(
+            f"    metrics: provider={rt.get('provider')} base_url={rt.get('base_url')!r} "
+            f"dialog_model={rt.get('model')!r} rewrite_model={rw!r} rag_top_k={rag_top_k}",
+            flush=True,
+        )
     print()
+
+    # Pre-warm Chroma + embedding model in the main thread before spawning workers.
+    # Without this, all workers race to call get_menu_collection() on their first
+    # search, causing all but one to block on _CHROMA_LOCK while the model loads.
+    if rag_top_k > 0:
+        from mcd_voice.menu.chroma import get_menu_collection
+        print("  Прогрев Chroma / embedding-модели...", flush=True)
+        get_menu_collection()
+        print("  Chroma готова.\n", flush=True)
 
     start_id = _find_next_id(out_dir)
     if start_id > 1:
@@ -122,40 +294,67 @@ def main() -> None:
     ok = 0
     errors = 0
     t0 = time.time()
+    done = 0
+    print_lock = threading.Lock()
+    ex: ThreadPoolExecutor | None = None
+    future_to_meta: dict[Any, tuple[int, int]] = {}
 
     try:
-        for i in range(num):
-            dialog_id = start_id + i
-            profile = gen.generate()
+        ex = ThreadPoolExecutor(max_workers=workers)
+        future_to_meta = {
+            ex.submit(
+                _run_one_dialog,
+                idx=i,
+                dialog_id=start_id + i,
+                total=num,
+                profile=profiles_for_run[i],
+                out_dir=out_dir,
+                max_turns=args.max_turns,
+                client_model=client_model,
+                cashier_model=cashier_model,
+                rag_top_k=rag_top_k,
+                collect_rag=collect_rag,
+                collect_llm=collect_llm,
+                print_trace=args.print_trace,
+                trace_verbose=args.trace_verbose,
+                print_lock=print_lock,
+            ): (i, start_id + i)
+            for i in range(num)
+        }
+        for fut in as_completed(future_to_meta):
+            i, dialog_id = future_to_meta[fut]
+            done += 1
             try:
-                history, profile, order, flags = simulate_dialog(
-                    profile=profile,
-                    max_turns=args.max_turns,
-                    client_agent=client_agent,
-                    cashier_agent=cashier_agent,
-                    progress_callback=_make_dialog_progress_printer(i + 1, num),
-                    collect_rag_trace=args.rag_trace,
-                    collect_llm_trace=args.llm_trace,
-                )
-                save_dialog(dialog_id, profile, history, order, flags, output_dir=out_dir)
+                fut.result()
                 ok += 1
             except Exception:
                 errors += 1
-                print(f"  [!] Ошибка в диалоге {dialog_id} (#{i+1}/{num}):")
-                traceback.print_exc(limit=2, file=sys.stdout)
+                with print_lock:
+                    print(f"  [!] Ошибка в диалоге {dialog_id} (#{i+1}/{num}):")
+                    traceback.print_exc(limit=2, file=sys.stdout)
 
-            if (i + 1) % 10 == 0 or (i + 1) == num:
-                done = i + 1
+            if done % 10 == 0 or done == num:
                 elapsed = time.time() - t0
                 rate = done / elapsed if elapsed > 0 else 0
                 rate_s = f"{rate:.4f}" if rate < 0.01 else f"{rate:.2f}"
-                print(
-                    f"  [{done}/{num}]  ok={ok}  errors={errors}  "
-                    f"elapsed={elapsed:.1f}s  rate={rate_s} d/s"
-                )
+                with print_lock:
+                    print(
+                        f"  [{done}/{num}]  ok={ok}  errors={errors}  "
+                        f"elapsed={elapsed:.1f}s  rate={rate_s} d/s"
+                    )
 
     except KeyboardInterrupt:
-        print(f"\n  Прервано пользователем на диалоге {dialog_id} (#{i+1}/{num}).")
+        pending = 0
+        if ex is not None:
+            for fut in future_to_meta:
+                if not fut.done():
+                    if fut.cancel():
+                        pending += 1
+            ex.shutdown(wait=False, cancel_futures=True)
+        print(f"\n  Прервано пользователем. Отменено ожидающих задач: {pending}.")
+    finally:
+        if ex is not None:
+            ex.shutdown(wait=False, cancel_futures=True)
 
     elapsed_total = time.time() - t0
     print(f"\n=== Итого ===")

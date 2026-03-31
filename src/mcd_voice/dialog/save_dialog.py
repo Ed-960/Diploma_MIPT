@@ -70,6 +70,7 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
     flags = rec.get("validation_flags", {})
     companions = profile.get("companions", [])
 
+    final_order = rec.get("final_order", {})
     return {
         "dialog_id": rec.get("dialog_id"),
         "sex": profile.get("sex"),
@@ -88,6 +89,7 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
         "childQuant": profile.get("childQuant", 0),
         "friendsQuant": profile.get("friendsQuant", 0),
         "group_size": 1 + len(companions),
+        "order_complete": final_order.get("order_complete", False),
         "turns": flags.get("turns", 0),
         "total_items": flags.get("total_items", 0),
         "total_energy": flags.get("total_energy", 0),

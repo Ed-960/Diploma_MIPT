@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from typing import Any
 
 import chromadb
@@ -24,6 +25,10 @@ from mcd_voice.config import (
 )
 from mcd_voice.menu.dataset import load_menu_from_json
 from mcd_voice.menu.parsing import allergens_meta_to_display
+
+_CHROMA_LOCK = threading.RLock()
+_CLIENT_CACHE: dict[str, Any] = {}
+_COLLECTION_CACHE: dict[tuple[str, str], Collection] = {}
 
 
 def configure_hf_cache() -> None:
@@ -102,17 +107,30 @@ def get_embedding_function(
     )
 
 
-def get_menu_collection() -> Collection:
+def get_menu_collection(*, device: str | None = None) -> Collection:
     """Коллекция menu с той же embedding function, что при индексации."""
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    ef = get_embedding_function()
-    return client.get_collection(name=COLLECTION_MENU, embedding_function=ef)
+    configure_hf_cache()
+    selected = device or resolve_embedding_device()
+    path = str(CHROMA_DIR)
+    key = (path, selected)
+    with _CHROMA_LOCK:
+        cached = _COLLECTION_CACHE.get(key)
+        if cached is not None:
+            return cached
+        client = _CLIENT_CACHE.get(path)
+        if client is None:
+            client = chromadb.PersistentClient(path=path)
+            _CLIENT_CACHE[path] = client
+        ef = get_embedding_function(device=selected)
+        collection = client.get_collection(name=COLLECTION_MENU, embedding_function=ef)
+        _COLLECTION_CACHE[key] = collection
+        return collection
 
 
 def get_or_create_menu_collection() -> Collection:
     """Создание коллекции при первой загрузке меню."""
     configure_hf_cache()
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    path = str(CHROMA_DIR)
     device = resolve_embedding_device()
     print(
         f"  → EMBEDDING_DEVICE={os.environ.get('EMBEDDING_DEVICE', 'auto')} -> фактически: {device}.",
@@ -127,11 +145,18 @@ def get_or_create_menu_collection() -> Collection:
     )
     ef = get_embedding_function(device=device)
     print("  → MiniLM загружен.", flush=True)
-    return client.get_or_create_collection(
-        name=COLLECTION_MENU,
-        embedding_function=ef,
-        metadata=CHROMA_METADATA_COSINE,
-    )
+    with _CHROMA_LOCK:
+        client = _CLIENT_CACHE.get(path)
+        if client is None:
+            client = chromadb.PersistentClient(path=path)
+            _CLIENT_CACHE[path] = client
+        collection = client.get_or_create_collection(
+            name=COLLECTION_MENU,
+            embedding_function=ef,
+            metadata=CHROMA_METADATA_COSINE,
+        )
+        _COLLECTION_CACHE[(path, device)] = collection
+        return collection
 
 
 def ingest_menu_clear_existing(
