@@ -5,6 +5,7 @@
   python scripts/generate_dataset.py --num_dialogs 100 --output_dir dialogs_rag
   python scripts/generate_dataset.py --num_dialogs 100 --output_dir dialogs_norag --no_rag
   python scripts/generate_dataset.py --num_dialogs 5 --model gpt-4o-mini   # тест
+  python scripts/generate_dataset.py --profiles_file profiles.json --num_dialogs 50 --shuffle_profiles
 
 Для сравнения RAG vs non-RAG:
   1) сгенерировать два набора (с --no_rag и без);
@@ -126,6 +127,7 @@ def _run_one_dialog(
     print_trace: bool,
     trace_verbose: bool,
     print_lock: threading.Lock,
+    realistic_cashier: bool,
 ) -> None:
     # Создаём агентов внутри воркера: меньше shared-state, стабильнее при параллели.
     client_agent = ClientAgent(model=client_model, trace_verbose=trace_verbose)
@@ -133,6 +135,7 @@ def _run_one_dialog(
         model=cashier_model,
         rag_top_k=rag_top_k,
         trace_verbose=trace_verbose,
+        realistic_cashier=realistic_cashier,
     )
     progress = _make_dialog_progress_printer(
         idx + 1,
@@ -155,6 +158,7 @@ def _run_one_dialog(
         collect_llm_trace=collect_llm,
         emit_trace_progress=print_trace,
         trace_verbose=trace_verbose,
+        realistic_cashier=realistic_cashier,
     )
     save_dialog(dialog_id, profile_out, history, order, flags, output_dir=out_dir)
 
@@ -193,7 +197,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--profiles_file", type=str, default=None,
-        help="JSON-массив профилей; если задан, диалоги строятся строго по нему.",
+        help="JSON-массив профилей; если задан, диалоги строятся по нему (см. --shuffle_profiles).",
+    )
+    parser.add_argument(
+        "--shuffle_profiles",
+        action="store_true",
+        help="С --profiles_file: брать NUM профилей случайной выборкой без повторений, "
+        "а не подряд с начала файла. С --seed порядок воспроизводим.",
     )
     parser.add_argument(
         "--max_turns", type=int, default=20,
@@ -223,6 +233,12 @@ def main() -> None:
         action="store_true",
         help="Полные тела промптов/ответов и сырые Chroma (сильно удлиняет JSON при rag/llm trace).",
     )
+    parser.add_argument(
+        "--realistic_cashier",
+        action="store_true",
+        help="Кассир без скрытого профиля: не видит психотип/группу/ограничения до реплик клиента; "
+        "RAG без фильтра аллергенов по профилю.",
+    )
     args = parser.parse_args()
 
     num = args.num_dialogs
@@ -249,11 +265,20 @@ def main() -> None:
                 flush=True,
             )
             num = len(profiles)
+    if args.shuffle_profiles and not args.profiles_file:
+        print(
+            "  [!] --shuffle_profiles без --profiles_file игнорируется.",
+            flush=True,
+        )
     # Профили подготавливаем заранее (детерминированность и отсутствие shared RNG в потоках).
-    profiles_for_run = [
-        profiles[i] if profiles is not None else gen.generate()
-        for i in range(num)
-    ]
+    if profiles is not None:
+        if args.shuffle_profiles:
+            pick_rng = random.Random(args.seed) if args.seed is not None else random.Random()
+            profiles_for_run = pick_rng.sample(profiles, k=num)
+        else:
+            profiles_for_run = [profiles[i] for i in range(num)]
+    else:
+        profiles_for_run = [gen.generate() for _ in range(num)]
     display_client_model = _resolve_llm_model(client_model)
     display_cashier_model = _resolve_llm_model(cashier_model)
     print(
@@ -267,6 +292,8 @@ def main() -> None:
         f"  print_trace={args.print_trace}  trace_verbose={args.trace_verbose}"
         f"  seed={args.seed}"
         f"  profiles_file={'yes' if args.profiles_file else 'no'}"
+        f"  shuffle_profiles={bool(args.profiles_file and args.shuffle_profiles)}"
+        f"  realistic_cashier={args.realistic_cashier}"
     )
     if args.print_trace or args.trace_verbose:
         rt = get_llm_runtime_config()
@@ -318,6 +345,7 @@ def main() -> None:
                 print_trace=args.print_trace,
                 trace_verbose=args.trace_verbose,
                 print_lock=print_lock,
+                realistic_cashier=args.realistic_cashier,
             ): (i, start_id + i)
             for i in range(num)
         }

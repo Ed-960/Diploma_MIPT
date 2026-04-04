@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from typing import Any
 
@@ -40,6 +41,32 @@ except (TypeError, ValueError):
     RAG_SOFT_DISTANCE_MAX = 1.15
 
 HistoryEntry = dict[str, str]
+
+# RAG: клиент просит «что ещё / другие позиции», а не уточнение одного блюда.
+_BROAD_MENU_RAG_QUERY = (
+    "popular menu items burgers chicken sandwiches sides drinks dessert coffee"
+)
+
+_BROAD_MENU_INTENT_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bwhat\s+else\b", re.I),
+    re.compile(r"\banything\s+else\b", re.I),
+    re.compile(r"\bsomething\s+else\b", re.I),
+    re.compile(r"\b(other\s+options?|other\s+items?|other\s+choices?)\b", re.I),
+    re.compile(r"\bbesides\s+(that|this)\b", re.I),
+    re.compile(r"\bother\s+than\b", re.I),
+    re.compile(r"\bnot\s+just\b", re.I),
+    re.compile(r"\bany\s+other\b", re.I),
+    re.compile(r"\belse\s+do\s+you\s+have\b", re.I),
+    re.compile(r"\belse\s+on\s+the\s+menu\b", re.I),
+    re.compile(r"\bwhat\s+other\b", re.I),
+)
+
+
+def _client_wants_broader_menu_scan(text: str) -> bool:
+    """True если реплика про расширение выбора, а не про одно конкретное блюдо."""
+    if not (text or "").strip():
+        return False
+    return any(rx.search(text) for rx in _BROAD_MENU_INTENT_RES)
 
 
 # ── LLM-клиент ────────────────────────────────────────────────────────────────
@@ -220,8 +247,11 @@ class ClientAgent:
 
 class CashierAgent:
     """
-    Агент-кассир: формирует ответы с учётом профиля клиента, истории,
-    текущего заказа и семантического поиска по меню (RAG).
+    Агент-кассир: формирует ответы с учётом истории, заказа и RAG по меню.
+
+    По умолчанию в системный промпт попадают психотип и состав группы из profile
+    (удобно для симуляции). При realistic_cashier=True кассир видит только общие
+    правила и реплики из диалога; фильтр аллергенов в RAG по профилю отключается.
     """
 
     _FALLBACK_QUERY = "popular menu items burger chicken fries"
@@ -235,12 +265,14 @@ class CashierAgent:
         rewrite_model: str | None = None,
         *,
         trace_verbose: bool = False,
+        realistic_cashier: bool = False,
     ) -> None:
         self.model = _resolve_model(model)
         self.rag_top_k = rag_top_k
         self.distance_threshold = distance_threshold
         self._client = _build_openai_client(timeout)
         self._trace_verbose = trace_verbose
+        self._realistic_cashier = realistic_cashier
         # Mini-LLM для query rewriting: используем REWRITE_MODEL из .env.
         # Параметр rewrite_model оставлен для обратной совместимости, но не применяется.
         _ = rewrite_model
@@ -365,7 +397,11 @@ class CashierAgent:
         Возвращает (текст для system prompt, метаданные для rag_trace).
         Применяет два порога: жёсткий (уверенный hit) и мягкий (fallback с предупреждением).
         """
-        blacklist = get_group_allergen_blacklist(profile)
+        blacklist = (
+            []
+            if self._realistic_cashier
+            else get_group_allergen_blacklist(profile)
+        )
         chroma_buf: list[dict[str, Any]] = []
         rows = search_menu(
             text,
@@ -410,14 +446,14 @@ class CashierAgent:
         info["outcome"] = "above_threshold"
         return "(no matching menu items found — closest match too distant)", info
 
-    @staticmethod
     def _build_system(
+        self,
         profile: dict[str, Any],
         order_state: dict[str, Any],
         rag_context: str,
     ) -> str:
         """Собирает системный промпт: базовый + опциональные блоки RAG и заказа."""
-        base = get_cashier_system_prompt(profile)
+        base = get_cashier_system_prompt(profile, realistic=self._realistic_cashier)
         extras: list[str] = []
         if rag_context:
             extras.append(
@@ -545,10 +581,17 @@ def _rewrite_query(
         "You extract a short food search query (3–8 words, English) "
         "from a customer's drive-through message. "
         "Focus on food type, category, or dietary need. "
+        "If the customer asks what ELSE is available, for OTHER options, "
+        "anything BESIDES what was already mentioned, or NOT JUST one item, "
+        "they want a broad menu slice — output a mix of categories, e.g. "
+        "burgers chicken sandwiches sides drinks dessert coffee. "
+        "Do NOT reduce the whole message to a single side or ingredient "
+        "they only mentioned in passing (e.g. do not output only fries). "
         "Reply with ONLY the query — no explanation, no punctuation at the end. "
         "If there is no food intent, reply: general menu items"
     )
     messages = [{"role": "user", "content": client_text}]
+
     try:
         t0 = time.perf_counter()
         rewritten = _call_llm(
@@ -557,6 +600,20 @@ def _rewrite_query(
             temperature=0.0,
         )
         dt_ms = (time.perf_counter() - t0) * 1000.0
+        rewritten = (rewritten or "").strip()
+        if _client_wants_broader_menu_scan(client_text) and len(rewritten.split()) <= 1:
+            _trace(
+                llm_trace,
+                {
+                    "event": "rewrite_broad_menu_override",
+                    **(trace_meta or {}),
+                    "model": model,
+                    "kind": "mini_llm_menu_query_rewrite",
+                    "narrow_rewrite": rewritten,
+                    "rewrite_output": _BROAD_MENU_RAG_QUERY,
+                },
+            )
+            rewritten = _BROAD_MENU_RAG_QUERY
         _trace(
             llm_trace,
             {

@@ -47,6 +47,11 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="В консоли — полные JSON событий (промпты, ответы, Chroma documents).",
     )
+    parser.add_argument(
+        "--realistic_cashier",
+        action="store_true",
+        help="Кассир не получает скрытый профиль и RAG без фильтра аллергенов по профилю.",
+    )
     return parser.parse_args()
 
 
@@ -108,6 +113,7 @@ if __name__ == "__main__":
             collect_llm_trace=collect_llm,
             emit_trace_progress=args.print_trace,
             trace_verbose=args.trace_verbose,
+            realistic_cashier=args.realistic_cashier,
         )
         print_dialog(h, p, o, f)
     except RuntimeError as e:

@@ -68,8 +68,18 @@ def _calorie_hint(cal: int) -> str:
     return "You are very hungry; order generously."
 
 
-def get_cashier_system_prompt(profile: dict[str, Any] | None = None) -> str:
-    """Cashier agent: service, allergens, upsells, confirmation, group handling."""
+def get_cashier_system_prompt(
+    profile: dict[str, Any] | None = None,
+    *,
+    realistic: bool = False,
+) -> str:
+    """
+    Cashier agent: service, allergens, upsells, confirmation, group handling.
+
+    If realistic=True, the cashier gets no hidden customer data (no psychotype,
+    group size, or companion restrictions); RAG should not use profile-based
+    allergen filters either (see CashierAgent).
+    """
     lines = [
         "You are a cashier at a McDonald's drive-through. Speak in English.",
         "",
@@ -113,6 +123,21 @@ def get_cashier_system_prompt(profile: dict[str, Any] | None = None) -> str:
         "- Output only what a cashier would actually say. "
         "Do NOT include reasoning, analysis, instructions, or any meta-commentary.",
     ]
+
+    if realistic:
+        lines.extend([
+            "",
+            "REALISTIC DRIVE-THROUGH:",
+            "- You know nothing about this customer until they say it in this conversation.",
+            "- Do not assume extra people, children, or dietary restrictions; if they mention "
+            "ordering for someone else, ask what that person wants and any allergies or "
+            "diet needs in plain language.",
+            "- Adapt tone only from their actual words (e.g. rushed vs chatty), not from facts "
+            "they have not stated.",
+            "- Still handle groups properly once they tell you who needs what: take each "
+            "person in turn, confirm, then full readback at the end.",
+        ])
+        return "\n".join(lines)
 
     if profile:
         psycho = profile.get("psycho", "regular")

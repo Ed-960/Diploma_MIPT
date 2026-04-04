@@ -323,6 +323,7 @@ class DialogPipeline:
         collect_llm_trace: bool = False,
         emit_trace_progress: bool = False,
         trace_verbose: bool = False,
+        realistic_cashier: bool = False,
     ) -> None:
         self.max_turns = max_turns
         # При отсутствии явной модели берем API_MODEL из env.
@@ -336,6 +337,7 @@ class DialogPipeline:
         self._collect_llm_trace = collect_llm_trace
         self._emit_trace_progress = emit_trace_progress
         self._trace_verbose = trace_verbose
+        self._realistic_cashier = realistic_cashier
 
     def run(
         self,
@@ -356,7 +358,9 @@ class DialogPipeline:
             model=self.model, trace_verbose=self._trace_verbose,
         )
         cashier = self._cashier_agent or CashierAgent(
-            model=self.model, trace_verbose=self._trace_verbose,
+            model=self.model,
+            trace_verbose=self._trace_verbose,
+            realistic_cashier=self._realistic_cashier,
         )
 
         history: list[dict[str, str]] = []
@@ -729,6 +733,7 @@ def simulate_dialog(
     collect_llm_trace: bool = False,
     emit_trace_progress: bool = False,
     trace_verbose: bool = False,
+    realistic_cashier: bool = False,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Функциональный фасад: один диалог с валидацией."""
     pipeline = DialogPipeline(
@@ -741,6 +746,7 @@ def simulate_dialog(
         collect_llm_trace=collect_llm_trace,
         emit_trace_progress=emit_trace_progress,
         trace_verbose=trace_verbose,
+        realistic_cashier=realistic_cashier,
     )
     return pipeline.run(profile=profile)
 
@@ -753,6 +759,7 @@ def generate_dialog(
     collect_llm_trace: bool = False,
     emit_trace_progress: bool = False,
     trace_verbose: bool = False,
+    realistic_cashier: bool = False,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
     return simulate_dialog(
         max_turns=max_turns,
@@ -762,6 +769,7 @@ def generate_dialog(
         collect_llm_trace=collect_llm_trace,
         emit_trace_progress=emit_trace_progress,
         trace_verbose=trace_verbose,
+        realistic_cashier=realistic_cashier,
     )
 
 

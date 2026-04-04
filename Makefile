@@ -29,6 +29,11 @@ SEED ?=
 CLIENT_MODEL ?=
 CASHIER_MODEL ?=
 WORKERS ?= 1
+# Непустое — случайная выборка NUM профилей из PROFILES_FILE без повторений (--shuffle_profiles).
+SHUFFLE_PROFILES ?=
+# Непустое — кассир без скрытого профиля и без RAG-фильтра аллергенов по профилю (--realistic_cashier).
+REALISTIC_CASHIER ?=
+REALISTIC_FLAG = $(if $(REALISTIC_CASHIER),--realistic_cashier,)
 
 .PHONY: help install install-dev test test-v chroma \
 	demo-profile demo-dialog demo-dialog-trace demo-agents demo-menu-search \
@@ -61,6 +66,8 @@ help:
 	@echo "  make dataset-trace-100   100 -> $(OUT_TRACE)_100"
 	@echo "  make profiles-gen        NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) SEED=42"
 	@echo "  make dataset-rag-from-profiles NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) PRINT_TRACE=1 TRACE_VERBOSE=1"
+	@echo "  make dataset-rag-from-profiles ... SHUFFLE_PROFILES=1 SEED=42   # профили из файла — случайная выборка"
+	@echo "  make dataset-rag ... REALISTIC_CASHIER=1   # реалистичный кассир (без скрытого профиля)"
 	@echo ""
 	@echo "  make compare-rag         RAG_DIR=$(OUT_RAG) NORAG_DIR=$(OUT_NORAG)"
 	@echo ""
@@ -100,31 +107,31 @@ demo-menu-search:
 	$(PY) scripts/menu_search_demo.py
 
 dataset-rag:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --max_turns $(TURNS) --workers $(WORKERS) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
 
 dataset-norag:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace:
-	$(PY) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-10:
-	$(PY) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-20:
-	$(PY) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-50:
-	$(PY) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-100:
-	$(PY) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
 
 profiles-gen:
 	$(PY) scripts/generate_profiles.py --num_profiles $(NUM) --output_file $(PROFILES_FILE) $(if $(SEED),--seed $(SEED),)
 
 dataset-rag-from-profiles:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
 
 compare-rag:
 	$(PY) scripts/compare_rag.py --rag_dir $(RAG_DIR) --norag_dir $(NORAG_DIR)
