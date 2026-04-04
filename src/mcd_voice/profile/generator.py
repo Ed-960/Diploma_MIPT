@@ -43,11 +43,11 @@ _AGE_GROUPS: list[tuple[int, int, float]] = [
 ]
 
 _PSYCHO_WEIGHTS: list[tuple[Psycho, float]] = [
-    ("regular", 0.50),
-    ("friendly", 0.15),
-    ("impatient", 0.15),
-    ("polite_and_respectful", 0.10),
-    ("indecisive", 0.10),
+    ("regular", 0.30),
+    ("friendly", 0.20),
+    ("impatient", 0.20),
+    ("polite_and_respectful", 0.15),
+    ("indecisive", 0.15),
 ]
 
 _LANG_WEIGHTS: dict[Language, float] = {"EN": 1.0, "RU": 0.0}
@@ -71,16 +71,17 @@ _DIETARY_PROBS: dict[str, float] = {
     "noSugar":  0.08,
 }
 
-# У детей аллергии чаще: молоко ~5%, яйца ~3%, орехи ~2%, глютен ~1%
+# У детей аллергии чаще: повышенные вероятности для разнообразия
 _CHILD_DIETARY_PROBS: dict[str, float] = {
-    "noMilk":   0.05,
-    "noEggs":   0.03,
-    "noNuts":   0.02,
-    "noGluten": 0.01,
+    "noMilk":   0.10,
+    "noEggs":   0.06,
+    "noNuts":   0.05,
+    "noGluten": 0.03,
 }
 
-_CHILD_WEIGHTS = [(0, 0.46), (1, 0.25), (2, 0.18), (3, 0.11)]
-_FRIEND_WEIGHTS = [(0, 0.70), (1, 0.20), (2, 0.10)]
+# Веса для ~50% solo: P(0 children) * P(0 friends) = 0.60 * 0.83 ≈ 0.50
+_CHILD_WEIGHTS = [(0, 0.60), (1, 0.20), (2, 0.12), (3, 0.08)]
+_FRIEND_WEIGHTS = [(0, 0.83), (1, 0.12), (2, 0.05)]
 
 _CHILD_NAMES = ["child_1", "child_2", "child_3"]
 _FRIEND_NAMES = ["friend_1", "friend_2"]

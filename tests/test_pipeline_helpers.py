@@ -14,6 +14,8 @@ import pytest
 from mcd_voice.dialog.pipeline import (
     DialogPipeline,
     _detect_target_person,
+    _has_cashier_hard_repeat,
+    _is_looping_tail,
     _resolve_person_index,
     build_initial_order_state,
     parse_order_from_text,
@@ -516,3 +518,29 @@ def test_dialog_pipeline_parses_final_cashier_summary(
 
     assert flags["empty_order"] is False
     assert order_state["persons"][0]["items"] == [{"name": "Big Mac", "quantity": 1}]
+
+
+def test_looping_tail_detects_repeated_ack_pair() -> None:
+    history = [
+        {"speaker": "cashier", "text": "Order is on the way."},
+        {"speaker": "client", "text": "hurry"},
+        {"speaker": "cashier", "text": "almost there"},
+        {"speaker": "client", "text": "hurry"},
+        {"speaker": "cashier", "text": "almost there"},
+        {"speaker": "client", "text": "hurry"},
+        {"speaker": "cashier", "text": "almost there"},
+    ]
+    assert _is_looping_tail(history) is True
+
+
+def test_cashier_hard_repeat_detects_triplicate() -> None:
+    history = [
+        {"speaker": "cashier", "text": "Hi!"},
+        {"speaker": "client", "text": "yeah"},
+        {"speaker": "cashier", "text": "Have a great day!"},
+        {"speaker": "client", "text": "you too"},
+        {"speaker": "cashier", "text": "Have a great day!"},
+        {"speaker": "client", "text": "you too"},
+        {"speaker": "cashier", "text": "Have a great day!"},
+    ]
+    assert _has_cashier_hard_repeat(history) is True

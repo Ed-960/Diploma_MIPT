@@ -42,6 +42,11 @@ _CLIENT_CONFIRM_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+_CLIENT_FAREWELL_PATTERNS = re.compile(
+    r"\byou too\b|\bbye\b|\bsee you\b|\bgood day\b|\bgood night\b",
+    re.IGNORECASE,
+)
+
 # ── CoT-утечки ────────────────────────────────────────────────────────
 
 _COT_LEAK_PATTERNS = re.compile(
@@ -93,6 +98,10 @@ def _cashier_signals_end(text: str) -> bool:
 
 def _client_confirms_end(text: str) -> bool:
     return bool(_CLIENT_CONFIRM_PATTERNS.search(text))
+
+
+def _client_says_farewell(text: str) -> bool:
+    return bool(_CLIENT_FAREWELL_PATTERNS.search(text))
 
 
 # ── Парсинг количества блюд ──────────────────────────────────────────
@@ -174,14 +183,59 @@ def _build_alias_patterns(menu_names: list[str]) -> list[tuple[re.Pattern[str], 
                 return name
         return None
 
+    def pick_exact(name_fragment: str) -> str | None:
+        """Match item containing fragment but prefer exact/shorter names."""
+        candidates = [
+            n for n in menu_names
+            if n and name_fragment.lower() in _normalize_item_text(n)
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=len)
+
+    def pick_plain_fries() -> str | None:
+        """Match plain fries, excluding Cheesy Fries."""
+        for name in menu_names:
+            if not name:
+                continue
+            n = _normalize_item_text(name)
+            if "fries" in n and "cheesy" not in n:
+                return name
+        return None
+
     mapping = [
         (r"\bblack coffee\b", pick("black", "coffee")),
         (r"\bcold coffee\b", pick("cold", "coffee")),
         (r"\biced tea\b", pick("iced", "tea")),
         (r"\bcheesy fries\b", pick("cheesy", "fries")),
-        (r"\bfries\b", pick("fries")),
+        (r"\b(plain |regular |just )?fries\b", pick_plain_fries()),
         (r"\bnuggets\b", pick("mcnuggets")),
         (r"\bmcveggie\b", pick("mcveggie")),
+        (r"\bbig mac\b", pick_exact("big mac")),
+        (r"\bquarter pounder\b", pick_exact("quarter pounder")),
+        (r"\bmcdouble\b", pick_exact("mcdouble")),
+        (r"\bcheeseburger\b", pick_exact("cheeseburger")),
+        (r"\bhamburger\b", pick_exact("hamburger")),
+        (r"\bhappy meal\b", pick_exact("happy meal")),
+        (r"\begg mcmuffin\b", pick_exact("egg mcmuffin")),
+        (r"\bhash browns?\b", pick_exact("hash brown")),
+        (r"\bhotcakes\b", pick_exact("hotcakes")),
+        (r"\bapple (slices|pie)\b", pick_exact("apple")),
+        (r"\bcoke\b", pick_exact("coca-cola")),
+        (r"\bdiet coke\b", pick_exact("diet coke")),
+        (r"\bdr\.?\s*pepper\b", pick_exact("dr pepper")),
+        (r"\bfanta\b", pick_exact("fanta")),
+        (r"\bsweet tea\b", pick_exact("sweet tea")),
+        (r"\blemonade\b", pick_exact("lemonade")),
+        (r"\bsprite\b", pick_exact("sprite")),
+        (r"\borange juice\b", pick_exact("orange juice")),
+        (r"\b(bottled )?water\b", pick_exact("bottled water")),
+        (r"\bhot chocolate\b", pick_exact("hot chocolate")),
+        (r"\b(mocha|caramel) frappe\b", pick_exact("frappe")),
+        (r"\b(chocolate|vanilla|strawberry) shake\b", pick_exact("shake")),
+        (r"\bsmoothie\b", pick_exact("smoothie")),
+        (r"\bcaesar salad\b", pick_exact("caesar")),
+        (r"\bmozzarella sticks?\b", pick_exact("mozzarella")),
     ]
     for patt, target in mapping:
         if target:
@@ -375,6 +429,7 @@ class DialogPipeline:
         n_llm = 0
         cot_leak_count = 0
         stall_detected = False
+        loop_detected = False
 
         self._emit_progress(
             "greeting_start",
@@ -432,7 +487,9 @@ class DialogPipeline:
                 rag_trace, llm_trace, n_rag, n_llm, label="client", turn=turn,
             )
 
-            if cashier_signaled and _client_confirms_end(client_msg):
+            if cashier_signaled and (
+                _client_confirms_end(client_msg) or _client_says_farewell(client_msg)
+            ):
                 order_state["order_complete"] = True
                 self._emit_progress(
                     "finished",
@@ -440,7 +497,7 @@ class DialogPipeline:
                     max_turns=self.max_turns,
                     history_len=len(history),
                     reason="client_confirmed_end",
-                    message="Клиент подтвердил завершение диалога.",
+                    message="Клиент подтвердил/закрыл диалог после финальной реплики кассира.",
                 )
                 break
 
@@ -489,6 +546,21 @@ class DialogPipeline:
                 )
                 break
 
+            if _is_looping_tail(history) or _has_cashier_hard_repeat(history, repeat=3):
+                loop_detected = True
+                # Если заказ уже собран, считаем диалог завершённым, чтобы не тянуть до max_turns.
+                if validate_dialog(profile, order_state, history)["total_items"] > 0:
+                    order_state["order_complete"] = True
+                self._emit_progress(
+                    "finished",
+                    turn=turn,
+                    max_turns=self.max_turns,
+                    history_len=len(history),
+                    reason="loop_detected",
+                    message="Диалог прерван: обнаружен повторяющийся хвост реплик.",
+                )
+                break
+
             # Обновляем заказ только по реплике клиента: так не добавляем
             # предложения кассира, которые клиент не подтверждал.
             self._update_order(
@@ -531,6 +603,8 @@ class DialogPipeline:
             flags = {**flags, "cot_leak_count": cot_leak_count}
         if stall_detected:
             flags = {**flags, "stall_detected": True}
+        if loop_detected:
+            flags = {**flags, "loop_detected": True}
         if rag_trace is not None:
             flags = {**flags, "rag_trace": rag_trace}
         if llm_trace is not None:
@@ -804,6 +878,44 @@ def _apply_group_quantity_hint(text: str, qty: int, group_size: int) -> int:
 def _is_yes_only(text: str) -> bool:
     normalized = _normalize_item_text(text)
     return normalized in {"yes", "yes thanks", "yes thank you", "yeah", "yep", "correct"}
+
+
+def _is_looping_tail(history: list[dict[str, str]]) -> bool:
+    """
+    Detects short repetitive tail patterns like:
+      client "hurry"  -> cashier "almost there" (x3+)
+      client "you too" -> cashier "have a great day" (x3+)
+    """
+    if len(history) < 6:
+        return False
+
+    tail = history[-6:]
+    expected = ["client", "cashier", "client", "cashier", "client", "cashier"]
+    if [x.get("speaker") for x in tail] != expected:
+        return False
+
+    client_msgs = [_normalize_item_text(tail[i].get("text", "")) for i in (0, 2, 4)]
+    cashier_msgs = [_normalize_item_text(tail[i].get("text", "")) for i in (1, 3, 5)]
+
+    if not all(client_msgs) or not all(cashier_msgs):
+        return False
+    if len(set(client_msgs)) != 1 or len(set(cashier_msgs)) != 1:
+        return False
+
+    # Guard against long semantic replies: loop tails are usually short acknowledgements.
+    return len(client_msgs[0].split()) <= 6 and len(cashier_msgs[0].split()) <= 10
+
+
+def _has_cashier_hard_repeat(history: list[dict[str, str]], repeat: int = 3) -> bool:
+    cashier_msgs = [
+        _normalize_item_text(t.get("text", ""))
+        for t in history
+        if t.get("speaker") == "cashier"
+    ]
+    if len(cashier_msgs) < repeat:
+        return False
+    tail = cashier_msgs[-repeat:]
+    return bool(tail[0]) and len(set(tail)) == 1
 
 
 def print_dialog(

@@ -31,6 +31,7 @@ from mcd_voice.profile.generator import get_group_allergen_blacklist
 # ── Константы ─────────────────────────────────────────────────────────────────
 
 DEFAULT_MODEL = "gpt-4o"
+RAG_FULL_TOP_K = 10_000
 
 RAG_DISTANCE_THRESHOLD: float = 0.60
 try:
@@ -254,13 +255,24 @@ class CashierAgent:
     правила и реплики из диалога; фильтр аллергенов в RAG по профилю отключается.
     """
 
-    _FALLBACK_QUERY = "popular menu items burger chicken fries"
+    _FALLBACK_QUERIES = [
+        "popular burgers Big Mac Quarter Pounder cheeseburger",
+        "chicken sandwiches nuggets crispy spicy tenders",
+        "breakfast items Egg McMuffin hash browns hotcakes biscuit",
+        "sides fries apple slices mozzarella sticks",
+        "drinks Coca-Cola Sprite Diet Coke Dr Pepper sweet tea lemonade",
+        "coffee latte macchiato frappe iced coffee hot chocolate",
+        "milkshakes chocolate vanilla strawberry smoothie",
+        "salads caesar grilled chicken light options",
+        "desserts McFlurry sundae apple pie brownie cookie",
+        "value menu hamburger McDouble cheeseburger",
+    ]
 
     def __init__(
         self,
         model: str | None = None,
         timeout: float = 60.0,
-        rag_top_k: int = 3,
+        rag_top_k: int = RAG_FULL_TOP_K,
         distance_threshold: float = RAG_DISTANCE_THRESHOLD,
         rewrite_model: str | None = None,
         *,
@@ -368,7 +380,8 @@ class CashierAgent:
             )
             is_fallback = False
         else:
-            search_query = self._FALLBACK_QUERY
+            import random as _rand
+            search_query = _rand.choice(self._FALLBACK_QUERIES)
             is_fallback = True
 
         context, info = self._do_rag(

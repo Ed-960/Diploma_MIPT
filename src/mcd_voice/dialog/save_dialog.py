@@ -113,6 +113,9 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
         "allergen_violation": flags.get("allergen_violation", []),
         "empty_order": flags.get("empty_order", False),
         "companions_without_items": flags.get("companions_without_items", 0),
+        "loop_detected": flags.get("loop_detected", False),
+        "stall_detected": flags.get("stall_detected", False),
+        "regen_retries": flags.get("regen_retries", 0),
         "per_person": flags.get("per_person", []),
     }
 

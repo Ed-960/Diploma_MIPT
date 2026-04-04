@@ -37,8 +37,24 @@ from mcd_voice.dialog.trace_format import (
 )
 from mcd_voice.dialog.save_dialog import aggregate_stats, save_dialog
 from mcd_voice.llm import CashierAgent, ClientAgent, get_llm_runtime_config
-from mcd_voice.llm.agent import _resolve_model as _resolve_llm_model
+from mcd_voice.llm.agent import (
+    RAG_FULL_TOP_K,
+    _resolve_model as _resolve_llm_model,
+)
 from mcd_voice.profile import ProfileGenerator
+
+
+def _configure_utf8_stdio() -> None:
+    """
+    Make console output robust on Windows terminals with legacy code pages.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8")
+            except Exception:
+                pass
 
 
 def _load_profiles(path: str) -> list[dict]:
@@ -128,6 +144,7 @@ def _run_one_dialog(
     trace_verbose: bool,
     print_lock: threading.Lock,
     realistic_cashier: bool,
+    retry_on_loop: int,
 ) -> None:
     # Создаём агентов внутри воркера: меньше shared-state, стабильнее при параллели.
     client_agent = ClientAgent(model=client_model, trace_verbose=trace_verbose)
@@ -148,22 +165,41 @@ def _run_one_dialog(
         with print_lock:
             progress(event)
 
-    history, profile_out, order, flags = simulate_dialog(
-        profile=profile,
-        max_turns=max_turns,
-        client_agent=client_agent,
-        cashier_agent=cashier_agent,
-        progress_callback=_thread_safe_progress,
-        collect_rag_trace=collect_rag,
-        collect_llm_trace=collect_llm,
-        emit_trace_progress=print_trace,
-        trace_verbose=trace_verbose,
-        realistic_cashier=realistic_cashier,
-    )
+    attempts = 0
+    while True:
+        history, profile_out, order, flags = simulate_dialog(
+            profile=profile,
+            max_turns=max_turns,
+            client_agent=client_agent,
+            cashier_agent=cashier_agent,
+            progress_callback=_thread_safe_progress,
+            collect_rag_trace=collect_rag,
+            collect_llm_trace=collect_llm,
+            emit_trace_progress=print_trace,
+            trace_verbose=trace_verbose,
+            realistic_cashier=realistic_cashier,
+        )
+        reached_limit = flags.get("turns", 0) >= max_turns * 2
+        likely_loop = bool(
+            flags.get("loop_detected")
+            or flags.get("stall_detected")
+            or (reached_limit and not order.get("order_complete", False))
+        )
+        if not likely_loop or attempts >= retry_on_loop:
+            break
+        attempts += 1
+        with print_lock:
+            print(
+                f"  [dialog {idx + 1}/{total}] retry {attempts}/{retry_on_loop}: loop/stall detected",
+                flush=True,
+            )
+    if attempts:
+        flags = {**flags, "regen_retries": attempts}
     save_dialog(dialog_id, profile_out, history, order, flags, output_dir=out_dir)
 
 
 def main() -> None:
+    _configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="Массовая генерация синтетических диалогов (диплом).",
     )
@@ -239,6 +275,10 @@ def main() -> None:
         help="Кассир без скрытого профиля: не видит психотип/группу/ограничения до реплик клиента; "
         "RAG без фильтра аллергенов по профилю.",
     )
+    parser.add_argument(
+        "--retry_on_loop", type=int, default=1,
+        help="Сколько раз перегенерировать диалог при loop/stall/max_turns без завершения.",
+    )
     args = parser.parse_args()
 
     num = args.num_dialogs
@@ -246,7 +286,7 @@ def main() -> None:
     default_model = args.model
     client_model = args.client_model or default_model
     cashier_model = args.cashier_model or default_model
-    rag_top_k = 0 if args.no_rag else 3
+    rag_top_k = 0 if args.no_rag else RAG_FULL_TOP_K
     mode_label = "non-RAG" if args.no_rag else "RAG"
     workers = max(1, args.workers)
 
@@ -294,6 +334,7 @@ def main() -> None:
         f"  profiles_file={'yes' if args.profiles_file else 'no'}"
         f"  shuffle_profiles={bool(args.profiles_file and args.shuffle_profiles)}"
         f"  realistic_cashier={args.realistic_cashier}"
+        f"  retry_on_loop={max(0, args.retry_on_loop)}"
     )
     if args.print_trace or args.trace_verbose:
         rt = get_llm_runtime_config()
@@ -346,6 +387,7 @@ def main() -> None:
                 trace_verbose=args.trace_verbose,
                 print_lock=print_lock,
                 realistic_cashier=args.realistic_cashier,
+                retry_on_loop=max(0, args.retry_on_loop),
             ): (i, start_id + i)
             for i in range(num)
         }
@@ -406,6 +448,8 @@ def _print_stats(summaries: list[dict]) -> None:
     allergen_v = sum(1 for s in summaries if s.get("allergen_violation"))
     calorie_w = sum(1 for s in summaries if s.get("calorie_warning"))
     empty_o = sum(1 for s in summaries if s.get("empty_order"))
+    loops = sum(1 for s in summaries if s.get("loop_detected"))
+    stalls = sum(1 for s in summaries if s.get("stall_detected"))
     turns_list = [s.get("turns", 0) for s in summaries]
     avg_turns = sum(turns_list) / total
 
@@ -413,6 +457,8 @@ def _print_stats(summaries: list[dict]) -> None:
     print(f"  allergen_violation: {allergen_v} ({allergen_v/total:.1%})")
     print(f"  calorie_warning:    {calorie_w} ({calorie_w/total:.1%})")
     print(f"  empty_order:        {empty_o} ({empty_o/total:.1%})")
+    print(f"  loop_detected:      {loops} ({loops/total:.1%})")
+    print(f"  stall_detected:     {stalls} ({stalls/total:.1%})")
     print(f"  avg turns/dialog:   {avg_turns:.1f}")
 
 
