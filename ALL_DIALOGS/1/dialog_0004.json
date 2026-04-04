@@ -1,0 +1,157 @@
+{
+  "dialog_id": 4,
+  "profile": {
+    "sex": "male",
+    "age": 27,
+    "psycho": "regular",
+    "language": "RU",
+    "calApprValue": 2044,
+    "noMilk": false,
+    "noFish": false,
+    "noNuts": false,
+    "noEggs": false,
+    "noGluten": false,
+    "noBeef": false,
+    "isVegan": false,
+    "noSugar": false,
+    "childQuant": 0,
+    "friendsQuant": 2,
+    "companions": [
+      {
+        "role": "friend",
+        "label": "friend_1",
+        "restrictions": {
+          "noMilk": true,
+          "noFish": false,
+          "noNuts": false,
+          "noEggs": false,
+          "noGluten": false,
+          "noBeef": false,
+          "isVegan": false,
+          "noSugar": false
+        }
+      },
+      {
+        "role": "friend",
+        "label": "friend_2",
+        "restrictions": {
+          "noMilk": false,
+          "noFish": false,
+          "noNuts": false,
+          "noEggs": false,
+          "noGluten": false,
+          "noBeef": false,
+          "isVegan": false,
+          "noSugar": false
+        }
+      }
+    ]
+  },
+  "history": [
+    {
+      "speaker": "cashier",
+      "text": "Hello! I see you're ordering for three people. What would you like for yourself?"
+    },
+    {
+      "speaker": "client",
+      "text": "Биг-Мак и фри"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Great! I'll have one Big Mac with fries for you. What would your friend like? And what would your other friend prefer?"
+    },
+    {
+      "speaker": "client",
+      "text": "Другу с лактозной непереносимостью — биг-мак без молока, другу без ограничений — стандартный биг-мак."
+    },
+    {
+      "speaker": "cashier",
+      "text": "Perfect! You get a Big Mac with fries. Your lactose-intolerant friend will have a Big Mac without milk — safe for lactose. Your other friend gets a standard Big Mac. Full order confirmed: 1 Big Mac with fries, 1 lactose-free Big Mac, 1 standard Big Mac. Anything else?"
+    },
+    {
+      "speaker": "client",
+      "text": "Всё, спасибо."
+    }
+  ],
+  "final_order": {
+    "persons": [
+      {
+        "role": "self",
+        "label": "customer",
+        "items": [],
+        "total_energy": 0.0,
+        "allergens": []
+      },
+      {
+        "role": "friend",
+        "label": "friend_1",
+        "age": null,
+        "restrictions": {
+          "noMilk": true,
+          "noFish": false,
+          "noNuts": false,
+          "noEggs": false,
+          "noGluten": false,
+          "noBeef": false,
+          "isVegan": false,
+          "noSugar": false
+        },
+        "items": [],
+        "total_energy": 0.0,
+        "allergens": []
+      },
+      {
+        "role": "friend",
+        "label": "friend_2",
+        "age": null,
+        "restrictions": {
+          "noMilk": false,
+          "noFish": false,
+          "noNuts": false,
+          "noEggs": false,
+          "noGluten": false,
+          "noBeef": false,
+          "isVegan": false,
+          "noSugar": false
+        },
+        "items": [],
+        "total_energy": 0.0,
+        "allergens": []
+      }
+    ],
+    "order_complete": false
+  },
+  "validation_flags": {
+    "per_person": [
+      {
+        "label": "customer",
+        "role": "self",
+        "items_count": 0,
+        "total_energy": 0.0,
+        "allergen_violation": []
+      },
+      {
+        "label": "friend_1",
+        "role": "friend",
+        "items_count": 0,
+        "total_energy": 0.0,
+        "allergen_violation": []
+      },
+      {
+        "label": "friend_2",
+        "role": "friend",
+        "items_count": 0,
+        "total_energy": 0.0,
+        "allergen_violation": []
+      }
+    ],
+    "allergen_violation": [],
+    "calorie_warning": false,
+    "empty_order": true,
+    "total_items": 0,
+    "total_energy": 0.0,
+    "calorie_target": 2044,
+    "turns": 6
+  },
+  "timestamp": "2026-03-29T19:59:51.790212+00:00"
+}

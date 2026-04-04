@@ -1,0 +1,103 @@
+{
+  "dialog_id": 2,
+  "profile": {
+    "sex": "female",
+    "age": 42,
+    "psycho": "polite_and_respectful",
+    "language": "RU",
+    "calApprValue": 1716,
+    "noMilk": true,
+    "noFish": false,
+    "noNuts": false,
+    "noEggs": false,
+    "noGluten": false,
+    "noBeef": false,
+    "isVegan": false,
+    "noSugar": false,
+    "childQuant": 1,
+    "friendsQuant": 0,
+    "companions": [
+      {
+        "role": "child",
+        "label": "child_1",
+        "age": 4,
+        "restrictions": {
+          "noMilk": false,
+          "noEggs": false,
+          "noNuts": false,
+          "noGluten": false
+        }
+      }
+    ]
+  },
+  "history": [
+    {
+      "speaker": "cashier",
+      "text": "Good morning! What would you like for yourself? And what would the child (age 4) like? I'll confirm the full order and check for allergies if you have any."
+    },
+    {
+      "speaker": "client",
+      "text": "Доброе утро! У меня лактазная непереносимость. Ребёнок 4 лет — нет аллергий. Нам нужно около 1716 ккал на двоих. Подскажите, пожалуйста, какие блюда рекомендуете?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Доброе утро! Учитывая вашу лактазную непереносимость, рекомендуем для вас куриный бутерброд без молока, а ребёнку 4 лет — маленький МкЧикен. Эти блюда обеспечивают примерно 1716 ккал на двоих. Пожалуйста, подтвердите ваш заказ."
+    },
+    {
+      "speaker": "client",
+      "text": "Подтверждаю заказ: куриный бутерброд без молока для меня, маленький МкЧикен для ребёнка. У меня лактазная непереносимость, ребёнок — без аллергий. Спасибо!"
+    }
+  ],
+  "final_order": {
+    "persons": [
+      {
+        "role": "self",
+        "label": "customer",
+        "items": [],
+        "total_energy": 0.0,
+        "allergens": []
+      },
+      {
+        "role": "child",
+        "label": "child_1",
+        "age": 4,
+        "restrictions": {
+          "noMilk": false,
+          "noEggs": false,
+          "noNuts": false,
+          "noGluten": false
+        },
+        "items": [],
+        "total_energy": 0.0,
+        "allergens": []
+      }
+    ],
+    "order_complete": false
+  },
+  "validation_flags": {
+    "per_person": [
+      {
+        "label": "customer",
+        "role": "self",
+        "items_count": 0,
+        "total_energy": 0.0,
+        "allergen_violation": []
+      },
+      {
+        "label": "child_1",
+        "role": "child",
+        "items_count": 0,
+        "total_energy": 0.0,
+        "allergen_violation": []
+      }
+    ],
+    "allergen_violation": [],
+    "calorie_warning": false,
+    "empty_order": true,
+    "total_items": 0,
+    "total_energy": 0.0,
+    "calorie_target": 1716,
+    "turns": 4
+  },
+  "timestamp": "2026-03-29T19:55:03.368863+00:00"
+}

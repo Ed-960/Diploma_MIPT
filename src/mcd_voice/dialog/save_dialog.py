@@ -10,9 +10,21 @@ aggregate_stats   → dialogs/summary.json
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+_TM_RE = re.compile(r"[®™℠]")
+
+
+def _strip_trademarks(history: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Return a copy of history with ®/™/℠ removed from spoken text."""
+    return [
+        {**turn, "text": _TM_RE.sub("", turn["text"])}
+        for turn in history
+    ]
 
 
 def save_dialog(
@@ -29,7 +41,7 @@ def save_dialog(
     record: dict[str, Any] = {
         "dialog_id": dialog_id,
         "profile": profile,
-        "history": history,
+        "history": _strip_trademarks(history),
         "final_order": order_state,
         "validation_flags": flags,
         "timestamp": datetime.now(timezone.utc).isoformat(),

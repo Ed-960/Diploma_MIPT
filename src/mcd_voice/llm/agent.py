@@ -416,7 +416,11 @@ class CashierAgent:
         base = get_cashier_system_prompt(profile)
         extras: list[str] = []
         if rag_context:
-            extras.append(f"Relevant menu items (RAG):\n{rag_context}")
+            extras.append(
+                "Menu data slice for this turn (each line: product name, kcal estimate, "
+                "declared-allergen tags only — not ingredients, sugar, or full nutrition):\n"
+                f"{rag_context}"
+            )
         if any(p.get("items") for p in order_state.get("persons", [])):
             extras.append(
                 "Current order state:\n"
@@ -479,7 +483,7 @@ def _render_rows(
 
 
 _SOFT_PREFIX = (
-    "Semantic match is weak; below are real menu rows (allergen filter applied). "
+    "Semantic match is weak; below are real menu rows. "
     "Use exact names and calories; do NOT claim the menu is empty or has no "
     "suitable items if the list is non-empty.\n\n"
 )

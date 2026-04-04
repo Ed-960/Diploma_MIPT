@@ -41,6 +41,48 @@ _CLIENT_CONFIRM_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# ── CoT-утечки ────────────────────────────────────────────────────────
+
+_COT_LEAK_PATTERNS = re.compile(
+    r"\$\$|\\\[|\\\(|\\boxed\{|"
+    r"the user is a real customer|"
+    r"real customer at a mcdonald|"
+    r"the goal is to find|"
+    r"given the constraints|"
+    r"step[- ]by[- ]step|"
+    r"let me (think|reason|analyze|consider)|"
+    r"in (this|the) scenario",
+    re.IGNORECASE,
+)
+
+
+def _is_cot_leak(text: str) -> bool:
+    """True если модель «протекла» — вставила рассуждения или инструкции в реплику."""
+    return bool(_COT_LEAK_PATTERNS.search(text))
+
+
+# ── Детектор зацикливания ─────────────────────────────────────────────
+
+_STALL_DENIAL_RE = re.compile(
+    r"(i.?m sorry|we don.?t have|i don.?t have|not available|"
+    r"could you (tell me|let me know)|what type of food)",
+    re.IGNORECASE,
+)
+
+
+def _is_stalled(history: list[dict[str, str]], window: int = 4) -> bool:
+    """
+    True если последние `window` реплик кассира содержат одну и ту же
+    фразу-отказ — кассир крутится на месте без прогресса.
+    """
+    cashier_msgs = [
+        t["text"] for t in history if t.get("speaker") == "cashier"
+    ]
+    recent = cashier_msgs[-window:]
+    if len(recent) < window:
+        return False
+    return all(_STALL_DENIAL_RE.search(m) for m in recent)
+
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 
@@ -246,6 +288,8 @@ class DialogPipeline:
         )
         n_rag = 0
         n_llm = 0
+        cot_leak_count = 0
+        stall_detected = False
 
         self._emit_progress(
             "greeting_start",
@@ -288,6 +332,8 @@ class DialogPipeline:
             if llm_trace is not None and _accepts_kwarg(client.generate_response, "llm_trace"):
                 client_kwargs["llm_trace"] = llm_trace
             client_msg = client.generate_response(profile, history, **client_kwargs)
+            if _is_cot_leak(client_msg):
+                cot_leak_count += 1
             history.append({"speaker": "client", "text": client_msg})
             self._emit_progress(
                 "client_done",
@@ -331,6 +377,8 @@ class DialogPipeline:
                 order_state,
                 **cashier_kwargs,
             )
+            if _is_cot_leak(cashier_msg):
+                cot_leak_count += 1
             history.append({"speaker": "cashier", "text": cashier_msg})
             self._emit_progress(
                 "cashier_done",
@@ -343,6 +391,18 @@ class DialogPipeline:
             n_rag, n_llm = self._flush_trace_delta(
                 rag_trace, llm_trace, n_rag, n_llm, label="cashier", turn=turn,
             )
+
+            if _is_stalled(history):
+                stall_detected = True
+                self._emit_progress(
+                    "finished",
+                    turn=turn,
+                    max_turns=self.max_turns,
+                    history_len=len(history),
+                    reason="stall_detected",
+                    message="Диалог прерван: кассир зациклился на отказах без прогресса.",
+                )
+                break
 
             # Обновляем заказ только по реплике клиента: так не добавляем
             # предложения кассира, которые клиент не подтверждал.
@@ -369,6 +429,10 @@ class DialogPipeline:
             )
 
         flags = validate_dialog(profile, order_state, history)
+        if cot_leak_count:
+            flags = {**flags, "cot_leak_count": cot_leak_count}
+        if stall_detected:
+            flags = {**flags, "stall_detected": True}
         if rag_trace is not None:
             flags = {**flags, "rag_trace": rag_trace}
         if llm_trace is not None:

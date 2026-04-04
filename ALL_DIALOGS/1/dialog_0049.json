@@ -1,0 +1,623 @@
+{
+  "dialog_id": 49,
+  "profile": {
+    "sex": "female",
+    "age": 35,
+    "psycho": "regular",
+    "language": "EN",
+    "calApprValue": 1583,
+    "isVegan": false,
+    "noMilk": true,
+    "noFish": false,
+    "noNuts": false,
+    "noEggs": false,
+    "noGluten": false,
+    "noBeef": false,
+    "noSugar": false,
+    "childQuant": 1,
+    "friendsQuant": 1,
+    "companions": [
+      {
+        "role": "child",
+        "label": "child_1",
+        "age": 9,
+        "restrictions": {
+          "noMilk": false,
+          "noEggs": false,
+          "noNuts": false,
+          "noGluten": false
+        }
+      },
+      {
+        "role": "friend",
+        "label": "friend_1",
+        "restrictions": {
+          "isVegan": false,
+          "noMilk": true,
+          "noFish": false,
+          "noNuts": false,
+          "noEggs": false,
+          "noGluten": false,
+          "noBeef": false,
+          "noSugar": false
+        }
+      }
+    ]
+  },
+  "history": [
+    {
+      "speaker": "cashier",
+      "text": "For your group of three, I see one child aged 9 and two adults. Let's start with the child first—would you like our World Famous Fries®? \n\n*(After child confirms, repeat for next adult, then full order confirmation)*"
+    },
+    {
+      "speaker": "client",
+      "text": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Your 9-year-old has Chicken McNuggets®. For your lactose intolerance, Chicken McNuggets® is the only option available — would you like that for the first adult?"
+    },
+    {
+      "speaker": "client",
+      "text": "Yes, but my friend is lactose intolerant too—can we get two Chicken McNuggets for the adults?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Yes, we'll have two Chicken McNuggets® for your lactose-intolerant adults. For the full order: 1x Chicken McNuggets® for your 9-year-old and 2x Chicken McNuggets® for the adults. Anything else?"
+    },
+    {
+      "speaker": "client",
+      "text": "Yes, that's perfect for my 9-year-old. Can we add a small side salad and a non-dairy drink for the two of us? We're both lactose intolerant."
+    }
+  ],
+  "final_order": {
+    "persons": [
+      {
+        "role": "self",
+        "label": "customer",
+        "items": [
+          {
+            "name": "Chicken McNuggets®",
+            "quantity": 1
+          }
+        ],
+        "total_energy": 403.02,
+        "allergens": [
+          "Cereal containing gluten"
+        ]
+      },
+      {
+        "role": "child",
+        "label": "child_1",
+        "age": 9,
+        "restrictions": {
+          "noMilk": false,
+          "noEggs": false,
+          "noNuts": false,
+          "noGluten": false
+        },
+        "items": [],
+        "total_energy": 0,
+        "allergens": []
+      },
+      {
+        "role": "friend",
+        "label": "friend_1",
+        "age": null,
+        "restrictions": {
+          "isVegan": false,
+          "noMilk": true,
+          "noFish": false,
+          "noNuts": false,
+          "noEggs": false,
+          "noGluten": false,
+          "noBeef": false,
+          "noSugar": false
+        },
+        "items": [],
+        "total_energy": 0,
+        "allergens": []
+      }
+    ],
+    "order_complete": true
+  },
+  "validation_flags": {
+    "per_person": [
+      {
+        "label": "customer",
+        "role": "self",
+        "items_count": 1,
+        "total_energy": 403.02,
+        "allergen_violation": []
+      },
+      {
+        "label": "child_1",
+        "role": "child",
+        "items_count": 0,
+        "total_energy": 0,
+        "allergen_violation": []
+      },
+      {
+        "label": "friend_1",
+        "role": "friend",
+        "items_count": 0,
+        "total_energy": 0,
+        "allergen_violation": []
+      }
+    ],
+    "allergen_violation": [],
+    "calorie_warning": false,
+    "empty_order": false,
+    "total_items": 1,
+    "total_energy": 403.02,
+    "calorie_target": 1583,
+    "turns": 6,
+    "rag_trace": [
+      {
+        "event": "chroma_request",
+        "query_texts": [
+          "popular menu items burger chicken fries"
+        ],
+        "n_results": 3,
+        "where": {
+          "allergens": {
+            "$not_contains": "Milk"
+          }
+        }
+      },
+      {
+        "event": "chroma_response",
+        "query_duration_ms": 16.58,
+        "ids": [
+          "27",
+          "28",
+          "29"
+        ],
+        "distances": [
+          0.41628533601760864,
+          0.41628533601760864,
+          0.41628533601760864
+        ],
+        "metadatas": [
+          {
+            "energy": 224.59,
+            "name": "Our World Famous Fries®",
+            "allergens": [
+              "__none__"
+            ],
+            "category": ""
+          },
+          {
+            "category": "",
+            "name": "Our World Famous Fries®",
+            "energy": 449.17,
+            "allergens": [
+              "__none__"
+            ]
+          },
+          {
+            "name": "Our World Famous Fries®",
+            "allergens": [
+              "__none__"
+            ],
+            "energy": 317.92,
+            "category": ""
+          }
+        ],
+        "documents": [
+          "Our World Famous Fries®. The crisp, craveable, fan favourite: our World Famous Fries®. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+          "Our World Famous Fries®. The crisp, craveable, fan favourite: our World Famous Fries®. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+          "Our World Famous Fries®. The crisp, craveable, fan favourite: our World Famous Fries®. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends."
+        ]
+      },
+      {
+        "call": "greeting",
+        "client_query": "",
+        "event": "rag",
+        "search_query": "popular menu items burger chicken fries",
+        "rewrite_model": "qwen3:0.6b",
+        "fallback": true,
+        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "metric": "cosine_distance",
+        "top_k": 3,
+        "distance_threshold": 0.6,
+        "soft_distance_max": 1.15,
+        "allergen_blacklist_tokens": [
+          "Milk"
+        ],
+        "candidates": [
+          {
+            "name": "Our World Famous Fries®",
+            "distance": 0.41628533601760864,
+            "energy": 224.59
+          },
+          {
+            "name": "Our World Famous Fries®",
+            "distance": 0.41628533601760864,
+            "energy": 449.17
+          },
+          {
+            "name": "Our World Famous Fries®",
+            "distance": 0.41628533601760864,
+            "energy": 317.92
+          }
+        ],
+        "best_distance": 0.41628533601760864,
+        "outcome": "injected",
+        "injected_hits": [
+          {
+            "name": "Our World Famous Fries®",
+            "distance": 0.41628533601760864
+          }
+        ],
+        "context_preview": "- Our World Famous Fries® (~224.6–449.2 kcal, allergens: none listed)"
+      },
+      {
+        "event": "chroma_request",
+        "query_texts": [
+          "lactose intolerant adult meals for two people"
+        ],
+        "n_results": 3,
+        "where": {
+          "allergens": {
+            "$not_contains": "Milk"
+          }
+        }
+      },
+      {
+        "event": "chroma_response",
+        "query_duration_ms": 16.58,
+        "ids": [
+          "5",
+          "6",
+          "8"
+        ],
+        "distances": [
+          0.8653959631919861,
+          0.8653959631919861,
+          0.8653959631919861
+        ],
+        "metadatas": [
+          {
+            "name": "Chicken McNuggets®",
+            "category": "",
+            "energy": 169.68,
+            "allergens": [
+              "Cereal containing gluten"
+            ]
+          },
+          {
+            "category": "",
+            "allergens": [
+              "Cereal containing gluten"
+            ],
+            "energy": 254.52,
+            "name": "Chicken McNuggets®"
+          },
+          {
+            "name": "Chicken McNuggets®",
+            "energy": 381.77,
+            "category": "",
+            "allergens": [
+              "Cereal containing gluten"
+            ]
+          }
+        ],
+        "documents": [
+          "Chicken McNuggets®. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+          "Chicken McNuggets®. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+          "Chicken McNuggets®. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last."
+        ]
+      },
+      {
+        "call": "turn",
+        "turn": 1,
+        "client_query": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?",
+        "event": "rag",
+        "search_query": "lactose intolerant adult meals for two people",
+        "rewrite_model": "qwen3:0.6b",
+        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "metric": "cosine_distance",
+        "top_k": 3,
+        "distance_threshold": 0.6,
+        "soft_distance_max": 1.15,
+        "allergen_blacklist_tokens": [
+          "Milk"
+        ],
+        "candidates": [
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.8653959631919861,
+            "energy": 169.68
+          },
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.8653959631919861,
+            "energy": 254.52
+          },
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.8653959631919861,
+            "energy": 381.77
+          }
+        ],
+        "best_distance": 0.8653959631919861,
+        "outcome": "injected_soft",
+        "injected_hits": [
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.8653959631919861
+          }
+        ],
+        "context_preview": "Semantic match is weak; below are real menu rows (allergen filter applied). Use exact names and calories; do NOT claim the menu is empty or has no suitable items if the list is non-empty.\n\n- Chicken McNuggets® (~169.7–381.8 kcal, allergens: Cereal containing gluten)"
+      },
+      {
+        "event": "chroma_request",
+        "query_texts": [
+          "Chicken McNuggets for adults with lactose intolerance."
+        ],
+        "n_results": 3,
+        "where": {
+          "allergens": {
+            "$not_contains": "Milk"
+          }
+        }
+      },
+      {
+        "event": "chroma_response",
+        "query_duration_ms": 16.45,
+        "ids": [
+          "5",
+          "6",
+          "8"
+        ],
+        "distances": [
+          0.3867952823638916,
+          0.3867952823638916,
+          0.3867952823638916
+        ],
+        "metadatas": [
+          {
+            "allergens": [
+              "Cereal containing gluten"
+            ],
+            "name": "Chicken McNuggets®",
+            "category": "",
+            "energy": 169.68
+          },
+          {
+            "category": "",
+            "energy": 254.52,
+            "name": "Chicken McNuggets®",
+            "allergens": [
+              "Cereal containing gluten"
+            ]
+          },
+          {
+            "name": "Chicken McNuggets®",
+            "energy": 381.77,
+            "allergens": [
+              "Cereal containing gluten"
+            ],
+            "category": ""
+          }
+        ],
+        "documents": [
+          "Chicken McNuggets®. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+          "Chicken McNuggets®. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+          "Chicken McNuggets®. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last."
+        ]
+      },
+      {
+        "call": "turn",
+        "turn": 2,
+        "client_query": "Yes, but my friend is lactose intolerant too—can we get two Chicken McNuggets for the adults?",
+        "event": "rag",
+        "search_query": "Chicken McNuggets for adults with lactose intolerance.",
+        "rewrite_model": "qwen3:0.6b",
+        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "metric": "cosine_distance",
+        "top_k": 3,
+        "distance_threshold": 0.6,
+        "soft_distance_max": 1.15,
+        "allergen_blacklist_tokens": [
+          "Milk"
+        ],
+        "candidates": [
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.3867952823638916,
+            "energy": 169.68
+          },
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.3867952823638916,
+            "energy": 254.52
+          },
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.3867952823638916,
+            "energy": 381.77
+          }
+        ],
+        "best_distance": 0.3867952823638916,
+        "outcome": "injected",
+        "injected_hits": [
+          {
+            "name": "Chicken McNuggets®",
+            "distance": 0.3867952823638916
+          }
+        ],
+        "context_preview": "- Chicken McNuggets® (~169.7–381.8 kcal, allergens: Cereal containing gluten)"
+      }
+    ],
+    "llm_trace": [
+      {
+        "event": "llm_call",
+        "agent": "cashier",
+        "model": "qwen3:4b",
+        "kind": "dialog_llm",
+        "messages_count": 0,
+        "duration_ms": 7050.59,
+        "system": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n- Suggest items from the 'Relevant menu items' block in context (if provided). Use ONLY those exact item names.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says 'no matching items', apologize briefly and ask them to rephrase or pick a category.\n- If the context lists items (even with a weak-match note), those are real menu rows — never claim the menu is empty if the list is non-empty.\n- NEVER invent item names, prices, or calorie numbers.\n- No emoji, no markdown bold/italic, no special formatting.\n- Keep replies to 2–3 sentences, like a real drive-through.\n- Speak naturally like a human cashier; do not dump technical nutrition details unless asked.\n- When the customer picks an item, confirm the name and ask if they want anything else (drink, fries, dessert).\n- Before finalising, repeat the full order and ask for confirmation.\n- If the customer mentions allergies, check allergen data from context.\n\nCustomer personality: regular. Stay neutral and professional.\n\nThe customer is ordering for a group of 3.\nChildren: child_1 (age 9).\nFriends in group: 1.\n\nIMPORTANT: Ask about each person's order separately.\nAfter each person's order, confirm briefly, then move to the next.\nAt the end, repeat the FULL order for ALL persons and ask for confirmation.\nIf a companion has dietary restrictions, proactively check their items.\n\n--- Context ---\nRelevant menu items (RAG):\n- Our World Famous Fries® (~224.6–449.2 kcal, allergens: none listed)",
+        "messages": [],
+        "response": "For your group of three, I see one child aged 9 and two adults. Let's start with the child first—would you like our World Famous Fries®? \n\n*(After child confirms, repeat for next adult, then full order confirmation)*"
+      },
+      {
+        "event": "llm_call",
+        "agent": "client",
+        "model": "qwen3:4b",
+        "kind": "dialog_llm",
+        "messages_count": 1,
+        "duration_ms": 6469.59,
+        "system": "You are a real customer at a McDonald's drive-through. Speak in English.\nYour profile:\n35-year-old female, regular personality.\nDietary: lactose intolerant.\nOrdering for a group of 3:\n  - Self (lactose intolerant).\n  - child_1 (child, age 9, no restrictions).\n  - friend_1 (friend, lactose intolerant).\nCalorie target: ~1583 kcal/meal.\n\nRULES:\n- You do NOT know the full menu. In your FIRST reply, ask the cashier what they have or what they recommend.\n- When the cashier suggests items, pick from THOSE EXACT NAMES. Never invent menu items that were not mentioned by the cashier.\n- You want a normal-sized meal — not too heavy.\n- If you have dietary restrictions, mention them naturally (e.g. 'I can't have dairy', not 'noMilk=true').\n- Be concise: 1–3 sentences per reply, like a real drive-through.\n- No emoji, no markdown, no formatting.\n- Stay in character. Do not mention AI, profiles, or exact calorie numbers.\n- Order at least one main item (burger, sandwich, wrap) and optionally a drink or side.\nYou are ordering for your entire group. Mention each person naturally: 'I also need something for my kid' / 'my friend is vegan, what do you have for them?'. Share dietary restrictions conversationally.\nAct like a typical repeat customer: neutral tone.",
+        "messages": [
+          {
+            "role": "user",
+            "content": "For your group of three, I see one child aged 9 and two adults. Let's start with the child first—would you like our World Famous Fries®? \n\n*(After child confirms, repeat for next adult, then full order confirmation)*"
+          }
+        ],
+        "response": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?"
+      },
+      {
+        "event": "llm_rewrite",
+        "call": "turn",
+        "turn": 1,
+        "model": "qwen3:0.6b",
+        "kind": "mini_llm_menu_query_rewrite",
+        "rewrite_duration_ms": 670.8,
+        "rewrite_system": "You extract a short food search query (3–8 words, English) from a customer's drive-through message. Focus on food type, category, or dietary need. Reply with ONLY the query — no explanation, no punctuation at the end. If there is no food intent, reply: general menu items",
+        "rewrite_input": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?",
+        "rewrite_messages": [
+          {
+            "role": "user",
+            "content": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?"
+          }
+        ],
+        "rewrite_output": "lactose intolerant adult meals for two people"
+      },
+      {
+        "event": "llm_call",
+        "agent": "cashier",
+        "model": "qwen3:4b",
+        "kind": "dialog_llm",
+        "messages_count": 2,
+        "duration_ms": 34728.53,
+        "system": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n- Suggest items from the 'Relevant menu items' block in context (if provided). Use ONLY those exact item names.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says 'no matching items', apologize briefly and ask them to rephrase or pick a category.\n- If the context lists items (even with a weak-match note), those are real menu rows — never claim the menu is empty if the list is non-empty.\n- NEVER invent item names, prices, or calorie numbers.\n- No emoji, no markdown bold/italic, no special formatting.\n- Keep replies to 2–3 sentences, like a real drive-through.\n- Speak naturally like a human cashier; do not dump technical nutrition details unless asked.\n- When the customer picks an item, confirm the name and ask if they want anything else (drink, fries, dessert).\n- Before finalising, repeat the full order and ask for confirmation.\n- If the customer mentions allergies, check allergen data from context.\n\nCustomer personality: regular. Stay neutral and professional.\n\nThe customer is ordering for a group of 3.\nChildren: child_1 (age 9).\nFriends in group: 1.\n\nIMPORTANT: Ask about each person's order separately.\nAfter each person's order, confirm briefly, then move to the next.\nAt the end, repeat the FULL order for ALL persons and ask for confirmation.\nIf a companion has dietary restrictions, proactively check their items.\n\n--- Context ---\nRelevant menu items (RAG):\nSemantic match is weak; below are real menu rows (allergen filter applied). Use exact names and calories; do NOT claim the menu is empty or has no suitable items if the list is non-empty.\n\n- Chicken McNuggets® (~169.7–381.8 kcal, allergens: Cereal containing gluten)",
+        "messages": [
+          {
+            "role": "assistant",
+            "content": "For your group of three, I see one child aged 9 and two adults. Let's start with the child first—would you like our World Famous Fries®? \n\n*(After child confirms, repeat for next adult, then full order confirmation)*"
+          },
+          {
+            "role": "user",
+            "content": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?"
+          }
+        ],
+        "response": "Your 9-year-old has Chicken McNuggets®. For your lactose intolerance, Chicken McNuggets® is the only option available — would you like that for the first adult?"
+      },
+      {
+        "event": "llm_call",
+        "agent": "client",
+        "model": "qwen3:4b",
+        "kind": "dialog_llm",
+        "messages_count": 3,
+        "duration_ms": 23875.26,
+        "system": "You are a real customer at a McDonald's drive-through. Speak in English.\nYour profile:\n35-year-old female, regular personality.\nDietary: lactose intolerant.\nOrdering for a group of 3:\n  - Self (lactose intolerant).\n  - child_1 (child, age 9, no restrictions).\n  - friend_1 (friend, lactose intolerant).\nCalorie target: ~1583 kcal/meal.\n\nRULES:\n- You do NOT know the full menu. In your FIRST reply, ask the cashier what they have or what they recommend.\n- When the cashier suggests items, pick from THOSE EXACT NAMES. Never invent menu items that were not mentioned by the cashier.\n- You want a normal-sized meal — not too heavy.\n- If you have dietary restrictions, mention them naturally (e.g. 'I can't have dairy', not 'noMilk=true').\n- Be concise: 1–3 sentences per reply, like a real drive-through.\n- No emoji, no markdown, no formatting.\n- Stay in character. Do not mention AI, profiles, or exact calorie numbers.\n- Order at least one main item (burger, sandwich, wrap) and optionally a drink or side.\nYou are ordering for your entire group. Mention each person naturally: 'I also need something for my kid' / 'my friend is vegan, what do you have for them?'. Share dietary restrictions conversationally.\nAct like a typical repeat customer: neutral tone.",
+        "messages": [
+          {
+            "role": "user",
+            "content": "For your group of three, I see one child aged 9 and two adults. Let's start with the child first—would you like our World Famous Fries®? \n\n*(After child confirms, repeat for next adult, then full order confirmation)*"
+          },
+          {
+            "role": "assistant",
+            "content": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?"
+          },
+          {
+            "role": "user",
+            "content": "Your 9-year-old has Chicken McNuggets®. For your lactose intolerance, Chicken McNuggets® is the only option available — would you like that for the first adult?"
+          }
+        ],
+        "response": "Yes, but my friend is lactose intolerant too—can we get two Chicken McNuggets for the adults?"
+      },
+      {
+        "event": "llm_rewrite",
+        "call": "turn",
+        "turn": 2,
+        "model": "qwen3:0.6b",
+        "kind": "mini_llm_menu_query_rewrite",
+        "rewrite_duration_ms": 464.38,
+        "rewrite_system": "You extract a short food search query (3–8 words, English) from a customer's drive-through message. Focus on food type, category, or dietary need. Reply with ONLY the query — no explanation, no punctuation at the end. If there is no food intent, reply: general menu items",
+        "rewrite_input": "Yes, but my friend is lactose intolerant too—can we get two Chicken McNuggets for the adults?",
+        "rewrite_messages": [
+          {
+            "role": "user",
+            "content": "Yes, but my friend is lactose intolerant too—can we get two Chicken McNuggets for the adults?"
+          }
+        ],
+        "rewrite_output": "Chicken McNuggets for adults with lactose intolerance."
+      },
+      {
+        "event": "llm_call",
+        "agent": "cashier",
+        "model": "qwen3:4b",
+        "kind": "dialog_llm",
+        "messages_count": 4,
+        "duration_ms": 20713.0,
+        "system": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n- Suggest items from the 'Relevant menu items' block in context (if provided). Use ONLY those exact item names.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says 'no matching items', apologize briefly and ask them to rephrase or pick a category.\n- If the context lists items (even with a weak-match note), those are real menu rows — never claim the menu is empty if the list is non-empty.\n- NEVER invent item names, prices, or calorie numbers.\n- No emoji, no markdown bold/italic, no special formatting.\n- Keep replies to 2–3 sentences, like a real drive-through.\n- Speak naturally like a human cashier; do not dump technical nutrition details unless asked.\n- When the customer picks an item, confirm the name and ask if they want anything else (drink, fries, dessert).\n- Before finalising, repeat the full order and ask for confirmation.\n- If the customer mentions allergies, check allergen data from context.\n\nCustomer personality: regular. Stay neutral and professional.\n\nThe customer is ordering for a group of 3.\nChildren: child_1 (age 9).\nFriends in group: 1.\n\nIMPORTANT: Ask about each person's order separately.\nAfter each person's order, confirm briefly, then move to the next.\nAt the end, repeat the FULL order for ALL persons and ask for confirmation.\nIf a companion has dietary restrictions, proactively check their items.\n\n--- Context ---\nRelevant menu items (RAG):\n- Chicken McNuggets® (~169.7–381.8 kcal, allergens: Cereal containing gluten)",
+        "messages": [
+          {
+            "role": "assistant",
+            "content": "For your group of three, I see one child aged 9 and two adults. Let's start with the child first—would you like our World Famous Fries®? \n\n*(After child confirms, repeat for next adult, then full order confirmation)*"
+          },
+          {
+            "role": "user",
+            "content": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?"
+          },
+          {
+            "role": "assistant",
+            "content": "Your 9-year-old has Chicken McNuggets®. For your lactose intolerance, Chicken McNuggets® is the only option available — would you like that for the first adult?"
+          },
+          {
+            "role": "user",
+            "content": "Yes, but my friend is lactose intolerant too—can we get two Chicken McNuggets for the adults?"
+          }
+        ],
+        "response": "Yes, we'll have two Chicken McNuggets® for your lactose-intolerant adults. For the full order: 1x Chicken McNuggets® for your 9-year-old and 2x Chicken McNuggets® for the adults. Anything else?"
+      },
+      {
+        "event": "llm_call",
+        "agent": "client",
+        "model": "qwen3:4b",
+        "kind": "dialog_llm",
+        "messages_count": 5,
+        "duration_ms": 27178.25,
+        "system": "You are a real customer at a McDonald's drive-through. Speak in English.\nYour profile:\n35-year-old female, regular personality.\nDietary: lactose intolerant.\nOrdering for a group of 3:\n  - Self (lactose intolerant).\n  - child_1 (child, age 9, no restrictions).\n  - friend_1 (friend, lactose intolerant).\nCalorie target: ~1583 kcal/meal.\n\nRULES:\n- You do NOT know the full menu. In your FIRST reply, ask the cashier what they have or what they recommend.\n- When the cashier suggests items, pick from THOSE EXACT NAMES. Never invent menu items that were not mentioned by the cashier.\n- You want a normal-sized meal — not too heavy.\n- If you have dietary restrictions, mention them naturally (e.g. 'I can't have dairy', not 'noMilk=true').\n- Be concise: 1–3 sentences per reply, like a real drive-through.\n- No emoji, no markdown, no formatting.\n- Stay in character. Do not mention AI, profiles, or exact calorie numbers.\n- Order at least one main item (burger, sandwich, wrap) and optionally a drink or side.\nYou are ordering for your entire group. Mention each person naturally: 'I also need something for my kid' / 'my friend is vegan, what do you have for them?'. Share dietary restrictions conversationally.\nAct like a typical repeat customer: neutral tone.",
+        "messages": [
+          {
+            "role": "user",
+            "content": "For your group of three, I see one child aged 9 and two adults. Let's start with the child first—would you like our World Famous Fries®? \n\n*(After child confirms, repeat for next adult, then full order confirmation)*"
+          },
+          {
+            "role": "assistant",
+            "content": "Perfect for my 9-year-old. I need two adult meals too—I and my friend are both lactose intolerant, what do you recommend?"
+          },
+          {
+            "role": "user",
+            "content": "Your 9-year-old has Chicken McNuggets®. For your lactose intolerance, Chicken McNuggets® is the only option available — would you like that for the first adult?"
+          },
+          {
+            "role": "assistant",
+            "content": "Yes, but my friend is lactose intolerant too—can we get two Chicken McNuggets for the adults?"
+          },
+          {
+            "role": "user",
+            "content": "Yes, we'll have two Chicken McNuggets® for your lactose-intolerant adults. For the full order: 1x Chicken McNuggets® for your 9-year-old and 2x Chicken McNuggets® for the adults. Anything else?"
+          }
+        ],
+        "response": "Yes, that's perfect for my 9-year-old. Can we add a small side salad and a non-dairy drink for the two of us? We're both lactose intolerant."
+      }
+    ]
+  },
+  "timestamp": "2026-03-31T18:46:23.467742+00:00"
+}
