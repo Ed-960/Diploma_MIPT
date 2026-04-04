@@ -37,7 +37,8 @@ _CLIENT_CONFIRM_PATTERNS = re.compile(
     r"\bthat.?s all\b|\bthat.?s it\b|\bno thanks\b|\bnope\b|"
     r"\bjust that\b|\bnothing else\b|\bi.?m good\b|\bbye\b|"
     r"\bthank you\b|\bthanks\b|\ball set\b|\bsounds good\b|\bperfect\b|"
-    r"\bgot it\b|\bpickup now\b|\border ready\b",
+    r"\bgot it\b|\bpickup now\b|\border ready\b|"
+    r"\byes\b|\byeah\b|\byep\b|\bcorrect\b|\bexactly\b",
     re.IGNORECASE,
 )
 
@@ -96,9 +97,6 @@ def _client_confirms_end(text: str) -> bool:
 
 # ── Парсинг количества блюд ──────────────────────────────────────────
 
-_QTY_PATTERN = re.compile(r"\b(\d{1,2})\s+", re.IGNORECASE)
-
-
 def _normalize_item_text(text: str) -> str:
     """
     Нормализация названий для мягкого матчинга:
@@ -142,7 +140,53 @@ def parse_order_from_text(
                 qty = 1
 
         found.append((name, qty))
+
+    # Fallback: короткие естественные упоминания ("fries", "nuggets", "black coffee"),
+    # когда полное название из меню не произнесено.
+    if found:
+        return found
+
+    alias_patterns = _build_alias_patterns(menu_names)
+    for rx, target_name in alias_patterns:
+        m = rx.search(lower)
+        if not m:
+            continue
+        qty = 1
+        prefix = lower[max(0, m.start() - 24):m.start()].strip()
+        qty_match = re.search(r"(\d{1,2})\s*$", prefix)
+        if qty_match:
+            qty = max(1, min(20, int(qty_match.group(1))))
+        found.append((target_name, qty))
+        break
     return found
+
+
+def _build_alias_patterns(menu_names: list[str]) -> list[tuple[re.Pattern[str], str]]:
+    """Подбирает безопасные алиасы к конкретным пунктам меню."""
+    pairs: list[tuple[str, str]] = []
+
+    def pick(*tokens: str) -> str | None:
+        for name in menu_names:
+            if not name:
+                continue
+            n = _normalize_item_text(name)
+            if all(t in n for t in tokens):
+                return name
+        return None
+
+    mapping = [
+        (r"\bblack coffee\b", pick("black", "coffee")),
+        (r"\bcold coffee\b", pick("cold", "coffee")),
+        (r"\biced tea\b", pick("iced", "tea")),
+        (r"\bcheesy fries\b", pick("cheesy", "fries")),
+        (r"\bfries\b", pick("fries")),
+        (r"\bnuggets\b", pick("mcnuggets")),
+        (r"\bmcveggie\b", pick("mcveggie")),
+    ]
+    for patt, target in mapping:
+        if target:
+            pairs.append((patt, target))
+    return [(re.compile(p, re.IGNORECASE), t) for p, t in pairs]
 
 
 # ── Назначение блюд персонам ─────────────────────────────────────────
@@ -176,25 +220,60 @@ def _resolve_person_index(
         return 0
     if target == "spouse":
         for i, p in enumerate(persons):
-            if p["role"] == "spouse":
+            if p.get("role") == "spouse":
                 return i
     if target == "child_youngest":
-        children = [(i, p) for i, p in enumerate(persons) if p["role"] == "child"]
+        children = [(i, p) for i, p in enumerate(persons) if p.get("role") == "child"]
         if children:
             return min(children, key=lambda x: x[1].get("age", 99))[0]
     if target == "child_oldest":
-        children = [(i, p) for i, p in enumerate(persons) if p["role"] == "child"]
+        children = [(i, p) for i, p in enumerate(persons) if p.get("role") == "child"]
         if children:
             return max(children, key=lambda x: x[1].get("age", 0))[0]
     if target in ("child_generic", "friend_generic"):
         role_key = "child" if "child" in target else "friend"
         for i, p in enumerate(persons):
-            if p["role"] == role_key and not p.get("items"):
+            if p.get("role") == role_key and not p.get("items"):
                 return i
         for i, p in enumerate(persons):
-            if p["role"] == role_key:
+            if p.get("role") == role_key:
                 return i
     return 0
+
+
+def _resolve_target_indices(
+    text: str,
+    persons: list[dict[str, Any]],
+) -> list[int]:
+    """
+    Возвращает список индексов персон для фразы заказа.
+    Поддерживает массовые формулировки: for both / for everyone / for my kids.
+    """
+    lower = text.lower()
+    all_indices = list(range(len(persons)))
+    child_indices = [i for i, p in enumerate(persons) if p.get("role") == "child"]
+    friend_indices = [i for i, p in enumerate(persons) if p.get("role") == "friend"]
+
+    if (
+        "for everyone" in lower
+        or "for all of us" in lower
+        or "for us all" in lower
+        or "for all" in lower
+    ):
+        return all_indices
+    if "for both" in lower and len(all_indices) >= 2:
+        return all_indices[:2]
+    if "for my kids" in lower or "for the kids" in lower or "for my children" in lower:
+        return child_indices or [0]
+    if "for my friends" in lower or "for the friends" in lower:
+        return friend_indices or [0]
+    if "for me and my friend" in lower:
+        if friend_indices:
+            return [0, friend_indices[0]]
+        return [0]
+
+    target_key = _detect_target_person(text)
+    return [_resolve_person_index(target_key, persons)]
 
 
 # ── Построение multi-person order_state ───────────────────────────────
@@ -211,9 +290,11 @@ def build_initial_order_state(profile: dict[str, Any]) -> dict[str, Any]:
         },
     ]
     for comp in profile.get("companions", []):
+        role = comp.get("role", "friend")
+        label = comp.get("label", f"{role}_?")
         persons.append({
-            "role": comp["role"],
-            "label": comp["label"],
+            "role": role,
+            "label": label,
             "age": comp.get("age"),
             "restrictions": comp.get("restrictions", {}),
             "items": [],
@@ -417,6 +498,19 @@ class DialogPipeline:
                 self._update_order(
                     cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
                 )
+                # Защита от бесконечного хвоста "Yes." -> "Order confirmed."
+                # Если клиент уже дал краткое подтверждение, завершаем сразу.
+                if _is_yes_only(client_msg):
+                    order_state["order_complete"] = True
+                    self._emit_progress(
+                        "finished",
+                        turn=turn,
+                        max_turns=self.max_turns,
+                        history_len=len(history),
+                        reason="cashier_finalized_after_yes",
+                        message="Завершено: кассир подтвердил заказ после краткого yes клиента.",
+                    )
+                    break
 
         else:
             self._emit_progress(
@@ -489,7 +583,11 @@ class DialogPipeline:
 
         with open(MCD_JSON_PATH, "r", encoding="utf-8") as f:
             items: list[dict[str, Any]] = json.load(f)
-        return {it["name"]: parse_allergy_field(it.get("allergy")) for it in items}
+        return {
+            it["name"]: parse_allergy_field(it.get("allergy"))
+            for it in items
+            if it.get("name")
+        }
 
     @staticmethod
     def _update_order(
@@ -505,17 +603,26 @@ class DialogPipeline:
 
         persons = order_state["persons"]
         group_size = max(1, len(persons))
-        target_key = _detect_target_person(text)
-        target_idx = _resolve_person_index(target_key, persons)
+        target_indices = _resolve_target_indices(text, persons)
 
-        person = persons[target_idx]
-        for name, qty in parsed:
-            qty = _apply_group_quantity_hint(text, qty, group_size)
-            existing = next((it for it in person["items"] if it["name"] == name), None)
-            if existing:
-                existing["quantity"] = max(existing["quantity"], qty)
-            else:
-                person["items"].append({"name": name, "quantity": qty})
+        # Если заказ адресован нескольким людям ("for both", "for everyone"),
+        # каждый получает по 1 штуке — не умножаем quantity на одного.
+        distribute_to_many = len(target_indices) > 1
+
+        for idx in target_indices:
+            if idx >= len(persons):
+                continue
+            person = persons[idx]
+            for name, qty in parsed:
+                if distribute_to_many:
+                    qty = 1
+                else:
+                    qty = _apply_group_quantity_hint(text, qty, group_size)
+                existing = next((it for it in person["items"] if it["name"] == name), None)
+                if existing:
+                    existing["quantity"] = max(existing["quantity"], qty)
+                else:
+                    person["items"].append({"name": name, "quantity": qty})
 
         # Пересчёт energy и allergens для каждой персоны
         for p in persons:
@@ -586,15 +693,24 @@ def validate_dialog(
         total_items += p_items
 
     cal_target = profile.get("calApprValue", 2200)
+    companion_slots = [p for p in persons if p.get("role") != "self"]
+    companions_without_items = sum(
+        1 for p in companion_slots if not p.get("items")
+    )
+    under_target_warning = (
+        total_items > 0 and cal_target > 0 and total_energy < cal_target * 0.35
+    )
 
     return {
         "per_person": per_person,
         "allergen_violation": sorted(all_violations),
         "calorie_warning": total_energy > cal_target * 1.5,
+        "under_target_warning": under_target_warning,
         "empty_order": total_items == 0,
         "total_items": total_items,
         "total_energy": round(total_energy, 2),
         "calorie_target": cal_target,
+        "companions_without_items": companions_without_items,
         "turns": len(history),
     }
 
@@ -675,6 +791,11 @@ def _apply_group_quantity_hint(text: str, qty: int, group_size: int) -> int:
     ):
         return group_size
     return qty
+
+
+def _is_yes_only(text: str) -> bool:
+    normalized = _normalize_item_text(text)
+    return normalized in {"yes", "yes thanks", "yes thank you", "yeah", "yep", "correct"}
 
 
 def print_dialog(

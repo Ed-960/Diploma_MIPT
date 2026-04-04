@@ -33,10 +33,15 @@ class MenuCatalog:
         energy_acc: dict[str, list[float]] = defaultdict(list)
 
         for it in items:
-            name = it["name"]
+            name = it.get("name")
+            if not name:
+                continue
             if name not in energy_acc:
                 seen_names.append(name)
-            energy_acc[name].append(float(it.get("energy", 0)))
+            try:
+                energy_acc[name].append(float(it.get("energy") or 0))
+            except (TypeError, ValueError):
+                energy_acc[name].append(0.0)
 
         energy = {
             name: round(sum(vals) / len(vals), 2)

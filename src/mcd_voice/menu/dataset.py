@@ -34,11 +34,42 @@ def load_menu_from_json(
         allergens_list = parse_allergy_field(item.get("allergy"))
         allergens_chroma = allergens_for_chroma_metadata(allergens_list)
 
+        def _f(key: str) -> float:
+            """Числовое поле → float, None/пустое → 0.0."""
+            v = item.get(key)
+            try:
+                return float(v) if v is not None else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _s(key: str) -> str:
+            """Строковое поле → str, None/отсутствие → ''."""
+            v = item.get(key)
+            if v is None:
+                return ""
+            return str(v).strip()
+
         meta: dict[str, Any] = {
-            "name": item["name"],
-            "energy": item.get("energy", 0),
-            "allergens": allergens_chroma,
-            "category": item["category"] if "category" in item else "",
+            # идентификация
+            "name":         item.get("name") or "",
+            "category":     _s("category"),
+            "serving_size": _s("serving_size"),
+            "tag":          _s("tag"),
+            "description":  _s("description"),
+            "ingredients":  _s("ingredients"),
+            # аллергены (список строк для фильтрации через $not_contains)
+            "allergens":    allergens_chroma,
+            # нутриенты (все числовые поля из mcd.json)
+            "energy":       _f("energy"),
+            "protein":      _f("protein"),
+            "total_fat":    _f("total_fat"),
+            "sat_fat":      _f("sat_fat"),
+            "trans_fat":    _f("trans_fat"),
+            "chol":         _f("chol"),
+            "carbs":        _f("carbs"),
+            "total_sugar":  _f("total_sugar"),
+            "added_sugar":  _f("added_sugar"),
+            "sodium":       _f("sodium"),
         }
         ids.append(str(idx))
         documents.append(doc_text)

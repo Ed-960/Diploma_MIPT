@@ -22,7 +22,7 @@ _TM_RE = re.compile(r"[®™℠]")
 def _strip_trademarks(history: list[dict[str, str]]) -> list[dict[str, str]]:
     """Return a copy of history with ®/™/℠ removed from spoken text."""
     return [
-        {**turn, "text": _TM_RE.sub("", turn["text"])}
+        {**turn, "text": _TM_RE.sub("", turn.get("text") or "")}
         for turn in history
     ]
 
@@ -58,6 +58,8 @@ def load_dialog(
     input_dir: str | Path = "dialogs",
 ) -> dict[str, Any]:
     path = Path(input_dir) / f"dialog_{dialog_id:04d}.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Dialog file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -107,8 +109,10 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
         "total_energy": flags.get("total_energy", 0),
         "calorie_target": flags.get("calorie_target", profile.get("calApprValue")),
         "calorie_warning": flags.get("calorie_warning", False),
+        "under_target_warning": flags.get("under_target_warning", False),
         "allergen_violation": flags.get("allergen_violation", []),
         "empty_order": flags.get("empty_order", False),
+        "companions_without_items": flags.get("companions_without_items", 0),
         "per_person": flags.get("per_person", []),
     }
 

@@ -22,7 +22,7 @@ def parse_allergy_field(allergy_raw: Any) -> list[str]:
 
 def build_embedding_text(item: dict[str, Any]) -> str:
     """Текст для эмбеддинга: name, затем при наличии description, ingredients, tag."""
-    parts: list[str] = [item["name"]]
+    parts: list[str] = [item.get("name") or ""]
     desc = item.get("description")
     if desc:
         parts.append(str(desc).strip())
@@ -43,7 +43,7 @@ def allergens_for_chroma_metadata(allergens_list: list[str]) -> list[str]:
 def allergens_meta_to_display(allergens_val: Any) -> str:
     """Строка для вывода из значения метаданных Chroma."""
     if isinstance(allergens_val, list):
-        parts = [x for x in allergens_val if x != NO_ALLERGEN_SENTINEL]
+        parts = [str(x) for x in allergens_val if x is not None and x != NO_ALLERGEN_SENTINEL]
         return ", ".join(parts) if parts else "нет"
     if isinstance(allergens_val, str) and allergens_val.strip():
         return allergens_val.strip()
@@ -53,7 +53,7 @@ def allergens_meta_to_display(allergens_val: Any) -> str:
 def allergens_meta_to_list(allergens_val: Any) -> list[str]:
     """Нормализация allergens из ответа Chroma в список строк."""
     if isinstance(allergens_val, list):
-        return [x for x in allergens_val if x != NO_ALLERGEN_SENTINEL]
+        return [str(x) for x in allergens_val if x is not None and x != NO_ALLERGEN_SENTINEL]
     if isinstance(allergens_val, str) and allergens_val.strip():
         return [p.strip() for p in allergens_val.split(",") if p.strip()]
     return []

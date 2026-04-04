@@ -32,9 +32,12 @@ from mcd_voice.profile.generator import get_group_allergen_blacklist
 DEFAULT_MODEL = "gpt-4o"
 
 RAG_DISTANCE_THRESHOLD: float = 0.60
-RAG_SOFT_DISTANCE_MAX: float = float(
-    os.environ.get("RAG_SOFT_DISTANCE_MAX") or "1.15"
-)
+try:
+    RAG_SOFT_DISTANCE_MAX: float = float(
+        os.environ.get("RAG_SOFT_DISTANCE_MAX") or "1.15"
+    )
+except (TypeError, ValueError):
+    RAG_SOFT_DISTANCE_MAX = 1.15
 
 HistoryEntry = dict[str, str]
 
@@ -141,10 +144,11 @@ def _history_to_messages(
     """
     return [
         {
-            "role": "assistant" if entry["speaker"] == my_role else "user",
-            "content": entry["text"],
+            "role": "assistant" if entry.get("speaker") == my_role else "user",
+            "content": entry.get("text") or "",
         }
         for entry in history
+        if entry.get("text") is not None
     ]
 
 
@@ -455,6 +459,8 @@ def _render_rows(
     # Собираем квалифицированные строки (в пределах порога)
     by_name: dict[str, dict[str, Any]] = {}
     name_energies: dict[str, list[float]] = {}
+    name_added_sugar: dict[str, list[float]] = {}
+    name_total_sugar: dict[str, list[float]] = {}
     order: list[str] = []  # сохраняем порядок первого вхождения
     for r in rows:
         if r["distance"] > max_dist:
@@ -463,8 +469,14 @@ def _render_rows(
         if name not in by_name:
             by_name[name] = r
             name_energies[name] = []
+            name_added_sugar[name] = []
+            name_total_sugar[name] = []
             order.append(name)
         name_energies[name].append(float(r["energy"]))
+        if r.get("added_sugar") is not None:
+            name_added_sugar[name].append(float(r["added_sugar"]))
+        if r.get("total_sugar") is not None:
+            name_total_sugar[name].append(float(r["total_sugar"]))
 
     lines: list[str] = []
     used: list[dict[str, Any]] = []
@@ -477,7 +489,30 @@ def _render_rows(
             energy_str = f"~{lo}–{hi}"
         else:
             energy_str = f"~{energies[0]}"
-        lines.append(f"- {name} ({energy_str} kcal, allergens: {allergens})")
+        sugar_parts: list[str] = []
+        added_vals = name_added_sugar[name]
+        total_vals = name_total_sugar[name]
+        if added_vals:
+            if len(added_vals) > 1:
+                sugar_parts.append(
+                    f"added sugar: ~{round(min(added_vals), 1)}–{round(max(added_vals), 1)} g"
+                )
+            else:
+                sugar_parts.append(f"added sugar: ~{round(added_vals[0], 1)} g")
+        else:
+            sugar_parts.append("added sugar: unknown")
+        if total_vals:
+            if len(total_vals) > 1:
+                sugar_parts.append(
+                    f"total sugar: ~{round(min(total_vals), 1)}–{round(max(total_vals), 1)} g"
+                )
+            else:
+                sugar_parts.append(f"total sugar: ~{round(total_vals[0], 1)} g")
+        else:
+            sugar_parts.append("total sugar: unknown")
+        lines.append(
+            f"- {name} ({energy_str} kcal, allergens: {allergens}; {'; '.join(sugar_parts)})"
+        )
         used.append({"name": name, "distance": r["distance"]})
     return lines, used
 
@@ -628,7 +663,9 @@ def _llm_error_payload(
     return base
 
 
-def _preview(text: str, limit: int = 1200) -> str:
+def _preview(text: str | None, limit: int = 1200) -> str:
+    if not text:
+        return ""
     return text[:limit] + "…" if len(text) > limit else text
 
 

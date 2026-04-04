@@ -77,7 +77,7 @@ def search_menu(
     :param max_energy: только блюда с energy <= этого значения (ккал).
     :param min_energy: только блюда с energy >= этого значения (ккал).
 
-    Возвращает списки словарей: name, energy, allergens, distance.
+    Возвращает списки словарей: name, energy, allergens, sugar fields, ingredients, distance.
     """
     configure_hf_cache()
     collection = get_menu_collection()
@@ -145,10 +145,28 @@ def search_menu(
     for meta, dist in zip(metas0, dists0):
         out.append(
             {
-                "name": meta.get("name", ""),
-                "energy": meta.get("energy", 0),
-                "allergens": allergens_meta_to_list(meta.get("allergens")),
-                "distance": float(dist),
+                # идентификация
+                "name":         meta.get("name", ""),
+                "category":     meta.get("category", ""),
+                "serving_size": meta.get("serving_size", ""),
+                "tag":          meta.get("tag", ""),
+                "description":  meta.get("description", ""),
+                "ingredients":  meta.get("ingredients", ""),
+                # аллергены
+                "allergens":    allergens_meta_to_list(meta.get("allergens")),
+                # нутриенты
+                "energy":       meta.get("energy", 0.0),
+                "protein":      meta.get("protein", 0.0),
+                "total_fat":    meta.get("total_fat", 0.0),
+                "sat_fat":      meta.get("sat_fat", 0.0),
+                "trans_fat":    meta.get("trans_fat", 0.0),
+                "chol":         meta.get("chol", 0.0),
+                "carbs":        meta.get("carbs", 0.0),
+                "total_sugar":  meta.get("total_sugar", 0.0),
+                "added_sugar":  meta.get("added_sugar", 0.0),
+                "sodium":       meta.get("sodium", 0.0),
+                # расстояние
+                "distance":     float(dist),
             }
         )
     return out
