@@ -12,6 +12,9 @@
   RAG_DISTANCE_THRESHOLD  — жёсткий порог уверенного попадания (косинусное расстояние, 0..∞).
   RAG_SOFT_DISTANCE_MAX   — мягкий порог: если лучший хит хуже жёсткого, но не хуже этого,
                              позиции всё равно подставляются в контекст с предупреждением.
+  RAG_MAX_PROMPT_LINES    — максимум строк меню в system prompt после порога по distance
+                             (по умолчанию 15; порядок = релевантность Chroma). 0 или отрицательное
+                             — без ограничения (старое поведение).
 """
 
 from __future__ import annotations
@@ -40,6 +43,21 @@ try:
     )
 except (TypeError, ValueError):
     RAG_SOFT_DISTANCE_MAX = 1.15
+
+
+def _parse_rag_max_prompt_lines() -> int | None:
+    """Сколько уникальных позиций меню включать в промпт; None = без лимита."""
+    raw = (os.environ.get("RAG_MAX_PROMPT_LINES") or "15").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        return 15
+    if n <= 0:
+        return None
+    return n
+
+
+RAG_MAX_PROMPT_LINES: int | None = _parse_rag_max_prompt_lines()
 
 HistoryEntry = dict[str, str]
 
@@ -278,10 +296,16 @@ class CashierAgent:
         *,
         trace_verbose: bool = False,
         realistic_cashier: bool = False,
+        rag_max_prompt_lines: int | None = None,
     ) -> None:
         self.model = _resolve_model(model)
         self.rag_top_k = rag_top_k
         self.distance_threshold = distance_threshold
+        self.rag_max_prompt_lines = (
+            rag_max_prompt_lines
+            if rag_max_prompt_lines is not None
+            else RAG_MAX_PROMPT_LINES
+        )
         self._client = _build_openai_client(timeout)
         self._trace_verbose = trace_verbose
         self._realistic_cashier = realistic_cashier
@@ -446,13 +470,27 @@ class CashierAgent:
         info["best_distance"] = best
 
         if best <= self.distance_threshold:
-            lines, used = _render_rows(rows, max_dist=self.distance_threshold)
+            lines, used = _render_rows(
+                rows,
+                max_dist=self.distance_threshold,
+                max_lines=self.rag_max_prompt_lines,
+            )
+            if self.rag_max_prompt_lines is not None:
+                info["rag_prompt_line_cap"] = self.rag_max_prompt_lines
+                info["rag_prompt_lines_included"] = len(lines)
             info.update(outcome="injected", injected_hits=used)
             return "\n".join(lines), info
 
         if best <= soft_max:
-            lines, used = _render_rows(rows, max_dist=soft_max)
+            lines, used = _render_rows(
+                rows,
+                max_dist=soft_max,
+                max_lines=self.rag_max_prompt_lines,
+            )
             if lines:
+                if self.rag_max_prompt_lines is not None:
+                    info["rag_prompt_line_cap"] = self.rag_max_prompt_lines
+                    info["rag_prompt_lines_included"] = len(lines)
                 info.update(outcome="injected_soft", injected_hits=used)
                 return _SOFT_PREFIX + "\n".join(lines), info
 
@@ -471,7 +509,8 @@ class CashierAgent:
         if rag_context:
             extras.append(
                 "Menu data slice for this turn (each line: product name, kcal estimate, "
-                "declared-allergen tags only — not ingredients, sugar, or full nutrition):\n"
+                "allergen tags, approximate added/total sugar — not full ingredients or full "
+                "nutrition):\n"
                 f"{rag_context}"
             )
         if any(p.get("items") for p in order_state.get("persons", [])):
@@ -497,6 +536,7 @@ def _render_rows(
     rows: list[dict[str, Any]],
     *,
     max_dist: float,
+    max_lines: int | None = None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """
     Форматирует строки меню для промпта и список использованных хитов.
@@ -504,6 +544,8 @@ def _render_rows(
     mcd.json содержит несколько вариантов одного блюда (разные размеры порций).
     Дедупликация по имени объединяет их в одну строку с диапазоном калорий,
     чтобы не занимать лишние слоты top_k одинаковыми позициями.
+
+    max_lines: обрезка после порога по distance (порядок = релевантность в rows).
     """
     # Собираем квалифицированные строки (в пределах порога)
     by_name: dict[str, dict[str, Any]] = {}
@@ -563,6 +605,9 @@ def _render_rows(
             f"- {name} ({energy_str} kcal, allergens: {allergens}; {'; '.join(sugar_parts)})"
         )
         used.append({"name": name, "distance": r["distance"]})
+    if max_lines is not None and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        used = used[:max_lines]
     return lines, used
 
 

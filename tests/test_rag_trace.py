@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mcd_voice.llm.agent import CashierAgent
+from mcd_voice.llm.agent import CashierAgent, _render_rows
 
 _VALID_OUTCOMES = ("injected", "injected_soft", "above_threshold", "no_chroma_hits")
 
@@ -114,3 +114,26 @@ def test_rag_uses_fallback_query_when_no_client_text(
     rag_ev = [e for e in trace if e.get("event") == "rag"]
     assert len(rag_ev) == 1
     assert rag_ev[0].get("fallback") is True
+
+
+def test_render_rows_respects_max_lines() -> None:
+    """После фильтра по distance остаются не более max_lines строк (порядок релевантности)."""
+    rows: list[dict] = []
+    for i in range(30):
+        rows.append(
+            {
+                "name": f"Item{i}",
+                "distance": 0.1 + i * 0.001,
+                "allergens": [],
+                "energy": 100.0,
+                "added_sugar": 1.0,
+                "total_sugar": 2.0,
+            },
+        )
+    lines, used = _render_rows(rows, max_dist=1.0, max_lines=5)
+    assert len(lines) == len(used) == 5
+    assert lines[0].startswith("- Item0")
+    assert "Item4" in lines[4]
+
+    lines_all, _ = _render_rows(rows, max_dist=1.0, max_lines=None)
+    assert len(lines_all) == 30
