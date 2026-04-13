@@ -2,6 +2,7 @@
 
 from mcd_voice.dialog.allergens import profile_to_allergen_blacklist
 from mcd_voice.dialog.catalog import MenuCatalog
+from mcd_voice.dialog.human_voice_session import HumanDriveThroughSession
 from mcd_voice.dialog.pipeline import (
     DialogPipeline,
     build_initial_order_state,
@@ -20,6 +21,7 @@ from mcd_voice.dialog.save_dialog import (
 
 __all__ = [
     "DialogPipeline",
+    "HumanDriveThroughSession",
     "MenuCatalog",
     "build_initial_order_state",
     "generate_dialog",

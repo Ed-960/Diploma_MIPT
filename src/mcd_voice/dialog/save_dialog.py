@@ -85,6 +85,7 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
     companions = profile.get("companions", [])
     per_person = flags.get("per_person", [])
     allergen_violation_per_person = flags.get("allergen_violation_per_person", [])
+    restriction_violation_per_person = flags.get("restriction_violation_per_person", [])
     has_companion_violation = any(
         p.get("role") != "self" and p.get("allergen_violation")
         for p in per_person
@@ -118,6 +119,8 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
         "under_target_warning": flags.get("under_target_warning", False),
         "allergen_violation": flags.get("allergen_violation", []),
         "allergen_violation_per_person": allergen_violation_per_person,
+        "restriction_violation": flags.get("restriction_violation", []),
+        "restriction_violation_per_person": restriction_violation_per_person,
         "has_companion_violation": has_companion_violation,
         "empty_order": flags.get("empty_order", False),
         "incomplete_order": flags.get("incomplete_order", False),

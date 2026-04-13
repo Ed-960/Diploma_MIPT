@@ -7,8 +7,10 @@
   REWRITE_MODEL  — маленькая/быстрая модель для query rewriting перед RAG.
                    Используется из .env как основной источник для mini-LLM.
                    Если не задана, используется API_MODEL.
-  OPENAI_API_KEY — для облачного OpenAI.
-  OLLAMA_URL     — base URL для Ollama (http://localhost:11434/v1).
+  LLM_API_KEY    — ключ (любой OpenAI-compatible провайдер: xAI, OpenAI, Groq, …).
+  LLM_BASE_URL   — base URL …/v1 (облако или локальный Ollama).
+  Дубликаты не нужны: OPENAI_API_KEY, XAI_API_KEY, OPENAI_BASE_URL, XAI_BASE_URL, OLLAMA_URL
+  поддерживаются только для старых .env и не рекомендуются к новым проектам.
   RAG_DISTANCE_THRESHOLD  — жёсткий порог уверенного попадания (косинусное расстояние, 0..∞).
   RAG_SOFT_DISTANCE_MAX   — мягкий порог: если лучший хит хуже жёсткого, но не хуже этого,
                              позиции всё равно подставляются в контекст с предупреждением.
@@ -97,6 +99,152 @@ def _client_wants_broader_menu_scan(text: str) -> bool:
     return any(rx.search(text) for rx in _BROAD_MENU_INTENT_RES)
 
 
+_NON_FOOD_CLIENT_UTTERANCE_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*(yes|yeah|yep|correct|right|okay|ok)\s*[.!?]*\s*$", re.I),
+    re.compile(r"^\s*(okay|ok|yes|yeah|yep),?\s*thanks?(?:\s+you)?\s*[.!?]*\s*$", re.I),
+    re.compile(r"^\s*(yes|yeah|yep),?\s*(that'?s|thats)\s+right\s*[.!?]*\s*$", re.I),
+    re.compile(r"^\s*(that'?s|thats)\s+(right|correct|fine)\s*[.!?]*\s*$", re.I),
+    re.compile(r"^\s*(that'?s|thats)\s+all(?:,?\s*thanks?)?\s*[.!?]*\s*$", re.I),
+    re.compile(r"^\s*all\s+set(?:,?\s*thanks?)?\s*[.!?]*\s*$", re.I),
+    re.compile(r"^\s*thanks?(?:\s+you)?\s*[.!?]*\s*$", re.I),
+)
+
+
+def _is_non_food_client_utterance(text: str) -> bool:
+    """True for short confirmation/closure phrases where RAG should be skipped."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    t_low = t.lower()
+    # If customer mentions concrete food, do not skip RAG.
+    if re.search(
+        r"\b(big mac|burger|hamburger|fries|nuggets?|mcchicken|coke|diet coke|sprite|"
+        r"fanta|dr pepper|coffee|tea|lemonade|salad|happy meal)\b",
+        t_low,
+    ):
+        return False
+    if any(rx.match(t) for rx in _NON_FOOD_CLIENT_UTTERANCE_RES):
+        return True
+    # Support combined confirmations: "Yeah, that's right. That's all, thanks."
+    parts = [p.strip() for p in re.split(r"[.!?]+", t) if p.strip()]
+    if not parts:
+        return False
+    return all(any(rx.match(p) for rx in _NON_FOOD_CLIENT_UTTERANCE_RES) for p in parts)
+
+
+def _normalize_rewrite_output(text: str) -> str:
+    """
+    Normalize mini-LLM rewrite output:
+    - strip trailing punctuation,
+    - collapse whitespace,
+    - guard against meaningless one-word outputs like 'all'.
+    """
+    cleaned = (text or "").strip().replace(",", " ")
+    # Remove label-like punctuation from mini-LLM outputs (e.g. "food type: burgers").
+    cleaned = re.sub(r"[:|/\\]+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"[.!?,;:]+$", "", cleaned).strip()
+    if not cleaned:
+        return "general menu items"
+    low = cleaned.lower()
+    if low in {
+        "all", "ok", "okay", "yes", "yeah", "thanks", "thank you",
+        "ok thanks", "okay thanks", "ok thank you", "okay thank you",
+        "thats all", "that's all", "thats all thanks", "that's all thanks",
+    }:
+        return "general menu items"
+    return cleaned
+
+
+def _should_skip_rag(client_text: str, search_query: str) -> bool:
+    """Decide whether current turn has no food intent and RAG should be skipped."""
+    if _is_non_food_client_utterance(client_text):
+        return True
+    q = (search_query or "").strip().lower()
+    if not q:
+        return True
+    if q == "general menu items":
+        return True
+    courtesy_tokens = {
+        "ok", "okay", "thanks", "thank", "you", "yes", "yeah", "yep",
+        "right", "correct", "all", "thats", "that's",
+    }
+    q_tokens = [tok for tok in re.split(r"\s+", q) if tok]
+    if q_tokens and all(tok in courtesy_tokens for tok in q_tokens):
+        return True
+    return False
+
+
+def _client_is_specific_order(text: str) -> bool:
+    t = (text or "").lower()
+    if re.search(r"\b(i('ll| will)?|can i|i would like|i want|i'll take)\b", t):
+        return True
+    return bool(
+        re.search(
+            r"\b(big mac|burger|hamburger|fries|nuggets?|mcchicken|coke|diet coke|sprite|"
+            r"fanta|dr pepper|coffee|tea|lemonade|salad|happy meal)\b",
+            t,
+        )
+    )
+
+
+def _fallback_query_from_client_text(text: str) -> str:
+    t = (text or "").lower()
+    picked: list[str] = []
+
+    def add_if(cond: bool, token: str) -> None:
+        if cond and token not in picked:
+            picked.append(token)
+
+    add_if("big mac" in t, "big mac")
+    add_if("mcchicken" in t, "mcchicken")
+    add_if("fries" in t, "fries")
+    add_if("diet coke" in t, "diet coke")
+    add_if("coke" in t and "diet coke" not in t, "coke")
+    add_if("nugget" in t, "nuggets")
+    add_if("burger" in t and "big mac" not in t, "burger")
+    add_if("sandwich" in t, "sandwich")
+    add_if("coffee" in t, "coffee")
+    add_if("tea" in t, "tea")
+    add_if("lemonade" in t, "lemonade")
+    add_if("sprite" in t, "sprite")
+
+    if picked:
+        return " ".join(picked[:6])
+    return "general menu items"
+
+
+def _sanitize_cashier_response(text: str) -> str:
+    """Remove formatting/emoji artifacts forbidden by cashier prompt."""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return cleaned
+    # Markdown-ish emphasis markers.
+    cleaned = cleaned.replace("**", "").replace("__", "")
+    # Strip common emoji ranges while preserving plain ASCII punctuation/text.
+    cleaned = re.sub(
+        r"[\U0001F300-\U0001FAFF\U00002700-\U000027BF\U0001F1E6-\U0001F1FF]",
+        "",
+        cleaned,
+    )
+    # Avoid misleading "not in menu" claims when item may exist outside current slice.
+    replacements = {
+        "not currently in our menu": "not in my current options",
+        "not in our menu": "not in my current options",
+        "i don't have": "I can't confirm",
+        "we don't have": "We can't confirm right now",
+        "on the current menu": "in the current options",
+    }
+    low = cleaned.lower()
+    for src, dst in replacements.items():
+        if src in low:
+            # case-insensitive single replacement preserving surrounding text.
+            cleaned = re.sub(re.escape(src), dst, cleaned, flags=re.I)
+            low = cleaned.lower()
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
 # ── LLM-клиент ────────────────────────────────────────────────────────────────
 
 def _normalize_base_url(url: str) -> str:
@@ -104,6 +252,37 @@ def _normalize_base_url(url: str) -> str:
     if base.endswith("/chat/completions"):
         base = base[: -len("/chat/completions")]
     return base
+
+
+def _first_env(*keys: str) -> str:
+    """Первое непустое значение среди переменных окружения."""
+    for k in keys:
+        v = (os.environ.get(k) or "").strip()
+        if v:
+            return v
+    return ""
+
+
+def _cloud_api_key() -> str:
+    return _first_env("LLM_API_KEY", "OPENAI_API_KEY", "XAI_API_KEY")
+
+
+def _cloud_base_url() -> str:
+    base = _first_env("LLM_BASE_URL", "OPENAI_BASE_URL", "XAI_BASE_URL")
+    if base:
+        return base
+    # Старый сценарий: только XAI_API_KEY без LLM_/OPENAI_ — дефолтный хост xAI.
+    if (
+        _first_env("XAI_API_KEY")
+        and not _first_env("LLM_API_KEY")
+        and not _first_env("OPENAI_API_KEY")
+    ):
+        return "https://api.x.ai/v1"
+    return ""
+
+
+def _ollama_base_url() -> str:
+    return _first_env("LLM_BASE_URL", "OLLAMA_URL", "OPENAI_BASE_URL")
 
 
 def _resolve_model(explicit: str | None) -> str:
@@ -115,26 +294,27 @@ def _build_openai_client(timeout: float = 60.0) -> OpenAI:
     provider = (os.environ.get("API_PROVIDER") or "openai").strip().lower()
 
     if provider == "ollama":
-        raw_url = os.environ.get("OLLAMA_URL") or os.environ.get("OPENAI_BASE_URL")
+        raw_url = _ollama_base_url()
         if not raw_url:
             raise RuntimeError(
-                "Для API_PROVIDER=ollama задайте OLLAMA_URL "
-                "(например http://localhost:11434/v1)."
+                "Для API_PROVIDER=ollama задайте LLM_BASE_URL "
+                "(например http://127.0.0.1:11434/v1)."
             )
+        api_key = _first_env("LLM_API_KEY", "OPENAI_API_KEY") or "ollama"
         return OpenAI(
-            api_key=os.environ.get("OPENAI_API_KEY", "ollama"),
+            api_key=api_key,
             base_url=_normalize_base_url(raw_url),
             timeout=timeout,
         )
 
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = _cloud_api_key()
     if not api_key:
         raise RuntimeError(
-            "Задайте OPENAI_API_KEY для облачного OpenAI или "
-            "используйте API_PROVIDER=ollama с OLLAMA_URL."
+            "Задайте LLM_API_KEY для облака, либо API_PROVIDER=ollama и LLM_BASE_URL. "
+            "При необходимости поддерживаются устаревшие OPENAI_* / XAI_* / OLLAMA_URL в .env."
         )
     kwargs: dict[str, Any] = {"api_key": api_key, "timeout": timeout}
-    raw_base = os.environ.get("OPENAI_BASE_URL")
+    raw_base = _cloud_base_url()
     if raw_base:
         kwargs["base_url"] = _normalize_base_url(raw_base)
     return OpenAI(**kwargs)
@@ -149,7 +329,10 @@ def get_llm_runtime_config() -> dict[str, str]:
     """Текущая runtime-конфигурация LLM из env (для логов и отладки)."""
     provider = (os.environ.get("API_PROVIDER") or "openai").strip().lower()
     model = _resolve_model(None)
-    raw_url = os.environ.get("OLLAMA_URL") or os.environ.get("OPENAI_BASE_URL") or ""
+    if provider == "ollama":
+        raw_url = _ollama_base_url()
+    else:
+        raw_url = _cloud_base_url()
     return {
         "provider": provider,
         "model": model,
@@ -373,6 +556,7 @@ class CashierAgent:
                 ),
             )
             raise
+        response = _sanitize_cashier_response(response)
         _trace(
             llm_trace,
             _llm_call_payload(
@@ -430,6 +614,18 @@ class CashierAgent:
                 trace_verbose=self._trace_verbose,
             )
             is_fallback = False
+            if _should_skip_rag(client_text, search_query):
+                _trace(
+                    rag_trace,
+                    {
+                        **base_trace,
+                        "event": "rag_skipped_non_food",
+                        "search_query": search_query,
+                        "rewrite_model": self._rewrite_model,
+                        "retrieval_mode": self.rag_mode,
+                    },
+                )
+                return ""
         else:
             import random as _rand
             search_query = _rand.choice(self._FALLBACK_QUERIES)
@@ -728,7 +924,20 @@ def _rewrite_query(
             temperature=0.0,
         )
         dt_ms = (time.perf_counter() - t0) * 1000.0
-        rewritten = (rewritten or "").strip()
+        rewritten = _normalize_rewrite_output(rewritten)
+        if _client_is_specific_order(client_text):
+            broadish = {
+                "burgers",
+                "chicken",
+                "sandwiches",
+                "sides",
+                "drinks",
+                "dessert",
+                "coffee",
+            }
+            rw_tokens = {t.lower() for t in rewritten.split()}
+            if len(rw_tokens & broadish) >= 3:
+                rewritten = _fallback_query_from_client_text(client_text)
         if _client_wants_broader_menu_scan(client_text) and len(rewritten.split()) <= 1:
             _trace(
                 llm_trace,

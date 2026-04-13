@@ -15,6 +15,7 @@ from __future__ import annotations
 import inspect
 import json
 import re
+from functools import lru_cache
 from typing import Any, Callable
 
 from mcd_voice.dialog.catalog import MenuCatalog
@@ -150,13 +151,13 @@ def parse_order_from_text(
 
         found.append((name, qty))
 
-    # Fallback: короткие естественные упоминания ("fries", "nuggets", "black coffee"),
-    # когда полное название из меню не произнесено.
-    if found:
-        return found
-
+    # Also parse short natural aliases ("fries", "nuggets", "coke") even when
+    # one full menu name has already matched.
+    seen_names = {name for name, _ in found}
     alias_patterns = _build_alias_patterns(menu_names)
     for rx, target_name in alias_patterns:
+        if target_name in seen_names:
+            continue
         m = rx.search(lower)
         if not m:
             continue
@@ -166,7 +167,7 @@ def parse_order_from_text(
         if qty_match:
             qty = max(1, min(20, int(qty_match.group(1))))
         found.append((target_name, qty))
-        break
+        seen_names.add(target_name)
     return found
 
 
@@ -241,6 +242,165 @@ def _build_alias_patterns(menu_names: list[str]) -> list[tuple[re.Pattern[str], 
         if target:
             pairs.append((patt, target))
     return [(re.compile(p, re.IGNORECASE), t) for p, t in pairs]
+
+
+_UNAVAILABLE_CUES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bi don't have\b", re.I),
+    re.compile(r"\bwe don't have\b", re.I),
+    re.compile(r"\bnot (currently )?in (our )?menu\b", re.I),
+    re.compile(r"\bnot available\b", re.I),
+    re.compile(r"\bcan'?t (offer|do)\b", re.I),
+    re.compile(r"\bcan'?t do that\b", re.I),
+    re.compile(r"\bcan'?t recommend\b", re.I),
+    re.compile(r"\b(?:has|contains)\s+added\s+sugar\b", re.I),
+)
+
+
+def _extract_unavailable_items(
+    text: str,
+    menu_names: list[str],
+) -> set[str]:
+    """
+    Heuristic extraction of menu items that cashier explicitly marks unavailable.
+    Used to clean stale items from order_state after customer changes choices.
+    """
+    if not text:
+        return set()
+    raw = (text or "").lower()
+    if not any(rx.search(raw) for rx in _UNAVAILABLE_CUES):
+        return set()
+
+    unavailable: set[str] = set()
+    for name in menu_names:
+        name_norm = _normalize_item_text(name)
+        if len(name_norm) < 4:
+            continue
+        name_pat = r"\b" + r"\W+".join(re.escape(tok) for tok in name_norm.split()) + r"\b"
+        before_item = re.compile(
+            rf"\b(?:i|we)\s+don['’]?t\s+have\b[^.!?;\n]{{0,30}}{name_pat}"
+            rf"|\bnot\s+available\b[^.!?;\n]{{0,30}}{name_pat}"
+            rf"|\bcan['’]?t\s+(?:offer|recommend|do)\b[^.!?;\n]{{0,30}}{name_pat}",
+            re.I,
+        )
+        after_item = re.compile(
+            rf"{name_pat}[^.!?;\n]{{0,24}}"
+            rf"(?:isn['’]?t\s+listed|not\s+available|not\s+in\s+(?:our\s+)?menu"
+            rf"|(?:i|we)\s+can['’]?t\s+(?:offer|recommend|do)(?:\s+that)?"
+            rf"|(?:has|contains)\s+added\s+sugar[^.!?;\n]{{0,40}}\binstead\b)",
+            re.I,
+        )
+        if before_item.search(raw) or after_item.search(raw):
+            unavailable.add(name)
+    return unavailable
+
+
+_MEAT_BEEF_RE = re.compile(
+    r"\b(beef|hamburger|cheeseburger|big mac|mcdouble|quarter pounder)\b",
+    re.I,
+)
+_FISH_RE = re.compile(r"\b(fish|filet[\s-]*o[\s-]*fish|tuna|salmon)\b", re.I)
+_EGG_RE = re.compile(r"\b(egg|mayo|mayonnaise)\b", re.I)
+_NUTS_RE = re.compile(r"\b(nut|nuts|peanut|almond|hazelnut|cashew|walnut)\b", re.I)
+_GLUTEN_TEXT_RE = re.compile(r"\b(bun|bread|wrap|tortilla|muffin|biscuit)\b", re.I)
+_ANIMAL_RE = re.compile(r"\b(chicken|beef|fish|egg|bacon|sausage|ham)\b", re.I)
+
+
+def _restriction_flags_from_profile(profile_or_restrictions: dict[str, Any]) -> dict[str, bool]:
+    flags = {
+        "noMilk": bool(profile_or_restrictions.get("noMilk")),
+        "noFish": bool(profile_or_restrictions.get("noFish")),
+        "noNuts": bool(profile_or_restrictions.get("noNuts")),
+        "noEggs": bool(profile_or_restrictions.get("noEggs")),
+        "noGluten": bool(profile_or_restrictions.get("noGluten")),
+        "noBeef": bool(profile_or_restrictions.get("noBeef")),
+        "isVegan": bool(profile_or_restrictions.get("isVegan")),
+        "noSugar": bool(profile_or_restrictions.get("noSugar")),
+    }
+    if flags["isVegan"]:
+        # Vegan profile implies avoiding core animal-derived categories.
+        flags["noMilk"] = True
+        flags["noFish"] = True
+        flags["noEggs"] = True
+        flags["noBeef"] = True
+    return flags
+
+
+@lru_cache(maxsize=1)
+def _menu_restriction_map() -> dict[str, dict[str, bool]]:
+    """
+    Name -> coarse restriction markers built from mcd.json text+allergens+sugar.
+    """
+    from mcd_voice.config import MCD_JSON_PATH
+    from mcd_voice.menu.parsing import parse_allergy_field
+
+    with open(MCD_JSON_PATH, "r", encoding="utf-8") as f:
+        items: list[dict[str, Any]] = json.load(f)
+
+    out: dict[str, dict[str, bool]] = {}
+    for it in items:
+        name = it.get("name")
+        if not name:
+            continue
+        blob = " ".join(
+            str(it.get(k, "") or "")
+            for k in ("name", "ingredients", "tag", "description")
+        ).lower()
+        allergens = {
+            str(a).strip().lower()
+            for a in parse_allergy_field(it.get("allergy"))
+            if str(a).strip()
+        }
+        try:
+            added_sugar = float(it.get("added_sugar") or 0.0)
+        except (TypeError, ValueError):
+            added_sugar = 0.0
+
+        flags = out.setdefault(
+            name,
+            {
+                "noMilk": False,
+                "noFish": False,
+                "noNuts": False,
+                "noEggs": False,
+                "noGluten": False,
+                "noBeef": False,
+                "isVegan": False,
+                "noSugar": False,
+            },
+        )
+
+        has_milk = ("milk" in allergens) or bool(re.search(r"\b(milk|cheese|paneer|butter|latte|shake|sundae|mcflurry)\b", blob))
+        has_fish = ("fish" in allergens) or bool(_FISH_RE.search(blob))
+        has_eggs = ("egg" in allergens) or bool(_EGG_RE.search(blob))
+        has_nuts = ("nuts" in allergens) or bool(_NUTS_RE.search(blob))
+        has_gluten = ("cereal containing gluten" in allergens) or bool(_GLUTEN_TEXT_RE.search(blob))
+        has_beef = bool(_MEAT_BEEF_RE.search(blob))
+        has_animal = has_milk or has_fish or has_eggs or has_beef or bool(_ANIMAL_RE.search(blob))
+
+        flags["noMilk"] = flags["noMilk"] or has_milk
+        flags["noFish"] = flags["noFish"] or has_fish
+        flags["noNuts"] = flags["noNuts"] or has_nuts
+        flags["noEggs"] = flags["noEggs"] or has_eggs
+        flags["noGluten"] = flags["noGluten"] or has_gluten
+        flags["noBeef"] = flags["noBeef"] or has_beef
+        flags["isVegan"] = flags["isVegan"] or has_animal
+        flags["noSugar"] = flags["noSugar"] or (added_sugar > 0.0)
+
+    return out
+
+
+def _item_restriction_violations(
+    item_name: str,
+    restriction_flags: dict[str, bool],
+) -> set[str]:
+    meta = _menu_restriction_map().get(item_name)
+    if not meta:
+        return set()
+    violated: set[str] = set()
+    for key, enabled in restriction_flags.items():
+        if enabled and meta.get(key, False):
+            violated.add(key)
+    return violated
 
 
 # ── Назначение блюд персонам ─────────────────────────────────────────
@@ -328,6 +488,17 @@ def _resolve_target_indices(
 
     target_key = _detect_target_person(text)
     return [_resolve_person_index(target_key, persons)]
+
+
+def _is_main_item_name(name: str) -> bool:
+    n = (name or "").lower()
+    return bool(
+        re.search(
+            r"\b(big mac|burger|hamburger|wrap|sandwich|nuggets?|mcchicken|"
+            r"mcdouble|quarter pounder|maharaja|filet|mcspicy|paneer)\b",
+            n,
+        )
+    )
 
 
 # ── Построение multi-person order_state ───────────────────────────────
@@ -568,6 +739,18 @@ class DialogPipeline:
             self._update_order(
                 client_msg, menu_names, order_state, energy_by_name, allergen_map,
             )
+            self._enforce_restriction_safety(
+                profile, order_state, energy_by_name, allergen_map,
+            )
+
+            # Если кассир явно сообщил, что некоторые позиции недоступны/не подходят,
+            # убираем эти позиции из уже накопленного заказа.
+            self._remove_unavailable_from_order(
+                cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+            )
+            self._enforce_restriction_safety(
+                profile, order_state, energy_by_name, allergen_map,
+            )
 
             cashier_signaled = _cashier_signals_end(cashier_msg)
             if cashier_signaled:
@@ -575,6 +758,9 @@ class DialogPipeline:
                 # это безопаснее, чем парсить любые промежуточные предложения.
                 self._update_order(
                     cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+                )
+                self._enforce_restriction_safety(
+                    profile, order_state, energy_by_name, allergen_map,
                 )
                 # Защита от бесконечного хвоста "Yes." -> "Order confirmed."
                 # Если клиент уже дал краткое подтверждение, завершаем сразу.
@@ -615,6 +801,83 @@ class DialogPipeline:
         if llm_trace is not None:
             flags = {**flags, "llm_trace": llm_trace}
         return history, profile, order_state, flags
+
+    @staticmethod
+    def _remove_unavailable_from_order(
+        text: str,
+        menu_names: list[str],
+        order_state: dict[str, Any],
+        energy_by_name: dict[str, float],
+        allergen_map: dict[str, list[str]],
+    ) -> None:
+        names_to_drop = _extract_unavailable_items(text, menu_names)
+        if not names_to_drop:
+            return
+
+        persons = order_state.get("persons", [])
+        for p in persons:
+            items = p.get("items", [])
+            p["items"] = [it for it in items if it.get("name") not in names_to_drop]
+
+        # Recompute aggregates after removal.
+        for p in persons:
+            p["total_energy"] = round(
+                sum(
+                    energy_by_name.get(it["name"], 0) * it.get("quantity", 1)
+                    for it in p.get("items", [])
+                ),
+                2,
+            )
+            all_ag: set[str] = set()
+            for it in p.get("items", []):
+                all_ag.update(allergen_map.get(it["name"], []))
+            p["allergens"] = sorted(all_ag)
+
+    @staticmethod
+    def _enforce_restriction_safety(
+        profile: dict[str, Any],
+        order_state: dict[str, Any],
+        energy_by_name: dict[str, float],
+        allergen_map: dict[str, list[str]],
+    ) -> None:
+        """
+        Hard safety pass for synthetic data:
+        remove ordered items that violate person-specific allergen blacklist.
+        """
+        persons = order_state.get("persons", [])
+        if not persons:
+            return
+
+        for p in persons:
+            role = p.get("role")
+            if role == "self":
+                restriction_flags = _restriction_flags_from_profile(profile)
+            else:
+                restriction_flags = _restriction_flags_from_profile(p.get("restrictions", {}))
+            if not any(restriction_flags.values()):
+                continue
+
+            safe_items: list[dict[str, Any]] = []
+            for it in p.get("items", []):
+                name = it.get("name", "")
+                if _item_restriction_violations(name, restriction_flags):
+                    continue
+                safe_items.append(it)
+            p["items"] = safe_items
+
+        # Recompute aggregates after filtering.
+        for p in persons:
+            p["total_energy"] = round(
+                sum(
+                    energy_by_name.get(it["name"], 0) * it.get("quantity", 1)
+                    for it in p.get("items", [])
+                ),
+                2,
+            )
+            all_ag: set[str] = set()
+            for it in p.get("items", []):
+                all_ag.update(allergen_map.get(it["name"], []))
+            p["allergens"] = sorted(all_ag)
 
     def _emit_progress(self, stage: str, **payload: Any) -> None:
         if self._progress_callback is None:
@@ -687,6 +950,7 @@ class DialogPipeline:
         persons = order_state["persons"]
         group_size = max(1, len(persons))
         target_indices = _resolve_target_indices(text, persons)
+        has_instead_cue = bool(re.search(r"\binstead\b", text, re.I))
 
         # Если заказ адресован нескольким людям ("for both", "for everyone"),
         # каждый получает по 1 штуке — не умножаем quantity на одного.
@@ -696,6 +960,20 @@ class DialogPipeline:
             if idx >= len(persons):
                 continue
             person = persons[idx]
+            # Replacement intent: "I'll take X instead."
+            # Keep sides/drinks, but swap out previously collected mains.
+            if has_instead_cue:
+                parsed_names = {name for name, _ in parsed}
+                parsed_has_main = any(_is_main_item_name(name) for name in parsed_names)
+                if parsed_has_main:
+                    person["items"] = [
+                        it
+                        for it in person.get("items", [])
+                        if not (
+                            _is_main_item_name(it.get("name", ""))
+                            and it.get("name") not in parsed_names
+                        )
+                    ]
             for name, qty in parsed:
                 if distribute_to_many:
                     qty = 1
@@ -749,7 +1027,9 @@ def validate_dialog(
 
     per_person: list[dict[str, Any]] = []
     allergen_violation_per_person: list[dict[str, Any]] = []
+    restriction_violation_per_person: list[dict[str, Any]] = []
     all_violations: set[str] = set()
+    all_restriction_violations: set[str] = set()
     total_energy = 0.0
     total_items = 0
     ordered_item_names: list[str] = []
@@ -769,8 +1049,10 @@ def validate_dialog(
         # Blacklist: self → профиль, компаньоны → их restrictions
         if role == "self":
             bl = profile_blacklist
+            restriction_flags = _restriction_flags_from_profile(profile)
         else:
             bl = set(get_allergen_blacklist(p.get("restrictions", {})))
+            restriction_flags = _restriction_flags_from_profile(p.get("restrictions", {}))
 
         violation = bl & p_allergens
         if violation:
@@ -783,12 +1065,29 @@ def validate_dialog(
                 }
             )
 
+        restriction_violation: set[str] = set()
+        for it in p.get("items", []):
+            name = str(it.get("name", "")).strip()
+            if not name:
+                continue
+            restriction_violation.update(_item_restriction_violations(name, restriction_flags))
+        if restriction_violation:
+            all_restriction_violations.update(restriction_violation)
+            restriction_violation_per_person.append(
+                {
+                    "label": label,
+                    "role": role,
+                    "restrictions": sorted(restriction_violation),
+                }
+            )
+
         per_person.append({
             "label": label,
             "role": role,
             "items_count": p_items,
             "total_energy": p_energy,
             "allergen_violation": sorted(violation),
+            "restriction_violation": sorted(restriction_violation),
         })
         total_energy += p_energy
         total_items += p_items
@@ -818,6 +1117,8 @@ def validate_dialog(
         "per_person": per_person,
         "allergen_violation": sorted(all_violations),
         "allergen_violation_per_person": allergen_violation_per_person,
+        "restriction_violation": sorted(all_restriction_violations),
+        "restriction_violation_per_person": restriction_violation_per_person,
         "calorie_warning": total_energy > cal_target * 1.5,
         "under_target_warning": under_target_warning,
         "empty_order": total_items == 0,
@@ -850,6 +1151,13 @@ def localize_errors(
         for token in row.get("allergens", [])
         if token
     }
+    restriction_rows = flags.get("restriction_violation_per_person", [])
+    violating_restrictions = {
+        token.lower()
+        for row in restriction_rows
+        for token in row.get("restrictions", [])
+        if token
+    }
 
     for i, turn in enumerate(history):
         text = turn.get("text", "")
@@ -875,6 +1183,19 @@ def localize_errors(
                             "speaker": speaker,
                             "error_type": "allergen_suggestion",
                             "allergen": token,
+                            "excerpt": excerpt,
+                        }
+                    )
+        if speaker == "cashier" and violating_restrictions:
+            lower_text = text.lower()
+            for token in sorted(violating_restrictions):
+                if token.replace("no", "") in lower_text or token in lower_text:
+                    errors.append(
+                        {
+                            "turn": i,
+                            "speaker": speaker,
+                            "error_type": "restriction_suggestion",
+                            "restriction": token,
                             "excerpt": excerpt,
                         }
                     )
@@ -1067,4 +1388,4 @@ if __name__ == "__main__":
         print_dialog(h, p, o, f)
     except RuntimeError as e:
         print(f"Ошибка: {e}")
-        print("Проверьте OPENAI_API_KEY и наличие chroma_db после load_chroma.py.")
+        print("Проверьте LLM_API_KEY / LLM_BASE_URL (или Ollama) и наличие chroma_db после load_chroma.py.")

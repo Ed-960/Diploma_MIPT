@@ -136,7 +136,7 @@
 
 - Python 3.10+
 - ChromaDB, sentence-transformers (`all-MiniLM-L6-v2`)
-- OpenAI API (gpt-4o / gpt-4o-mini) или локальный OpenAI-compatible API (например Ollama)
+- LLM через OpenAI-compatible SDK: в `.env` нейтрально **`LLM_API_KEY`**, **`LLM_BASE_URL`** (облако или Ollama); см. `.env.example`. Старые имена (`OPENAI_*`, `XAI_*`, `OLLAMA_URL`) поддерживаются.
 - json; matplotlib (опционально, для диаграмм)
 
 ---
@@ -148,13 +148,16 @@ cd diploma_project
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Вариант 1: облачный OpenAI
-export OPENAI_API_KEY=sk-...
+# Вариант 1: облако (xAI / Groq / OpenAI — любой OpenAI-compatible /v1)
+# export API_PROVIDER=openai
+# export LLM_API_KEY=...
+# export LLM_BASE_URL=https://api.x.ai/v1
+# export API_MODEL=grok-3-mini
 
 # Вариант 2: локальный Ollama
 # export API_PROVIDER=ollama
+# export LLM_BASE_URL=http://127.0.0.1:11434/v1
 # export API_MODEL=qwen3:1.7b
-# export OLLAMA_URL=http://localhost:11434/v1/chat/completions
 
 # 1. Загрузить меню в Chroma
 python scripts/load_chroma.py

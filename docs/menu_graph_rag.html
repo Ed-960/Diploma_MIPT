@@ -1,41 +1,4 @@
-"""
-Экспорт графа меню для graph-RAG: Mermaid (.mmd), JSON и готовый vis-network HTML.
-
-По умолчанию в JSON/HTML — усечение по числу рёбер (демо). Полный граф: ``--max-edges 0``.
-С ``--focus`` по умолчанию лимит рёбер **100** (компактнее); свой лимит: ``--max-edges 200``.
-
-Фокус для объяснения (1–3 блюда + соседи по графу), например:
-
-  python scripts/visualize_menu_graph.py --focus "Big Mac" --open
-  python scripts/visualize_menu_graph.py --focus McChicken --focus "Apple Pie" --focus-hops 1
-  python scripts/visualize_menu_graph.py --focus "Big Mac,Cheeseburger" --focus-style induced
-
-Usage:
-  python scripts/visualize_menu_graph.py
-  python scripts/visualize_menu_graph.py --open
-  python scripts/visualize_menu_graph.py --max-edges 0
-"""
-
-from __future__ import annotations
-
-import argparse
-import json
-import webbrowser
-from pathlib import Path
-
-import _bootstrap
-
-_bootstrap.ensure_src()
-
-from mcd_voice.menu.graph_rag import (
-    _build_menu_graph,
-    graph_payload_to_mermaid,
-    menu_graph_focus_payload,
-    menu_graph_to_mermaid,
-    menu_graph_vis_payload,
-)
-
-_MENU_HTML_HEAD = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -123,9 +86,7 @@ _MENU_HTML_HEAD = """<!DOCTYPE html>
   <div id="net" tabindex="0" aria-label="Область графа: клик для фокуса, колёсико — масштаб"></div>
   </div>
   <script type="application/json" id="graph-data">
-"""
-
-_MENU_HTML_TAIL = """
+{"nodes":[{"id":"n0","label":"Big Mac"},{"id":"n1","label":"Quarter Pounder with Cheese"}],"edges":[{"from":"n0","to":"n1","w":3.5}],"_viz":{"mode":"focus","seeds":["Big Mac","Quarter Pounder with Cheese"],"neighbor_hops":0,"edge_mode":"star","edge_cap":100}}
   </script>
   <script>
 (function () {
@@ -169,7 +130,7 @@ _MENU_HTML_TAIL = """
   function shorten(s, n) {
     s = String(s);
     if (s.length <= n) return s;
-    return s.slice(0, n - 1) + "\\u2026";
+    return s.slice(0, n - 1) + "\u2026";
   }
 
   function edgeColor(w) {
@@ -430,142 +391,3 @@ _MENU_HTML_TAIL = """
   </script>
 </body>
 </html>
-"""
-
-
-def write_menu_graph_html(path: Path, payload: dict) -> None:
-    blob = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_MENU_HTML_HEAD + blob + _MENU_HTML_TAIL, encoding="utf-8")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Render menu co-occurrence graph (graph-RAG) as Mermaid + JSON + vis HTML.",
-    )
-    parser.add_argument(
-        "--output",
-        default="docs/menu_graph_rag.mmd",
-        help="Path to Mermaid output (.mmd).",
-    )
-    parser.add_argument(
-        "--html-output",
-        default="docs/menu_graph_rag.html",
-        help="Standalone vis-network HTML.",
-    )
-    parser.add_argument(
-        "--data-output",
-        default="docs/menu_graph_rag_data.json",
-        help="JSON graph (same payload embedded in HTML).",
-    )
-    parser.add_argument(
-        "--max-edges",
-        type=int,
-        default=-1,
-        help="Cap on undirected edges (strongest first). Default: 380 без --focus, 100 с --focus; 0 = без лимита.",
-    )
-    parser.add_argument(
-        "--min-weight",
-        type=float,
-        default=0.25,
-        help="Minimum edge weight to include in export.",
-    )
-    parser.add_argument(
-        "--focus",
-        action="append",
-        default=[],
-        metavar="NAME",
-        help="Имя блюда из меню (можно несколько раз или через запятую). "
-        "Строится подграф: выбранные позиции + соседи на --focus-hops шагов.",
-    )
-    parser.add_argument(
-        "--focus-hops",
-        type=int,
-        default=1,
-        help="Число шагов по рёбрам от --focus (0 = только выбранные блюда, без соседей).",
-    )
-    parser.add_argument(
-        "--focus-style",
-        choices=("star", "induced"),
-        default="star",
-        help="star: только связи с выбранными блюдами (лучше для слайда). induced: все связи между видимыми узлами.",
-    )
-    parser.add_argument(
-        "--no-html",
-        action="store_true",
-        help="Only write .mmd; skip JSON and HTML.",
-    )
-    parser.add_argument(
-        "--open",
-        action="store_true",
-        help="Open the HTML file in the default browser (no-op if --no-html).",
-    )
-    args = parser.parse_args()
-
-    focus_queries: list[str] = []
-    for chunk in args.focus:
-        focus_queries.extend(p.strip() for p in chunk.split(",") if p.strip())
-
-    if args.max_edges == 0:
-        max_edges = None
-    elif args.max_edges < 0:
-        max_edges = 100 if focus_queries else 380
-    else:
-        max_edges = args.max_edges
-
-    graph = _build_menu_graph()
-    n_nodes = len(graph["nodes"])
-    n_undirected = sum(len(graph["edges"][k]) for k in graph["edges"]) // 2
-
-    if focus_queries:
-        try:
-            payload = menu_graph_focus_payload(
-                focus_queries,
-                neighbor_hops=max(0, args.focus_hops),
-                min_weight=args.min_weight,
-                max_edges=max_edges,
-                edge_mode=args.focus_style,
-            )
-        except ValueError as e:
-            print(f"focus: {e}", flush=True)
-            raise SystemExit(2) from e
-        mermaid = graph_payload_to_mermaid(payload)
-        print(
-            f"Focus:   {payload['_viz']['seeds']}  hops={payload['_viz']['neighbor_hops']}  "
-            f"style={payload['_viz'].get('edge_mode', 'star')}  "
-            f"subgraph nodes={len(payload['nodes'])} edges={len(payload['edges'])}",
-            flush=True,
-        )
-    else:
-        payload = None
-        mermaid = menu_graph_to_mermaid(max_edges=max_edges, min_weight=args.min_weight)
-
-    out_mmd = Path(args.output)
-    out_mmd.parent.mkdir(parents=True, exist_ok=True)
-    out_mmd.write_text(mermaid, encoding="utf-8")
-    print(f"Mermaid: {out_mmd}  (menu nodes={n_nodes}, undirected_edges~={n_undirected})", flush=True)
-
-    if not args.no_html:
-        out_data = Path(args.data_output)
-        if payload is None:
-            payload = menu_graph_vis_payload(max_edges=max_edges, min_weight=args.min_weight)
-            if max_edges is not None:
-                payload = {**payload, "_viz": {"edge_cap": max_edges}}
-        out_data.write_text(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
-        print(f"JSON:    {out_data}", flush=True)
-
-        out_html = Path(args.html_output)
-        write_menu_graph_html(out_html, payload)
-        print(
-            f"HTML:    {out_html}  (nodes={len(payload['nodes'])}, edges={len(payload['edges'])})",
-            flush=True,
-        )
-        if args.open:
-            webbrowser.open(out_html.resolve().as_uri())
-
-
-if __name__ == "__main__":
-    main()

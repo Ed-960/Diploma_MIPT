@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 import re
-from typing import Any
+from typing import Any, Sequence
 
 from mcd_voice.menu.dataset import load_menu_from_json
 from mcd_voice.menu.parsing import allergens_meta_to_list
@@ -195,23 +195,17 @@ def _mermaid_escape_label(text: str) -> str:
     )
 
 
-def menu_graph_to_mermaid(
+def _menu_graph_draw_edges(
     *,
-    max_edges: int = 220,
-    min_weight: float = 0.25,
-) -> str:
-    """Mermaid flowchart for the menu co-occurrence graph (graph-RAG structure)."""
+    max_edges: int | None,
+    min_weight: float,
+) -> tuple[list[str], dict[str, str], list[tuple[str, str, float]]]:
+    """Sorted node names, id n0.., undirected edges; ``max_edges=None`` — без ограничения."""
     graph = _build_menu_graph()
     nodes: dict[str, dict[str, Any]] = graph["nodes"]
     edges_map: dict[str, list[tuple[str, float]]] = graph["edges"]
     names = sorted(nodes.keys())
     id_for: dict[str, str] = {n: f"n{i}" for i, n in enumerate(names)}
-
-    lines: list[str] = ["flowchart LR", "  %% menu graph-RAG: category/tag/allergen/token links"]
-    for name in names:
-        lid = id_for[name]
-        label = _mermaid_escape_label(name)
-        lines.append(f'  {lid}["{label}"]')
 
     seen: set[tuple[str, str]] = set()
     weighted: list[tuple[str, str, float]] = []
@@ -227,7 +221,162 @@ def menu_graph_to_mermaid(
             weighted.append((ia, ib, w))
 
     weighted.sort(key=lambda t: t[2], reverse=True)
-    for ia, ib, w in weighted[: max(0, max_edges)]:
+    if max_edges is None:
+        trimmed = weighted
+    else:
+        trimmed = weighted[: max(0, max_edges)]
+    return names, id_for, trimmed
+
+
+def _resolve_one_focus_query(query: str, names: list[str]) -> str:
+    """Map user string to exact menu ``name`` (exact, case-insensitive, else unique substring)."""
+    q = (query or "").strip()
+    if not q:
+        raise ValueError("empty focus name")
+    names_set = set(names)
+    if q in names_set:
+        return q
+    by_lower = {n.lower(): n for n in names}
+    ql = q.lower()
+    if ql in by_lower:
+        return by_lower[ql]
+    hits = [n for n in names if ql in n.lower()]
+    if len(hits) == 1:
+        return hits[0]
+    if not hits:
+        raise ValueError(f"Menu item not found: {query!r}")
+    raise ValueError(f"Ambiguous {query!r}; try e.g. {hits[:10]!r}")
+
+
+def menu_graph_focus_payload(
+    focus_queries: Sequence[str],
+    *,
+    neighbor_hops: int = 1,
+    min_weight: float = 0.25,
+    max_edges: int | None = None,
+    edge_mode: str = "star",
+) -> dict[str, Any]:
+    """Subgraph around seed menu names.
+
+    ``neighbor_hops``: expand seeds by that many BFS hops (edges with w ≥ min_weight).
+
+    ``edge_mode``:
+      - ``star`` — только рёбра, где хотя бы один конец — seed (удобно для слайда);
+      - ``induced`` — все рёбра между видимыми узлами (плотнее).
+    """
+    graph = _build_menu_graph()
+    edges_map: dict[str, list[tuple[str, float]]] = graph["edges"]
+    all_names = sorted(graph["nodes"].keys())
+    seeds: list[str] = []
+    for raw in focus_queries:
+        r = (raw or "").strip()
+        if not r:
+            continue
+        seeds.append(_resolve_one_focus_query(r, all_names))
+    seeds = list(dict.fromkeys(seeds))
+    if not seeds:
+        raise ValueError("no focus items (use --focus Big Mac or --focus \"McChicken,Big Mac\")")
+    seed_set = set(seeds)
+    em = (edge_mode or "star").strip().lower()
+    if em not in ("star", "induced"):
+        raise ValueError("edge_mode must be 'star' or 'induced'")
+
+    visible: set[str] = set(seeds)
+    frontier: set[str] = set(seeds)
+    for _ in range(max(0, neighbor_hops)):
+        nxt: set[str] = set()
+        for n in frontier:
+            for nb, w in edges_map.get(n, []):
+                if w < min_weight or nb in visible:
+                    continue
+                visible.add(nb)
+                nxt.add(nb)
+        frontier = nxt
+
+    vis_sorted = sorted(visible)
+    seen: set[tuple[str, str]] = set()
+    weighted: list[tuple[str, str, float]] = []
+    for a in vis_sorted:
+        for b, w in edges_map.get(a, []):
+            if w < min_weight or b not in visible or b <= a:
+                continue
+            if em == "star" and a not in seed_set and b not in seed_set:
+                continue
+            key = (a, b)
+            if key in seen:
+                continue
+            seen.add(key)
+            weighted.append((a, b, w))
+
+    weighted.sort(key=lambda t: t[2], reverse=True)
+    if max_edges is not None:
+        weighted = weighted[: max(0, max_edges)]
+
+    used: set[str] = set(seeds)
+    for a, b, _ in weighted:
+        used.add(a)
+        used.add(b)
+    vis_sorted = sorted(used)
+
+    id_for = {n: f"n{i}" for i, n in enumerate(vis_sorted)}
+    return {
+        "nodes": [{"id": id_for[n], "label": n} for n in vis_sorted],
+        "edges": [{"from": id_for[a], "to": id_for[b], "w": w} for a, b, w in weighted],
+        "_viz": {
+            "mode": "focus",
+            "seeds": seeds,
+            "neighbor_hops": neighbor_hops,
+            "edge_mode": em,
+            **({"edge_cap": max_edges} if max_edges is not None else {}),
+        },
+    }
+
+
+def graph_payload_to_mermaid(payload: dict[str, Any]) -> str:
+    """Mermaid from ``menu_graph_vis_payload`` / ``menu_graph_focus_payload`` shape (nodes + edges only)."""
+    nodes: list[dict[str, Any]] = payload["nodes"]
+    edges: list[dict[str, Any]] = payload["edges"]
+    lines: list[str] = ["flowchart LR", "  %% menu graph-RAG (exported subset)"]
+    for n in nodes:
+        lid = str(n["id"])
+        label = _mermaid_escape_label(str(n.get("label") or ""))
+        lines.append(f'  {lid}["{label}"]')
+    for e in edges:
+        w = float(e.get("w", 0))
+        lines.append(f"  {e['from']} ---|{w:.2f}| {e['to']}")
+    return "\n".join(lines) + "\n"
+
+
+def menu_graph_vis_payload(
+    *,
+    max_edges: int | None = None,
+    min_weight: float = 0.25,
+) -> dict[str, Any]:
+    """JSON-serializable graph (vis HTML и ``visualize_menu_graph.py``)."""
+    names, id_for, edges = _menu_graph_draw_edges(
+        max_edges=max_edges, min_weight=min_weight
+    )
+    return {
+        "nodes": [{"id": id_for[n], "label": n} for n in names],
+        "edges": [{"from": ia, "to": ib, "w": w} for ia, ib, w in edges],
+    }
+
+
+def menu_graph_to_mermaid(
+    *,
+    max_edges: int | None = None,
+    min_weight: float = 0.25,
+) -> str:
+    """Mermaid flowchart for the menu co-occurrence graph (graph-RAG structure)."""
+    names, id_for, edges = _menu_graph_draw_edges(
+        max_edges=max_edges, min_weight=min_weight
+    )
+    lines: list[str] = ["flowchart LR", "  %% menu graph-RAG: category/tag/allergen/token links"]
+    for name in names:
+        lid = id_for[name]
+        label = _mermaid_escape_label(name)
+        lines.append(f'  {lid}["{label}"]')
+    for ia, ib, w in edges:
         lines.append(f"  {ia} ---|{w:.2f}| {ib}")
 
     return "\n".join(lines) + "\n"

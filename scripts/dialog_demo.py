@@ -2,7 +2,7 @@
 Демо конвейера диалога.
 Запуск: python scripts/dialog_demo.py
 
-Требуется OPENAI_API_KEY и загруженная Chroma (scripts/load_chroma.py).
+Требуется LLM_API_KEY (или совместимые ключи в .env) и загруженная Chroma (scripts/load_chroma.py).
 """
 
 import argparse
@@ -119,5 +119,5 @@ if __name__ == "__main__":
     except RuntimeError as e:
         print(f"Ошибка: {e}")
         print(
-            "Проверьте OPENAI_API_KEY и наличие chroma_db после load_chroma.py."
+            "Проверьте LLM_API_KEY / LLM_BASE_URL (или Ollama) и наличие chroma_db после load_chroma.py."
         )

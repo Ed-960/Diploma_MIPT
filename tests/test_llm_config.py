@@ -37,6 +37,7 @@ def test_resolve_model_uses_env(monkeypatch) -> None:
 def test_runtime_config_for_openai(monkeypatch) -> None:
     monkeypatch.delenv("API_PROVIDER", raising=False)
     monkeypatch.delenv("API_MODEL", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
     cfg = get_llm_runtime_config()
@@ -68,14 +69,26 @@ def test_dialog_pipeline_uses_env_model(monkeypatch) -> None:
 
 def test_ensure_llm_credentials_requires_openai_key(monkeypatch) -> None:
     monkeypatch.delenv("API_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="LLM_API_KEY"):
         ensure_llm_credentials()
 
 
 def test_ensure_llm_credentials_ollama_requires_url(monkeypatch) -> None:
     monkeypatch.setenv("API_PROVIDER", "ollama")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("OLLAMA_URL", raising=False)
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
-    with pytest.raises(RuntimeError, match="OLLAMA_URL"):
+    with pytest.raises(RuntimeError, match="LLM_BASE_URL"):
         ensure_llm_credentials()
+
+
+def test_ensure_llm_credentials_neutral_llm_env(monkeypatch) -> None:
+    monkeypatch.delenv("API_PROVIDER", raising=False)
+    monkeypatch.setenv("LLM_API_KEY", "dummy-key")
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    ensure_llm_credentials()

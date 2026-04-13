@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drive-through voice demo (browser STT / TTS)</title>
+  <style>
+    :root {
+      font-family: system-ui, Segoe UI, Roboto, sans-serif;
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e8eef7;
+      --muted: #8b9bb4;
+      --accent: #3d8bfd;
+      --ok: #3ecf8e;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 1.25rem;
+    }
+    h1 { font-size: 1.25rem; font-weight: 600; }
+    p.note { color: var(--muted); font-size: 0.9rem; }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin: 1rem 0;
+    }
+    #log {
+      white-space: pre-wrap;
+      font-size: 0.88rem;
+      max-height: 280px;
+      overflow-y: auto;
+      background: #111822;
+      padding: 0.75rem;
+      border-radius: 8px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 0.5rem 0;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    button.secondary { background: #39465a; }
+    button.danger { background: #c94c4c; }
+    textarea {
+      width: 100%;
+      min-height: 72px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid #2c3a50;
+      background: #111822;
+      color: var(--text);
+      padding: 0.6rem;
+      font-size: 0.95rem;
+    }
+    label { font-size: 0.85rem; color: var(--muted); }
+    .pill { font-size: 0.75rem; color: var(--ok); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Drive-through (browser speech)</h1>
+    <p class="note">
+      <strong>Push-to-talk</strong> (hold the mic button) or <strong>hands-free</strong> (mic always on;
+      your line sends after ~1.4s of silence — not true duplex, but no button per phrase).
+      Best with <strong>headphones</strong> in hands-free so speakers do not feed back into the mic.
+      Uses <strong>Web Speech API</strong> (Chrome / Edge). URL: <strong>http://127.0.0.1:8765/</strong>.
+      <code>runtime.lastError</code> in the console is often a <strong>browser extension</strong>, not this app.
+      <br /><strong>Mic language</strong> must match how you speak: Russian → choose «Русский», English → «English (US)».
+    </p>
+
+    <div class="card">
+      <div class="row">
+        <label for="selMicLang" style="display:flex;align-items:center;gap:0.35rem;">
+          Mic language
+          <select id="selMicLang" style="padding:0.35rem;border-radius:6px;background:#111822;color:var(--text);border:1px solid #2c3a50;">
+            <option value="en-US" selected>English (US) — menu / drive-through</option>
+            <option value="ru-RU">Русский</option>
+            <option value="auto">Auto (browser default)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button id="btnStart" type="button">Start session</button>
+        <button id="btnMic" type="button" class="secondary" disabled>Hold to speak</button>
+        <button id="btnSend" type="button" disabled>Send text</button>
+        <span id="micState" class="pill"></span>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="chkTts" checked /> Read cashier aloud (TTS)</label>
+        <label><input type="checkbox" id="chkHandsFree" /> Hands-free (auto-send after pause)</label>
+      </div>
+      <label for="userText">Your line (edit after recognition)</label>
+      <textarea id="userText" placeholder="Or type here and press Send…"></textarea>
+    </div>
+
+    <div class="card">
+      <div id="log"></div>
+    </div>
+  </main>
+
+  <script>
+(function () {
+  const logEl = document.getElementById("log");
+  const userText = document.getElementById("userText");
+  const btnStart = document.getElementById("btnStart");
+  const btnMic = document.getElementById("btnMic");
+  const btnSend = document.getElementById("btnSend");
+  const micState = document.getElementById("micState");
+  const chkTts = document.getElementById("chkTts");
+  const chkHandsFree = document.getElementById("chkHandsFree");
+  const selMicLang = document.getElementById("selMicLang");
+
+  let sessionId = null;
+  let recognition = null;
+  /** True between pointerdown on mic and recognition.onend (push-to-talk). */
+  let micActive = false;
+  /** After stop(), send one line to server from accumulated transcript. */
+  let pendingMicSend = false;
+  let micTranscriptBuf = "";
+  /** Pause browser STT while LLM/TTS runs (hands-free echo control). */
+  let sttPaused = false;
+  let handsFreeDebounceTimer = null;
+  let sendLineBusy = false;
+  const HANDS_FREE_PAUSE_MS = 1600;
+  const HANDS_FREE_MIN_CHARS = 2;
+  /** Push-to-talk: pointer is down while recording. */
+  let micPointerDown = false;
+  /** Delay finalize after stop() so Chrome can emit the last onresult. */
+  let pttFinalizeTimer = null;
+  /** Chrome often delivers last onresult after onend; use two-step wait. */
+  const PTT_FINALIZE_MS_1 = 900;
+  const PTT_FINALIZE_MS_2 = 1100;
+  let sttGotNonEmptyResult = false;
+
+  function log(line) {
+    logEl.textContent += line + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function speak(text, onEnd) {
+    if (!chkTts.checked || !text) {
+      if (typeof onEnd === "function") setTimeout(onEnd, 0);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.onend = () => {
+      if (typeof onEnd === "function") onEnd();
+    };
+    u.onerror = () => {
+      if (typeof onEnd === "function") onEnd();
+    };
+    window.speechSynthesis.speak(u);
+  }
+
+  function stopHandsFreeDebounce() {
+    if (handsFreeDebounceTimer) {
+      clearTimeout(handsFreeDebounceTimer);
+      handsFreeDebounceTimer = null;
+    }
+  }
+
+  function pauseHandsFreeStt() {
+    stopHandsFreeDebounce();
+    sttPaused = true;
+    try {
+      if (recognition) recognition.abort();
+    } catch (_) { /* ignore */ }
+  }
+
+  function resumeHandsFreeStt() {
+    if (!chkHandsFree.checked || !sessionId || !recognition) return;
+    sttPaused = false;
+    applyMicLang();
+    micTranscriptBuf = "";
+    userText.value = "";
+    micState.textContent = "listening… (hands-free)";
+    try {
+      recognition.start();
+    } catch (_) {
+      setTimeout(() => {
+        try {
+          if (chkHandsFree.checked && sessionId && recognition) recognition.start();
+        } catch (e2) {
+          log("[mic] hands-free restart: " + e2.message);
+        }
+      }, 300);
+    }
+  }
+
+  function applyMicLang() {
+    if (!recognition || !selMicLang) return;
+    const v = selMicLang.value;
+    recognition.lang = v === "auto" ? (navigator.language || "en-US") : v;
+  }
+
+  function scheduleHandsFreeSend() {
+    if (!chkHandsFree.checked || !sessionId || sttPaused || micActive || sendLineBusy) return;
+    stopHandsFreeDebounce();
+    handsFreeDebounceTimer = setTimeout(() => {
+      handsFreeDebounceTimer = null;
+      const t = (micTranscriptBuf || userText.value || "").trim();
+      if (t.length < HANDS_FREE_MIN_CHARS) return;
+      if (!chkHandsFree.checked || !sessionId || sendLineBusy) return;
+      sendLine(t);
+    }, HANDS_FREE_PAUSE_MS);
+  }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    log("SpeechRecognition not available in this browser. Type text and Send.");
+    btnMic.disabled = true;
+  } else {
+    recognition = new SR();
+    applyMicLang();
+    if (typeof recognition.maxAlternatives === "number" || "maxAlternatives" in recognition) {
+      try {
+        recognition.maxAlternatives = 1;
+      } catch (_) { /* ignore */ }
+    }
+    // continuous=true: pauses inside a phrase do not end capture before you release the button.
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onresult = (ev) => {
+      let full = "";
+      for (let i = 0; i < ev.results.length; i++) {
+        full += ev.results[i][0].transcript;
+      }
+      micTranscriptBuf = full;
+      userText.value = micTranscriptBuf.trim();
+      if (micTranscriptBuf.trim()) sttGotNonEmptyResult = true;
+      if (chkHandsFree.checked && sessionId && !sttPaused && !micActive) {
+        scheduleHandsFreeSend();
+      }
+    };
+    recognition.onerror = (ev) => {
+      micState.textContent = "";
+      if (ev.error === "aborted" && sttPaused) return;
+      if (
+        (ev.error === "no-speech" || ev.error === "audio-capture") &&
+        pendingMicSend &&
+        micPointerDown
+      ) {
+        micState.textContent = "listening… (retry)";
+        try {
+          recognition.start();
+        } catch (_) {
+          setTimeout(() => {
+            try {
+              if (pendingMicSend && micPointerDown) recognition.start();
+            } catch (e2) {
+              log("[mic error] " + e2.message);
+            }
+          }, 250);
+        }
+        return;
+      }
+      clearTimeout(pttFinalizeTimer);
+      pttFinalizeTimer = null;
+      pendingMicSend = false;
+      micActive = false;
+      micPointerDown = false;
+      btnMic.disabled = chkHandsFree.checked;
+      log("[mic error] " + ev.error);
+    };
+    recognition.onend = () => {
+      if (pendingMicSend) {
+        clearTimeout(pttFinalizeTimer);
+        const tryPttSend = () => {
+          const t = (micTranscriptBuf || userText.value || "").trim();
+          if (!t) return false;
+          clearTimeout(pttFinalizeTimer);
+          pttFinalizeTimer = null;
+          pendingMicSend = false;
+          micActive = false;
+          micPointerDown = false;
+          btnMic.disabled = chkHandsFree.checked;
+          micTranscriptBuf = "";
+          userText.value = "";
+          sendLine(t);
+          return true;
+        };
+        const failNoSpeech = () => {
+          pendingMicSend = false;
+          micActive = false;
+          btnMic.disabled = chkHandsFree.checked;
+          micTranscriptBuf = "";
+          log(
+            "[mic] No speech captured — set «Mic language» to your language, allow the microphone for this site, use Chrome/Edge; or type and Send.",
+          );
+          if (!sttGotNonEmptyResult) {
+            log("[mic] hint: Web Speech often returns empty if language does not match speech.");
+          }
+        };
+        if (tryPttSend()) {
+          micState.textContent = "";
+          return;
+        }
+        micState.textContent = "finishing recognition…";
+        pttFinalizeTimer = setTimeout(() => {
+          pttFinalizeTimer = null;
+          if (!pendingMicSend) return;
+          if (tryPttSend()) {
+            micState.textContent = "";
+            return;
+          }
+          if (micPointerDown) {
+            micState.textContent = "listening… (continue — keep holding)";
+            try {
+              recognition.start();
+            } catch (_) {
+              setTimeout(() => {
+                try {
+                  if (pendingMicSend && micPointerDown) recognition.start();
+                } catch (e2) {
+                  log("[mic] " + e2.message);
+                }
+              }, 250);
+            }
+            return;
+          }
+          pttFinalizeTimer = setTimeout(() => {
+            pttFinalizeTimer = null;
+            if (!pendingMicSend) return;
+            if (tryPttSend()) {
+              micState.textContent = "";
+              return;
+            }
+            failNoSpeech();
+          }, PTT_FINALIZE_MS_2);
+        }, PTT_FINALIZE_MS_1);
+        return;
+      }
+      if (chkHandsFree.checked && sessionId && !sttPaused && !micActive) {
+        micState.textContent = "listening… (hands-free)";
+        try {
+          recognition.start();
+        } catch (_) {
+          setTimeout(() => {
+            try {
+              if (chkHandsFree.checked && sessionId && !sttPaused && recognition) recognition.start();
+            } catch (e2) {
+              log("[mic] " + e2.message);
+            }
+          }, 200);
+        }
+        return;
+      }
+      micState.textContent = "";
+      btnMic.disabled = !recognition || chkHandsFree.checked;
+    };
+  }
+
+  function api(path, body) {
+    return fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    }).then(async (r) => {
+      const raw = await r.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { error: raw.slice(0, 300) || r.statusText };
+      }
+      if (!r.ok) throw new Error(data.error || r.statusText);
+      return data;
+    });
+  }
+
+  async function sendLine(text) {
+    if (!sessionId) {
+      log("Start a session first.");
+      return;
+    }
+    const line = (text || "").trim();
+    if (!line) return;
+    stopHandsFreeDebounce();
+    if (chkHandsFree.checked) pauseHandsFreeStt();
+    sendLineBusy = true;
+    btnSend.disabled = true;
+    log("You: " + line);
+    log("… calling cashier (LLM), please wait …");
+    try {
+      const res = await api("/api/session/message", { session_id: sessionId, text: line });
+      if (res.error) {
+        log("[server] " + res.error);
+        return;
+      }
+      micTranscriptBuf = "";
+      userText.value = "";
+      if (res.cashier_text) {
+        log("Cashier: " + res.cashier_text);
+        speak(res.cashier_text, () => {
+          if (chkHandsFree.checked && sessionId) resumeHandsFreeStt();
+        });
+      } else if (res.dialog_ended) {
+        log("(no new cashier line — dialog closed.)");
+      }
+      if (!res.cashier_text && chkHandsFree.checked && sessionId) {
+        resumeHandsFreeStt();
+      }
+      if (res.dialog_ended) {
+        log("— Session ended: " + (res.reason || "done"));
+        sessionId = null;
+        chkHandsFree.checked = false;
+        sttPaused = true;
+        try {
+          if (recognition) recognition.abort();
+        } catch (_) { /* ignore */ }
+        btnMic.disabled = true;
+        btnSend.disabled = true;
+        btnStart.disabled = false;
+      }
+    } catch (e) {
+      log("[error] " + e.message);
+      if (e.message === "Failed to fetch") {
+        log("Hint: use http://127.0.0.1:8765/ (this server), not file:// or another port.");
+      }
+      if (chkHandsFree.checked && sessionId) resumeHandsFreeStt();
+    } finally {
+      sendLineBusy = false;
+      if (sessionId) btnSend.disabled = false;
+    }
+  }
+
+  btnStart.onclick = async () => {
+    logEl.textContent = "";
+    log("Starting session…");
+    log("If this sits here: the server is calling the LLM (and may run mini-LLM + RAG).");
+    log("Watch the Python terminal for [api] lines. First load can take 30s–2 min.");
+    btnStart.disabled = true;
+    try {
+      const res = await api("/api/session/start", {});
+      sessionId = res.session_id;
+      log("Cashier: " + res.greeting);
+      btnMic.disabled = true;
+      sttPaused = true;
+      try {
+        if (recognition) recognition.abort();
+      } catch (_) { /* ignore */ }
+      speak(res.greeting, () => {
+        if (!sessionId) return;
+        if (chkHandsFree.checked && recognition) {
+          sttPaused = false;
+          resumeHandsFreeStt();
+          btnMic.disabled = true;
+          log("— Hands-free on: speak; pause ~1.4s to send. Or type and Send.");
+        } else {
+          sttPaused = false;
+          btnMic.disabled = !recognition;
+          log("— Session ready. Hold mic to speak, or type and Send.");
+        }
+      });
+      btnSend.disabled = false;
+    } catch (e) {
+      log("[error] " + e.message);
+      if (e.message === "Failed to fetch") {
+        log("Hint: open http://127.0.0.1:8765/ from the machine where voice_browser_server.py runs.");
+      }
+      btnStart.disabled = false;
+    }
+  };
+
+  btnSend.onclick = () => sendLine(userText.value);
+
+  function micStart(ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    if (!recognition || !sessionId || micActive) return;
+    try {
+      clearTimeout(pttFinalizeTimer);
+      pttFinalizeTimer = null;
+      micTranscriptBuf = "";
+      sttGotNonEmptyResult = false;
+      pendingMicSend = true;
+      micActive = true;
+      micPointerDown = true;
+      micState.textContent = "listening… (release button when done)";
+      btnMic.disabled = true;
+      applyMicLang();
+      recognition.start();
+      if (ev && typeof btnMic.setPointerCapture === "function") {
+        try {
+          btnMic.setPointerCapture(ev.pointerId);
+        } catch (_) { /* ignore */ }
+      }
+    } catch (e) {
+      pendingMicSend = false;
+      micActive = false;
+      micPointerDown = false;
+      btnMic.disabled = false;
+      micState.textContent = "";
+      log("[mic] " + e.message);
+    }
+  }
+  function micStop(ev) {
+    if (ev && typeof btnMic.releasePointerCapture === "function") {
+      try {
+        if (btnMic.hasPointerCapture(ev.pointerId)) btnMic.releasePointerCapture(ev.pointerId);
+      } catch (_) { /* ignore */ }
+    }
+    micPointerDown = false;
+    if (!recognition || !micActive) return;
+    try {
+      recognition.stop();
+    } catch (_) { /* ignore */ }
+  }
+  btnMic.addEventListener("pointerdown", micStart);
+  btnMic.addEventListener("pointerup", micStop);
+  btnMic.addEventListener("pointercancel", micStop);
+
+  selMicLang.addEventListener("change", () => {
+    applyMicLang();
+    if (recognition) log("[mic] STT language: " + recognition.lang);
+  });
+
+  chkHandsFree.addEventListener("change", () => {
+    if (!recognition || !sessionId) return;
+    if (chkHandsFree.checked) {
+      btnMic.disabled = true;
+      sttPaused = false;
+      resumeHandsFreeStt();
+      log("— Hands-free enabled.");
+    } else {
+      stopHandsFreeDebounce();
+      clearTimeout(pttFinalizeTimer);
+      pttFinalizeTimer = null;
+      pendingMicSend = false;
+      micActive = false;
+      micPointerDown = false;
+      sttPaused = true;
+      try {
+        recognition.abort();
+      } catch (_) { /* ignore */ }
+      btnMic.disabled = false;
+      micState.textContent = "";
+      log("— Hands-free off: use Hold to speak or Send.");
+    }
+  });
+})();
+  </script>
+</body>
+</html>

@@ -113,6 +113,9 @@ def get_cashier_system_prompt(
         "'Sorry, I'm not seeing that — would you like a burger, chicken, or something else?'",
         "- If the context lists items (even with a weak-match note), those are real "
         "menu rows — offer them confidently.",
+        "- NEVER claim an item is absent from the entire menu just because it is not in this "
+        "turn's context. Say you can't confirm it right now or that you can't recommend it for "
+        "their dietary needs.",
         "- When the customer has a dietary restriction, proactively name SPECIFIC items "
         "that ARE available (e.g. 'We have fries, apple slices, and Sprite that work for you'). "
         "Don't keep saying 'we don't have X' — focus on what you DO have.",

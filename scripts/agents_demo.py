@@ -2,7 +2,7 @@
 Демо агентов ClientAgent и CashierAgent.
 Запуск: python scripts/agents_demo.py
 
-Требуется OPENAI_API_KEY и загруженная Chroma (scripts/load_chroma.py).
+Требуется настройка LLM в .env (LLM_*) и загруженная Chroma (scripts/load_chroma.py).
 """
 
 import _bootstrap
