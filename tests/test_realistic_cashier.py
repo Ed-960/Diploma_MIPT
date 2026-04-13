@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from mcd_voice.llm.agent import CashierAgent
-from mcd_voice.llm.prompts import get_cashier_system_prompt
+from mcd_voice.llm.prompts import get_cashier_system_prompt, get_client_system_prompt
 
 
 @pytest.fixture(autouse=True)
@@ -65,3 +65,15 @@ def test_realistic_cashier_rag_without_allergen_blacklist(
     assert captured.get("allergens_blacklist") is None
     rag_ev = [e for e in trace if e.get("event") == "rag"]
     assert rag_ev[0].get("allergen_blacklist_tokens") == []
+
+
+def test_client_prompt_language_from_profile() -> None:
+    profile = {"language": "RU", "psycho": "regular", "calApprValue": 2000}
+    text = get_client_system_prompt(profile)
+    assert "Speak in Russian." in text
+
+
+def test_cashier_prompt_language_from_profile() -> None:
+    profile = {"language": "RU"}
+    text = get_cashier_system_prompt(profile, realistic=False)
+    assert "Speak in Russian." in text

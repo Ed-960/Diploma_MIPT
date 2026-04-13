@@ -63,6 +63,26 @@ class TestProfileGenerator:
             p = seeded_gen.generate()
             assert 800 <= p["calApprValue"] <= 3500
 
+    def test_generate_via_graph_returns_required_keys(self, seeded_gen):
+        p = seeded_gen.generate_via_graph()
+        required = {"sex", "age", "psycho", "language", "calApprValue",
+                    "childQuant", "friendsQuant", "companions"}
+        assert required.issubset(p.keys())
+
+
+def test_generate_via_graph_statistically_equivalent() -> None:
+    gen_a = ProfileGenerator(rng=random.Random(42))
+    gen_b = ProfileGenerator(rng=random.Random(42))
+
+    samples_a = [gen_a.generate() for _ in range(1000)]
+    samples_b = [gen_b.generate_via_graph() for _ in range(1000)]
+
+    def avg(rows: list[dict], key: str) -> float:
+        return sum(bool(p.get(key)) for p in rows) / len(rows)
+
+    assert abs(avg(samples_a, "noMilk") - avg(samples_b, "noMilk")) < 0.05
+    assert abs(avg(samples_a, "isVegan") - avg(samples_b, "isVegan")) < 0.02
+
 
 class TestAllergenBlacklist:
     def test_no_restrictions(self):

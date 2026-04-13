@@ -118,6 +118,22 @@ python scripts/compare_rag.py --rag_dir dialogs_rag --norag_dir dialogs_norag
 
 Результат: таблица в консоль + `rag_comparison.json` + `rag_comparison.png` (если установлен matplotlib).
 
+### 7. Единый запуск эксперимента
+
+```bash
+scripts/run_experiment.sh
+```
+
+Можно переопределить параметры через env: `N`, `SEED`, `MODEL`, `MAX_TURNS`, `RAG_DIR`, `NORAG_DIR`, `REPORT`.
+
+### 8. Визуализация графа генерации профилей
+
+```bash
+python scripts/visualize_profile_graph.py
+```
+
+Скрипт сохраняет Mermaid-граф в `docs/profile_decision_graph.mmd` и таблицу узлов в `docs/profile_decision_graph_rows.json`.
+
 ---
 
 Подробности: **`PROJECT_CONTEXT.md`**, дерево: **`docs/ARCHITECTURE.md`**.

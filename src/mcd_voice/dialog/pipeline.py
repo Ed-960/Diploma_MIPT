@@ -549,7 +549,9 @@ class DialogPipeline:
             if _is_looping_tail(history) or _has_cashier_hard_repeat(history, repeat=3):
                 loop_detected = True
                 # Если заказ уже собран, считаем диалог завершённым, чтобы не тянуть до max_turns.
-                if validate_dialog(profile, order_state, history)["total_items"] > 0:
+                if validate_dialog(
+                    profile, order_state, history, menu_names=menu_names,
+                )["total_items"] > 0:
                     order_state["order_complete"] = True
                 self._emit_progress(
                     "finished",
@@ -598,13 +600,16 @@ class DialogPipeline:
                 message="Диалог остановлен по лимиту max_turns.",
             )
 
-        flags = validate_dialog(profile, order_state, history)
+        flags = validate_dialog(profile, order_state, history, menu_names=menu_names)
         if cot_leak_count:
             flags = {**flags, "cot_leak_count": cot_leak_count}
         if stall_detected:
             flags = {**flags, "stall_detected": True}
         if loop_detected:
             flags = {**flags, "loop_detected": True}
+        error_localization = localize_errors(history, flags)
+        if error_localization:
+            flags = {**flags, "error_localization": error_localization}
         if rag_trace is not None:
             flags = {**flags, "rag_trace": rag_trace}
         if llm_trace is not None:
@@ -722,6 +727,8 @@ def validate_dialog(
     profile: dict[str, Any],
     order_state: dict[str, Any],
     history: list[dict[str, str]],
+    *,
+    menu_names: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     Валидация per-person + общая.
@@ -734,14 +741,18 @@ def validate_dialog(
       total_items: общее число позиций
       total_energy: общая энергия
       turns: количество реплик
+      hallucination: есть позиции, которых нет в меню
+      incomplete_order: при наличии детей не все дети получили позиции
     """
     persons = order_state.get("persons", [])
     profile_blacklist = set(get_allergen_blacklist(profile))
 
     per_person: list[dict[str, Any]] = []
+    allergen_violation_per_person: list[dict[str, Any]] = []
     all_violations: set[str] = set()
     total_energy = 0.0
     total_items = 0
+    ordered_item_names: list[str] = []
 
     for p in persons:
         label = p.get("label", "?")
@@ -749,6 +760,11 @@ def validate_dialog(
         p_allergens = set(p.get("allergens", []))
         p_energy = p.get("total_energy", 0.0)
         p_items = sum(it.get("quantity", 1) for it in p.get("items", []))
+        ordered_item_names.extend(
+            str(it.get("name", "")).strip()
+            for it in p.get("items", [])
+            if str(it.get("name", "")).strip()
+        )
 
         # Blacklist: self → профиль, компаньоны → их restrictions
         if role == "self":
@@ -759,6 +775,13 @@ def validate_dialog(
         violation = bl & p_allergens
         if violation:
             all_violations.update(violation)
+            allergen_violation_per_person.append(
+                {
+                    "label": label,
+                    "role": role,
+                    "allergens": sorted(violation),
+                }
+            )
 
         per_person.append({
             "label": label,
@@ -778,19 +801,113 @@ def validate_dialog(
     under_target_warning = (
         total_items > 0 and cal_target > 0 and total_energy < cal_target * 0.35
     )
+    child_persons = [p for p in persons if p.get("role") == "child"]
+    all_children_ordered = all(
+        len(p.get("items", [])) > 0 for p in child_persons
+    )
+    incomplete_order = bool(
+        profile.get("childQuant", 0) > 0 and child_persons and not all_children_ordered
+    )
+    menu_names_set = set(menu_names or [])
+    hallucinated_items = (
+        sorted({name for name in ordered_item_names if name not in menu_names_set})
+        if menu_names_set else []
+    )
 
     return {
         "per_person": per_person,
         "allergen_violation": sorted(all_violations),
+        "allergen_violation_per_person": allergen_violation_per_person,
         "calorie_warning": total_energy > cal_target * 1.5,
         "under_target_warning": under_target_warning,
         "empty_order": total_items == 0,
+        "incomplete_order": incomplete_order,
+        "hallucination": bool(hallucinated_items),
+        "hallucinated_items": hallucinated_items,
         "total_items": total_items,
         "total_energy": round(total_energy, 2),
         "calorie_target": cal_target,
         "companions_without_items": companions_without_items,
         "turns": len(history),
     }
+
+
+def localize_errors(
+    history: list[dict[str, str]],
+    flags: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Heuristic per-turn localization for post-hoc diploma analysis.
+
+    Output row:
+      {turn, speaker, error_type, excerpt, ...optional fields}
+    """
+    errors: list[dict[str, Any]] = []
+    violation_rows = flags.get("allergen_violation_per_person", [])
+    violating_tokens = {
+        token.lower()
+        for row in violation_rows
+        for token in row.get("allergens", [])
+        if token
+    }
+
+    for i, turn in enumerate(history):
+        text = turn.get("text", "")
+        speaker = turn.get("speaker", "")
+        excerpt = text[:120]
+        if _is_cot_leak(text):
+            errors.append(
+                {
+                    "turn": i,
+                    "speaker": speaker,
+                    "error_type": "cot_leak",
+                    "excerpt": excerpt,
+                }
+            )
+
+        if speaker == "cashier" and violating_tokens:
+            lower_text = text.lower()
+            for token in sorted(violating_tokens):
+                if token in lower_text:
+                    errors.append(
+                        {
+                            "turn": i,
+                            "speaker": speaker,
+                            "error_type": "allergen_suggestion",
+                            "allergen": token,
+                            "excerpt": excerpt,
+                        }
+                    )
+
+    if flags.get("stall_detected") and history:
+        errors.append(
+            {
+                "turn": len(history) - 1,
+                "speaker": history[-1].get("speaker", ""),
+                "error_type": "stall_detected",
+                "excerpt": (history[-1].get("text") or "")[:120],
+            }
+        )
+    if flags.get("loop_detected") and history:
+        errors.append(
+            {
+                "turn": len(history) - 1,
+                "speaker": history[-1].get("speaker", ""),
+                "error_type": "loop_detected",
+                "excerpt": (history[-1].get("text") or "")[:120],
+            }
+        )
+    for item_name in flags.get("hallucinated_items", []):
+        errors.append(
+            {
+                "turn": None,
+                "speaker": "system",
+                "error_type": "hallucinated_item",
+                "item": item_name,
+                "excerpt": item_name,
+            }
+        )
+    return errors
 
 
 # ── Удобные функции ──────────────────────────────────────────────────

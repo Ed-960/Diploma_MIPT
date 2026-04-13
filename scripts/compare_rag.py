@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from math import sqrt
 import sys
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,8 @@ def compute_stats(rows: list[dict[str, Any]], label: str = "") -> dict[str, Any]
     allergen_v = sum(1 for r in rows if r.get("allergen_violation"))
     calorie_w = sum(1 for r in rows if r.get("calorie_warning"))
     empty_o = sum(1 for r in rows if r.get("empty_order"))
+    halluc = sum(1 for r in rows if r.get("hallucination"))
+    incomplete = sum(1 for r in rows if r.get("incomplete_order"))
     turns = [r.get("turns", 0) for r in rows]
     items = [r.get("total_items", 0) for r in rows]
 
@@ -54,6 +57,8 @@ def compute_stats(rows: list[dict[str, Any]], label: str = "") -> dict[str, Any]
         "allergen_violation_%": round(allergen_v / n * 100, 1),
         "calorie_warning_%": round(calorie_w / n * 100, 1),
         "empty_order_%": round(empty_o / n * 100, 1),
+        "hallucination_%": round(halluc / n * 100, 1),
+        "incomplete_order_%": round(incomplete / n * 100, 1),
         "avg_turns": round(sum(turns) / n, 1),
         "avg_items": round(sum(items) / n, 2),
     }
@@ -102,6 +107,96 @@ def compute_group_stats(
     return result
 
 
+def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson confidence interval for proportion, in percent."""
+    if n <= 0:
+        return 0.0, 0.0
+    p = k / n
+    denom = 1 + z**2 / n
+    center = (p + z**2 / (2 * n)) / denom
+    margin = (z * sqrt((p * (1 - p) + z**2 / (4 * n)) / n)) / denom
+    lo = max(0.0, (center - margin) * 100)
+    hi = min(100.0, (center + margin) * 100)
+    return round(lo, 1), round(hi, 1)
+
+
+def chi_square_2x2(a: int, b: int, c: int, d: int) -> tuple[float, float]:
+    """Chi-square test for a 2x2 contingency table with Yates correction."""
+    n = a + b + c + d
+    if n <= 0:
+        return 0.0, 1.0
+    row1 = a + b
+    row2 = c + d
+    col1 = a + c
+    col2 = b + d
+    denom = row1 * row2 * col1 * col2
+    if denom == 0:
+        return 0.0, 1.0
+    yates_adj = n / 2
+    corrected = max(0.0, abs(a * d - b * c) - yates_adj)
+    chi2 = (n * corrected**2) / denom
+    chi2 = max(0.0, chi2)
+
+    try:
+        from scipy.stats import chi2 as chi2_dist  # type: ignore[import-not-found]
+
+        p = 1 - chi2_dist.cdf(chi2, df=1)
+    except Exception:
+        if chi2 > 10.83:
+            p = 0.001
+        elif chi2 > 6.63:
+            p = 0.01
+        elif chi2 > 3.84:
+            p = 0.05
+        else:
+            p = 1.0
+    return round(chi2, 3), round(float(p), 4)
+
+
+def compare_with_stats(rag: dict[str, Any], norag: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Statistical comparison of key outcomes between RAG and non-RAG.
+    Returns rows with confidence intervals and p-values.
+    """
+    n_rag = int(rag.get("total", 0) or 0)
+    n_norag = int(norag.get("total", 0) or 0)
+    metrics = [
+        ("allergen_violation_%", "Allergen violation"),
+        ("calorie_warning_%", "Calorie warning"),
+        ("empty_order_%", "Empty order"),
+        ("hallucination_%", "Hallucination"),
+        ("incomplete_order_%", "Incomplete order"),
+    ]
+    rows: list[dict[str, Any]] = []
+    for key, label in metrics:
+        pct_rag = float(rag.get(key, 0.0) or 0.0)
+        pct_norag = float(norag.get(key, 0.0) or 0.0)
+        k_rag = round(pct_rag / 100 * n_rag)
+        k_norag = round(pct_norag / 100 * n_norag)
+        ci_rag = wilson_ci(k_rag, n_rag)
+        ci_norag = wilson_ci(k_norag, n_norag)
+        chi2, p_value = chi_square_2x2(
+            k_rag,
+            max(0, n_rag - k_rag),
+            k_norag,
+            max(0, n_norag - k_norag),
+        )
+        rows.append(
+            {
+                "metric": label,
+                "rag_%": round(pct_rag, 1),
+                "rag_ci": f"[{ci_rag[0]}–{ci_rag[1]}]",
+                "norag_%": round(pct_norag, 1),
+                "norag_ci": f"[{ci_norag[0]}–{ci_norag[1]}]",
+                "delta_pp": round(pct_norag - pct_rag, 1),
+                "chi2": chi2,
+                "p_value": p_value,
+                "significant": p_value < 0.05,
+            }
+        )
+    return rows
+
+
 # ── Форматирование ────────────────────────────────────────────────────
 
 _STAT_KEYS = [
@@ -109,6 +204,8 @@ _STAT_KEYS = [
     ("allergen_violation_%", "Allergen violation %"),
     ("calorie_warning_%", "Calorie warning %"),
     ("empty_order_%", "Empty order %"),
+    ("hallucination_%", "Hallucination %"),
+    ("incomplete_order_%", "Incomplete order %"),
     ("avg_turns", "Avg turns"),
     ("avg_items", "Avg items"),
 ]
@@ -136,7 +233,10 @@ def format_comparison_table(stats_list: list[dict[str, Any]]) -> str:
 
 def format_group_table(group_stats: dict[str, dict[str, Any]]) -> str:
     lines: list[str] = []
-    hdr = f"{'Группа':<24}  {'N':>5}  {'AllerViol%':>10}  {'CalWarn%':>8}  {'Empty%':>7}  {'AvgTurns':>8}"
+    hdr = (
+        f"{'Группа':<24}  {'N':>5}  {'AllerViol%':>10}  {'CalWarn%':>8}  "
+        f"{'Empty%':>7}  {'Halluc%':>8}  {'Incompl%':>8}  {'AvgTurns':>8}"
+    )
     lines.append(hdr)
     lines.append("-" * len(hdr))
     for key, st in group_stats.items():
@@ -148,7 +248,28 @@ def format_group_table(group_stats: dict[str, dict[str, Any]]) -> str:
             f"{st.get('allergen_violation_%', 0):>10.1f}  "
             f"{st.get('calorie_warning_%', 0):>8.1f}  "
             f"{st.get('empty_order_%', 0):>7.1f}  "
+            f"{st.get('hallucination_%', 0):>8.1f}  "
+            f"{st.get('incomplete_order_%', 0):>8.1f}  "
             f"{st.get('avg_turns', 0):>8.1f}"
+        )
+    return "\n".join(lines)
+
+
+def format_significance_table(rows: list[dict[str, Any]]) -> str:
+    lines: list[str] = []
+    hdr = (
+        f"{'Metric':<22}  {'RAG % [95% CI]':>21}  {'non-RAG % [95% CI]':>24}  "
+        f"{'Delta p.p.':>10}  {'chi2':>7}  {'p-value':>8}  {'Sig<0.05':>9}"
+    )
+    lines.append(hdr)
+    lines.append("-" * len(hdr))
+    for r in rows:
+        rag_cell = f"{r['rag_%']:.1f} {r['rag_ci']}"
+        norag_cell = f"{r['norag_%']:.1f} {r['norag_ci']}"
+        lines.append(
+            f"{r['metric']:<22}  {rag_cell:>21}  {norag_cell:>24}  "
+            f"{r['delta_pp']:>10.1f}  {r['chi2']:>7.3f}  {r['p_value']:>8.4f}  "
+            f"{str(r['significant']):>9}"
         )
     return "\n".join(lines)
 
@@ -164,9 +285,21 @@ def try_plot(
     except ImportError:
         return False
 
-    metrics = ["allergen_violation_%", "calorie_warning_%", "empty_order_%"]
+    metrics = [
+        "allergen_violation_%",
+        "calorie_warning_%",
+        "empty_order_%",
+        "hallucination_%",
+        "incomplete_order_%",
+    ]
     labels = [s.get("label", "?") for s in stats_list]
-    x_labels = ["Allergen viol.", "Calorie warn.", "Empty order"]
+    x_labels = [
+        "Allergen viol.",
+        "Calorie warn.",
+        "Empty order",
+        "Hallucination",
+        "Incomplete",
+    ]
 
     fig, ax = plt.subplots(figsize=(8, 5))
     bar_w = 0.35
@@ -230,9 +363,13 @@ def main() -> None:
     print(group_table)
 
     interpretation = ""
+    significance_rows: list[dict[str, Any]] = []
     if len(stats_list) == 2:
         interpretation = _interpret(stats_list[0], stats_list[1])
+        significance_rows = compare_with_stats(stats_list[0], stats_list[1])
         print(f"\n=== Интерпретация ===\n{interpretation}")
+        print("\n=== Статистическая значимость ===\n")
+        print(format_significance_table(significance_rows))
 
     # JSON-отчёт
     report: dict[str, Any] = {
@@ -241,6 +378,8 @@ def main() -> None:
     }
     if interpretation:
         report["interpretation"] = interpretation
+    if significance_rows:
+        report["significance"] = significance_rows
     Path(args.output).write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8",
     )
@@ -282,6 +421,28 @@ def _interpret(rag: dict[str, Any], norag: dict[str, Any]) -> str:
     elif eo_rag > eo_norag:
         lines.append(
             f"RAG-версия чаще даёт пустые заказы ({eo_rag}% vs {eo_norag}%)."
+        )
+
+    hl_rag = rag.get("hallucination_%", 0)
+    hl_norag = norag.get("hallucination_%", 0)
+    if hl_norag > hl_rag:
+        lines.append(
+            f"RAG снижает галлюцинации позиций с {hl_norag}% до {hl_rag}%."
+        )
+    elif hl_rag > hl_norag:
+        lines.append(
+            f"RAG-версия чаще содержит галлюцинации ({hl_rag}% vs {hl_norag}%)."
+        )
+
+    io_rag = rag.get("incomplete_order_%", 0)
+    io_norag = norag.get("incomplete_order_%", 0)
+    if io_norag > io_rag:
+        lines.append(
+            f"RAG снижает долю неполных заказов для групп ({io_norag}% → {io_rag}%)."
+        )
+    elif io_rag > io_norag:
+        lines.append(
+            f"RAG повышает долю неполных заказов ({io_rag}% vs {io_norag}%)."
         )
 
     cw_rag = rag.get("calorie_warning_%", 0)

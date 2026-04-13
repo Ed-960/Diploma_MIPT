@@ -40,6 +40,7 @@ from mcd_voice.llm import CashierAgent, ClientAgent, get_llm_runtime_config
 from mcd_voice.llm.agent import (
     RAG_FULL_TOP_K,
     _resolve_model as _resolve_llm_model,
+    ensure_llm_credentials,
 )
 from mcd_voice.profile import ProfileGenerator
 
@@ -138,6 +139,7 @@ def _run_one_dialog(
     client_model: str | None,
     cashier_model: str | None,
     rag_top_k: int,
+    rag_mode: str,
     collect_rag: bool,
     collect_llm: bool,
     print_trace: bool,
@@ -151,6 +153,7 @@ def _run_one_dialog(
     cashier_agent = CashierAgent(
         model=cashier_model,
         rag_top_k=rag_top_k,
+        rag_mode=rag_mode,
         trace_verbose=trace_verbose,
         realistic_cashier=realistic_cashier,
     )
@@ -214,6 +217,13 @@ def main() -> None:
     parser.add_argument(
         "--no_rag", action="store_true",
         help="Отключить RAG у кассира (для сравнения с RAG-версией).",
+    )
+    parser.add_argument(
+        "--rag_mode",
+        type=str,
+        choices=("vector", "graph"),
+        default="vector",
+        help="Режим retrieval при включённом RAG: vector (Chroma) или graph.",
     )
     parser.add_argument(
         "--model", type=str, default=None,
@@ -287,8 +297,13 @@ def main() -> None:
     client_model = args.client_model or default_model
     cashier_model = args.cashier_model or default_model
     rag_top_k = 0 if args.no_rag else RAG_FULL_TOP_K
-    mode_label = "non-RAG" if args.no_rag else "RAG"
+    rag_mode = args.rag_mode
+    if args.no_rag:
+        mode_label = "non-RAG"
+    else:
+        mode_label = "graph-RAG" if rag_mode == "graph" else "vector-RAG"
     workers = max(1, args.workers)
+    ensure_llm_credentials()
 
     collect_rag = args.rag_trace or args.print_trace
     collect_llm = args.llm_trace or args.print_trace
@@ -341,7 +356,8 @@ def main() -> None:
         rw = os.environ.get("REWRITE_MODEL") or display_client_model
         print(
             f"    metrics: provider={rt.get('provider')} base_url={rt.get('base_url')!r} "
-            f"dialog_model={rt.get('model')!r} rewrite_model={rw!r} rag_top_k={rag_top_k}",
+            f"dialog_model={rt.get('model')!r} rewrite_model={rw!r} "
+            f"rag_top_k={rag_top_k} rag_mode={rag_mode}",
             flush=True,
         )
     print()
@@ -349,7 +365,7 @@ def main() -> None:
     # Pre-warm Chroma + embedding model in the main thread before spawning workers.
     # Without this, all workers race to call get_menu_collection() on their first
     # search, causing all but one to block on _CHROMA_LOCK while the model loads.
-    if rag_top_k > 0:
+    if rag_top_k > 0 and rag_mode == "vector":
         from mcd_voice.menu.chroma import get_menu_collection
         print("  Прогрев Chroma / embedding-модели...", flush=True)
         get_menu_collection()
@@ -381,6 +397,7 @@ def main() -> None:
                 client_model=client_model,
                 cashier_model=cashier_model,
                 rag_top_k=rag_top_k,
+                rag_mode=rag_mode,
                 collect_rag=collect_rag,
                 collect_llm=collect_llm,
                 print_trace=args.print_trace,

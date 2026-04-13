@@ -6,15 +6,24 @@ from typing import Any
 
 from mcd_voice.profile.generator import generate_text_description
 
+_LANG_NAMES = {"EN": "English", "RU": "Russian", "SR": "Serbian"}
+
+
+def _language_name(profile: dict[str, Any] | None) -> str:
+    if not profile:
+        return "English"
+    return _LANG_NAMES.get(str(profile.get("language", "EN")), "English")
+
 
 def get_client_system_prompt(profile: dict[str, Any]) -> str:
     """Customer agent: role, psychotype, restrictions, group composition."""
     desc = generate_text_description(profile)
     psycho = profile.get("psycho", "regular")
     cal = profile.get("calApprValue", 2000)
+    lang = _language_name(profile)
 
     lines = [
-        "You are a real customer at a McDonald's drive-through. Speak in English.",
+        f"You are a real customer at a McDonald's drive-through. Speak in {lang}.",
         f"Your profile:\n{desc}",
         "",
         "RULES:",
@@ -23,7 +32,9 @@ def get_client_system_prompt(profile: dict[str, Any]) -> str:
         "- When the cashier suggests items, refer to them naturally — "
         "'the fries', 'a Big Mac', 'some nuggets' are fine. "
         "Don't repeat the full official name every time.",
-        "- Never invent menu items the cashier hasn't mentioned.",
+        "- You are a returning customer who knows popular items (Big Mac, nuggets, fries, "
+        "Coke). You can order these from memory. For less common items, wait until the "
+        "cashier mentions them.",
         f"- {_calorie_hint(cal)}",
         "- If you have dietary restrictions, mention them naturally ONCE early on "
         "(e.g. 'I can't have dairy'). Don't repeat them every turn.",
@@ -35,6 +46,9 @@ def get_client_system_prompt(profile: dict[str, Any]) -> str:
         "- Stay in character. Don't mention AI, profiles, or calorie numbers.",
         "- Order at least one main item (burger, sandwich, nuggets) and optionally "
         "a drink or side.",
+        "- Once you have ordered a main item plus drink/side for each person in your group, "
+        "finish with a short confirmation like 'That's all, thanks.'",
+        "- Do not keep adding items after the order is logically complete.",
     ]
 
     if profile.get("companions"):
@@ -82,8 +96,9 @@ def get_cashier_system_prompt(
     group size, or companion restrictions); RAG should not use profile-based
     allergen filters either (see CashierAgent).
     """
+    lang = _language_name(profile)
     lines = [
-        "You are a cashier at a McDonald's drive-through. Speak in English.",
+        f"You are a cashier at a McDonald's drive-through. Speak in {lang}.",
         "",
         "RULES:",
         "- Suggest items from the menu data slice in context (if provided). "

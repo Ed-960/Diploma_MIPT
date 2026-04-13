@@ -13,10 +13,12 @@ endif
 
 NUM        ?= 100
 OUT_RAG    ?= dialogs_rag
+OUT_GRAPH_RAG ?= dialogs_graph_rag
 OUT_NORAG  ?= dialogs_norag
 OUT_TRACE  ?= dialogs_trace
 TURNS      ?= 20
 RAG_DIR    ?= $(OUT_RAG)
+GRAPH_DIR  ?= $(OUT_GRAPH_RAG)
 NORAG_DIR  ?= $(OUT_NORAG)
 TRACE_FLAGS ?= --rag_trace --llm_trace --print_trace
 # Непустое значение (например 1) — консольный лог RAG/LLM и трассы в JSON (см. generate_dataset.py).
@@ -34,11 +36,14 @@ SHUFFLE_PROFILES ?=
 # Непустое — кассир без скрытого профиля и без RAG-фильтра аллергенов по профилю (--realistic_cashier).
 REALISTIC_CASHIER ?=
 REALISTIC_FLAG = $(if $(REALISTIC_CASHIER),--realistic_cashier,)
+# Выходной файл для make export-ai (один файл со всем кодом для ИИ).
+AI_EXPORT ?= allProject_forAI_Test.txt
 
 .PHONY: help install install-dev test test-v chroma \
 	demo-profile demo-dialog demo-dialog-trace demo-agents demo-menu-search \
-	dataset-rag dataset-norag dataset-trace dataset-trace-10 dataset-trace-20 \
-	dataset-trace-50 dataset-trace-100 profiles-gen dataset-rag-from-profiles compare-rag venv
+	dataset-rag dataset-rag-vector dataset-rag-graph dataset-norag dataset-trace dataset-trace-10 dataset-trace-20 \
+	dataset-trace-50 dataset-trace-100 profiles-gen dataset-rag-from-profiles dataset-rag-graph-from-profiles \
+	visualize-menu-graph visualize-menu-graph-open visualize-profile-graph compare-rag export-ai venv
 
 help:
 	@echo "mcd-voice-diploma — make targets"
@@ -56,8 +61,10 @@ help:
 	@echo "  make demo-agents"
 	@echo "  make demo-menu-search"
 	@echo ""
-	@echo "Генерация (переменные: NUM, TURNS, OUT_RAG, OUT_NORAG, OUT_TRACE):"
-	@echo "  make dataset-rag         NUM=$(NUM) OUT_RAG=$(OUT_RAG) TURNS=$(TURNS)"
+	@echo "Генерация (переменные: NUM, TURNS, OUT_RAG, OUT_GRAPH_RAG, OUT_NORAG, OUT_TRACE):"
+	@echo "  make dataset-rag         NUM=$(NUM) OUT_RAG=$(OUT_RAG) TURNS=$(TURNS)   # alias vector"
+	@echo "  make dataset-rag-vector  NUM=$(NUM) OUT_RAG=$(OUT_RAG) TURNS=$(TURNS)"
+	@echo "  make dataset-rag-graph   NUM=$(NUM) OUT_GRAPH_RAG=$(OUT_GRAPH_RAG) TURNS=$(TURNS)"
 	@echo "  make dataset-norag       NUM=$(NUM) OUT_NORAG=$(OUT_NORAG) TURNS=$(TURNS)"
 	@echo "  make dataset-trace       1 диалог: rag+llm в JSON + print_trace в консоль"
 	@echo "  make dataset-trace-10    10 диалогов -> $(OUT_TRACE)_10"
@@ -65,11 +72,20 @@ help:
 	@echo "  make dataset-trace-50    50 -> $(OUT_TRACE)_50"
 	@echo "  make dataset-trace-100   100 -> $(OUT_TRACE)_100"
 	@echo "  make profiles-gen        NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) SEED=42"
-	@echo "  make dataset-rag-from-profiles NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) PRINT_TRACE=1 TRACE_VERBOSE=1"
+	@echo "  make dataset-rag-from-profiles NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) PRINT_TRACE=1 TRACE_VERBOSE=1   # vector RAG"
+	@echo "  make dataset-rag-graph-from-profiles NUM=$(NUM) OUT_GRAPH_RAG=$(OUT_GRAPH_RAG) ...   # graph RAG (как выше)"
 	@echo "  make dataset-rag-from-profiles ... SHUFFLE_PROFILES=1 SEED=42   # профили из файла — случайная выборка"
 	@echo "  make dataset-rag ... REALISTIC_CASHIER=1   # реалистичный кассир (без скрытого профиля)"
 	@echo ""
+	@echo "  make visualize-menu-graph       # graph-RAG: docs/menu_graph_rag.mmd + .html"
+	@echo "  make visualize-menu-graph-open  # то же и сразу открыть HTML в браузере"
+	@echo "  make visualize-profile-graph  # граф семплинга профилей -> docs/profile_decision_graph.mmd"
+	@echo ""
 	@echo "  make compare-rag         RAG_DIR=$(OUT_RAG) NORAG_DIR=$(OUT_NORAG)"
+	@echo ""
+	@echo "Экспорт кода в один файл (для ИИ / ревью):"
+	@echo "  make export-ai           -> $(AI_EXPORT)  (скрипт scripts/export_all_project_for_ai.py)"
+	@echo "  make export-ai AI_EXPORT=my_dump.txt"
 	@echo ""
 	@echo "PY=$(PY)"
 
@@ -107,7 +123,13 @@ demo-menu-search:
 	$(PY) scripts/menu_search_demo.py
 
 dataset-rag:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+
+dataset-rag-vector:
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+
+dataset-rag-graph:
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
 
 dataset-norag:
 	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
@@ -131,7 +153,22 @@ profiles-gen:
 	$(PY) scripts/generate_profiles.py --num_profiles $(NUM) --output_file $(PROFILES_FILE) $(if $(SEED),--seed $(SEED),)
 
 dataset-rag-from-profiles:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+
+dataset-rag-graph-from-profiles:
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+
+visualize-menu-graph:
+	$(PY) scripts/visualize_menu_graph.py
+
+visualize-menu-graph-open:
+	$(PY) scripts/visualize_menu_graph.py --open
+
+visualize-profile-graph:
+	$(PY) scripts/visualize_profile_graph.py
 
 compare-rag:
 	$(PY) scripts/compare_rag.py --rag_dir $(RAG_DIR) --norag_dir $(NORAG_DIR)
+
+export-ai:
+	$(PY) scripts/export_all_project_for_ai.py --output $(AI_EXPORT)

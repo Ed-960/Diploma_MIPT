@@ -18,6 +18,33 @@ _bootstrap.ensure_src()
 from mcd_voice.profile import ProfileGenerator
 
 
+def _print_population_stats(profiles: list[dict]) -> None:
+    n = len(profiles)
+    if n == 0:
+        print("\n=== Статистика популяции ===\nНет профилей для анализа.")
+        return
+
+    dietary_flags = [
+        "isVegan", "noMilk", "noFish", "noNuts", "noBeef", "noGluten", "noSugar",
+    ]
+    print(f"\n=== Статистика популяции ({n} профилей) ===")
+    for flag in dietary_flags:
+        pct = sum(bool(p.get(flag)) for p in profiles) / n
+        print(f"  {flag:15s}: {pct:.1%}")
+
+    with_kids = sum(p.get("childQuant", 0) > 0 for p in profiles) / n
+    print(f"  {'with_kids':15s}: {with_kids:.1%}")
+
+    psycho_counts: dict[str, int] = {}
+    for p in profiles:
+        psycho = str(p.get("psycho", "unknown"))
+        psycho_counts[psycho] = psycho_counts.get(psycho, 0) + 1
+
+    print("  Психотипы:")
+    for psycho, count in sorted(psycho_counts.items(), key=lambda x: -x[1]):
+        print(f"    {psycho:20s}: {count / n:.1%}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate profile pool JSON.")
     parser.add_argument(
@@ -51,6 +78,7 @@ def main() -> None:
         f"Saved {len(profiles)} profiles to {args.output_file} "
         f"(seed={args.seed})."
     )
+    _print_population_stats(profiles)
 
 
 if __name__ == "__main__":

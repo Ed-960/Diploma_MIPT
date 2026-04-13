@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from mcd_voice.dialog.pipeline import DialogPipeline
-from mcd_voice.llm.agent import _normalize_base_url, _resolve_model, get_llm_runtime_config
+from mcd_voice.llm.agent import (
+    _normalize_base_url,
+    _resolve_model,
+    ensure_llm_credentials,
+    get_llm_runtime_config,
+)
 
 
 def test_normalize_base_url_keeps_v1_root() -> None:
@@ -57,3 +64,18 @@ def test_dialog_pipeline_uses_env_model(monkeypatch) -> None:
     pipeline = DialogPipeline()
 
     assert pipeline.model == "qwen3:1.7b"
+
+
+def test_ensure_llm_credentials_requires_openai_key(monkeypatch) -> None:
+    monkeypatch.delenv("API_PROVIDER", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        ensure_llm_credentials()
+
+
+def test_ensure_llm_credentials_ollama_requires_url(monkeypatch) -> None:
+    monkeypatch.setenv("API_PROVIDER", "ollama")
+    monkeypatch.delenv("OLLAMA_URL", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="OLLAMA_URL"):
+        ensure_llm_credentials()

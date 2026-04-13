@@ -28,13 +28,20 @@ from typing import Any
 from openai import APITimeoutError, OpenAI, OpenAIError
 
 from mcd_voice.llm.prompts import get_cashier_system_prompt, get_client_system_prompt
+from mcd_voice.menu.graph_rag import search_menu_graph
 from mcd_voice.menu.search import search_menu
 from mcd_voice.profile.generator import get_group_allergen_blacklist
 
 # ── Константы ─────────────────────────────────────────────────────────────────
 
 DEFAULT_MODEL = "gpt-4o"
-RAG_FULL_TOP_K = 10_000
+# Full-catalog retrieval: mcd.json contains exactly 42 menu positions.
+# We intentionally retrieve all rows, then filter by distance/allergens.
+RAG_CATALOG_TOP_K = 42
+# Experimental narrow setup for A/B checks (not used by default).
+RAG_EXPERIMENT_TOP_K = 5
+# Backward-compatible alias used across scripts/tests.
+RAG_FULL_TOP_K = RAG_CATALOG_TOP_K
 
 RAG_DISTANCE_THRESHOLD: float = 0.60
 try:
@@ -58,6 +65,8 @@ def _parse_rag_max_prompt_lines() -> int | None:
 
 
 RAG_MAX_PROMPT_LINES: int | None = _parse_rag_max_prompt_lines()
+RAG_MODE_VECTOR = "vector"
+RAG_MODE_GRAPH = "graph"
 
 HistoryEntry = dict[str, str]
 
@@ -129,6 +138,11 @@ def _build_openai_client(timeout: float = 60.0) -> OpenAI:
     if raw_base:
         kwargs["base_url"] = _normalize_base_url(raw_base)
     return OpenAI(**kwargs)
+
+
+def ensure_llm_credentials() -> None:
+    """Проверяет env до параллельной генерации; иначе тот же RuntimeError, что при первом вызове LLM."""
+    _build_openai_client()
 
 
 def get_llm_runtime_config() -> dict[str, str]:
@@ -293,6 +307,7 @@ class CashierAgent:
         rag_top_k: int = RAG_FULL_TOP_K,
         distance_threshold: float = RAG_DISTANCE_THRESHOLD,
         rewrite_model: str | None = None,
+        rag_mode: str = RAG_MODE_VECTOR,
         *,
         trace_verbose: bool = False,
         realistic_cashier: bool = False,
@@ -306,6 +321,10 @@ class CashierAgent:
             if rag_max_prompt_lines is not None
             else RAG_MAX_PROMPT_LINES
         )
+        mode = (rag_mode or RAG_MODE_VECTOR).strip().lower()
+        if mode not in (RAG_MODE_VECTOR, RAG_MODE_GRAPH):
+            raise ValueError(f"Unsupported rag_mode: {rag_mode!r}")
+        self.rag_mode = mode
         self._client = _build_openai_client(timeout)
         self._trace_verbose = trace_verbose
         self._realistic_cashier = realistic_cashier
@@ -390,7 +409,15 @@ class CashierAgent:
         base_trace = {**(rag_meta or {}), "client_query": client_text[:800]}
 
         if self.rag_top_k <= 0:
-            _trace(rag_trace, {**base_trace, "event": "rag_disabled", "rag_top_k": 0})
+            _trace(
+                rag_trace,
+                {
+                    **base_trace,
+                    "event": "rag_disabled",
+                    "rag_top_k": 0,
+                    "retrieval_mode": self.rag_mode,
+                },
+            )
             return ""
 
         if client_text:
@@ -417,6 +444,7 @@ class CashierAgent:
             "search_query": search_query,
             "rewrite_model": self._rewrite_model,
             **({"fallback": True} if is_fallback else {}),
+            "retrieval_mode": self.rag_mode,
             **info,
             "context_preview": _preview(context),
         })
@@ -430,10 +458,12 @@ class CashierAgent:
         rag_trace: list[dict[str, Any]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
-        Семантический поиск в Chroma с фильтрацией по аллергенам группы.
+        Поиск по меню с фильтрацией по аллергенам группы.
         Возвращает (текст для system prompt, метаданные для rag_trace).
-        Применяет два порога: жёсткий (уверенный hit) и мягкий (fallback с предупреждением).
         """
+        if self.rag_mode == RAG_MODE_GRAPH:
+            return self._do_graph_rag(text, profile)
+
         blacklist = (
             []
             if self._realistic_cashier
@@ -450,6 +480,7 @@ class CashierAgent:
             _trace(rag_trace, ev)
         soft_max = RAG_SOFT_DISTANCE_MAX
         info: dict[str, Any] = {
+            "retrieval_mode": RAG_MODE_VECTOR,
             "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
             "metric": "cosine_distance",
             "top_k": self.rag_top_k,
@@ -496,6 +527,45 @@ class CashierAgent:
 
         info["outcome"] = "above_threshold"
         return "(no matching menu items found — closest match too distant)", info
+
+    def _do_graph_rag(
+        self,
+        text: str,
+        profile: dict[str, Any],
+    ) -> tuple[str, dict[str, Any]]:
+        blacklist = (
+            []
+            if self._realistic_cashier
+            else get_group_allergen_blacklist(profile)
+        )
+        rows, graph_info = search_menu_graph(
+            text,
+            allergens_blacklist=blacklist or None,
+            top_k=self.rag_top_k,
+        )
+        info: dict[str, Any] = {
+            "top_k": self.rag_top_k,
+            "allergen_blacklist_tokens": list(blacklist),
+            "candidates": [
+                {"name": r["name"], "distance": r["distance"], "energy": r["energy"]}
+                for r in rows
+            ],
+            **graph_info,
+        }
+        if not rows:
+            info["outcome"] = "no_graph_hits"
+            return "(no matching menu items found for this request)", info
+
+        lines, used = _render_rows(
+            rows,
+            max_dist=1.0,
+            max_lines=self.rag_max_prompt_lines,
+        )
+        if self.rag_max_prompt_lines is not None:
+            info["rag_prompt_line_cap"] = self.rag_max_prompt_lines
+            info["rag_prompt_lines_included"] = len(lines)
+        info.update(outcome="injected_graph", injected_hits=used)
+        return "\n".join(lines), info
 
     def _build_system(
         self,

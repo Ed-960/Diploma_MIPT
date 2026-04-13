@@ -10,6 +10,7 @@ __all__ = [
     "ingest_menu_clear_existing",
     "load_menu_from_json",
     "search_menu",
+    "search_menu_graph",
 ]
 
 
@@ -30,4 +31,8 @@ def __getattr__(name: str):
         from mcd_voice.menu.search import search_menu
 
         return search_menu
+    if name == "search_menu_graph":
+        from mcd_voice.menu.graph_rag import search_menu_graph
+
+        return search_menu_graph
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

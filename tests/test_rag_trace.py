@@ -116,6 +116,49 @@ def test_rag_uses_fallback_query_when_no_client_text(
     assert rag_ev[0].get("fallback") is True
 
 
+def test_graph_rag_mode_uses_graph_retrieval(
+    monkeypatch, minimal_profile: dict,
+) -> None:
+    """При rag_mode=graph кассир использует graph retrieval, а не Chroma."""
+
+    def _fake_graph_search(*_args, **_kwargs):
+        return (
+            [
+                {
+                    "name": "Graph Burger",
+                    "distance": 0.2,
+                    "allergens": [],
+                    "energy": 410.0,
+                    "added_sugar": 1.0,
+                    "total_sugar": 4.0,
+                },
+            ],
+            {"retrieval_mode": "graph", "metric": "graph_score_distance"},
+        )
+
+    monkeypatch.setattr("mcd_voice.llm.agent.search_menu_graph", _fake_graph_search)
+    monkeypatch.setattr(
+        "mcd_voice.llm.agent.search_menu",
+        lambda *_a, **_k: pytest.fail("vector search should not run in graph mode"),
+    )
+    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "ok")
+    agent = CashierAgent(rag_top_k=3, rag_mode="graph")
+    trace: list[dict] = []
+    history = [{"speaker": "client", "text": "Any burger options?"}]
+    agent.generate_response(
+        minimal_profile,
+        history,
+        {"persons": []},
+        rag_trace=trace,
+        rag_meta={"call": "turn", "turn": 3},
+    )
+    rag_ev = [e for e in trace if e.get("event") == "rag"]
+    assert len(rag_ev) == 1
+    assert rag_ev[0]["retrieval_mode"] == "graph"
+    assert rag_ev[0]["metric"] == "graph_score_distance"
+    assert rag_ev[0]["outcome"] == "injected_graph"
+
+
 def test_render_rows_respects_max_lines() -> None:
     """После фильтра по distance остаются не более max_lines строк (порядок релевантности)."""
     rows: list[dict] = []
@@ -137,3 +180,12 @@ def test_render_rows_respects_max_lines() -> None:
 
     lines_all, _ = _render_rows(rows, max_dist=1.0, max_lines=None)
     assert len(lines_all) == 30
+
+
+def test_menu_graph_to_mermaid_exports_structure() -> None:
+    from mcd_voice.menu.graph_rag import menu_graph_to_mermaid
+
+    text = menu_graph_to_mermaid(max_edges=50, min_weight=0.5)
+    assert text.startswith("flowchart LR")
+    assert "---|" in text
+    assert '["' in text

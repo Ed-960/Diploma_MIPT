@@ -18,6 +18,7 @@ from mcd_voice.dialog.pipeline import (
     _is_looping_tail,
     _resolve_person_index,
     build_initial_order_state,
+    localize_errors,
     parse_order_from_text,
     validate_dialog,
 )
@@ -218,6 +219,9 @@ class TestValidateDialog:
         flags = validate_dialog(family_profile, os, [])
         assert flags["per_person"][1]["allergen_violation"] == ["Milk"]
         assert "Milk" in flags["allergen_violation"]
+        assert flags["allergen_violation_per_person"] == [
+            {"label": "child_1", "role": "child", "allergens": ["Milk"]}
+        ]
 
     def test_no_violation_for_self(self, family_profile):
         os = build_initial_order_state(family_profile)
@@ -241,6 +245,48 @@ class TestValidateDialog:
         ]
         flags = validate_dialog(family_profile, os, history)
         assert flags["turns"] == 3
+
+    def test_incomplete_order_when_children_have_no_items(self, family_profile):
+        os = build_initial_order_state(family_profile)
+        os["persons"][0]["items"] = [{"name": "Big Mac", "quantity": 1}]
+        flags = validate_dialog(family_profile, os, [])
+        assert flags["incomplete_order"] is True
+
+    def test_hallucination_flag_for_unknown_item(self, family_profile):
+        os = build_initial_order_state(family_profile)
+        os["persons"][0]["items"] = [{"name": "Alien Burger", "quantity": 1}]
+        flags = validate_dialog(family_profile, os, [], menu_names=MENU_NAMES)
+        assert flags["hallucination"] is True
+        assert flags["hallucinated_items"] == ["Alien Burger"]
+
+
+def test_localize_errors_detects_cot_and_allergen() -> None:
+    history = [
+        {"speaker": "cashier", "text": "We have Milk and Egg options for you."},
+        {"speaker": "cashier", "text": "Let's reason step-by-step before ordering."},
+    ]
+    flags = {
+        "allergen_violation_per_person": [
+            {"label": "child_1", "role": "child", "allergens": ["Milk", "Egg"]}
+        ],
+    }
+    rows = localize_errors(history, flags)
+    types = [r["error_type"] for r in rows]
+    assert "allergen_suggestion" in types
+    assert "cot_leak" in types
+
+
+def test_localize_errors_includes_hallucinated_items() -> None:
+    rows = localize_errors([], {"hallucinated_items": ["Alien Burger"]})
+    assert rows == [
+        {
+            "turn": None,
+            "speaker": "system",
+            "error_type": "hallucinated_item",
+            "item": "Alien Burger",
+            "excerpt": "Alien Burger",
+        }
+    ]
 
 
 class _StubCatalog:

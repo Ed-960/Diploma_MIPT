@@ -1,0 +1,26 @@
+flowchart TD
+  root["Sex?"]
+  root -->|male (0.46)| age_group_male
+  age_group_male["Age group?"]
+  age_group_male -->|next| psycho_male
+  psycho_male["Psychotype?"]
+  psycho_male -->|next| language_male
+  language_male["Language?"]
+  language_male -->|next| adult_calories_male
+  adult_calories_male["Calorie target from normal distribution?"]
+  adult_calories_male -->|next| adult_dietary
+  adult_dietary["Adult dietary restrictions (with vegan branch override)?"]
+  root -->|female (0.54)| age_group_female
+  age_group_female["Age group?"]
+  age_group_female -->|next| psycho_female
+  psycho_female["Psychotype?"]
+  psycho_female -->|next| language_female
+  language_female["Language?"]
+  language_female -->|next| adult_calories_female
+  adult_calories_female["Calorie target from normal distribution?"]
+  adult_calories_female -->|next| adult_dietary
+  root -->|companions| companions_count
+  companions_count["How many companions?"]
+  companions_count -->|children| child_restrictions
+  child_restrictions["Child dietary restrictions sampled independently?"]
+  companions_count -->|friends| adult_dietary

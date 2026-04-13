@@ -83,6 +83,12 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
     profile = rec.get("profile", {})
     flags = rec.get("validation_flags", {})
     companions = profile.get("companions", [])
+    per_person = flags.get("per_person", [])
+    allergen_violation_per_person = flags.get("allergen_violation_per_person", [])
+    has_companion_violation = any(
+        p.get("role") != "self" and p.get("allergen_violation")
+        for p in per_person
+    )
 
     final_order = rec.get("final_order", {})
     return {
@@ -111,12 +117,18 @@ def _summarize_record(rec: dict[str, Any]) -> dict[str, Any]:
         "calorie_warning": flags.get("calorie_warning", False),
         "under_target_warning": flags.get("under_target_warning", False),
         "allergen_violation": flags.get("allergen_violation", []),
+        "allergen_violation_per_person": allergen_violation_per_person,
+        "has_companion_violation": has_companion_violation,
         "empty_order": flags.get("empty_order", False),
+        "incomplete_order": flags.get("incomplete_order", False),
+        "hallucination": flags.get("hallucination", False),
+        "hallucinated_items": flags.get("hallucinated_items", []),
         "companions_without_items": flags.get("companions_without_items", 0),
         "loop_detected": flags.get("loop_detected", False),
         "stall_detected": flags.get("stall_detected", False),
         "regen_retries": flags.get("regen_retries", 0),
-        "per_person": flags.get("per_person", []),
+        "per_person": per_person,
+        "error_localization": flags.get("error_localization", []),
     }
 
 

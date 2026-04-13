@@ -20,6 +20,8 @@ import json
 import random
 from typing import Any, Literal
 
+from mcd_voice.profile.decision_graph import PROFILE_DECISION_GRAPH
+
 # ── Типы ──────────────────────────────────────────────────────────────
 
 Sex = Literal["male", "female"]
@@ -108,7 +110,14 @@ class ProfileGenerator:
         self._rng = rng or random
 
     def generate(self) -> dict[str, Any]:
-        """Случайный профиль с массивом companions."""
+        """
+        Случайный профиль с массивом companions.
+
+        Логика семплирования эквивалентна обходу формального decision graph
+        (Algorithm 2): на каждом шаге выбирается значение атрибута по заданным
+        вероятностям, а итоговый профиль собирается из последовательности таких
+        «бросков монетки». Граф экспортируется отдельно для документации.
+        """
         r = self._rng
 
         sex: Sex = r.choices(
@@ -147,7 +156,53 @@ class ProfileGenerator:
             "companions": companions,
         }
 
-    def _sample_adult_dietary_flags(self) -> dict[str, bool]:
+    def generate_via_graph(self) -> dict[str, Any]:
+        """
+        Альтернативная генерация через явный обход PROFILE_DECISION_GRAPH.
+
+        Используется для верификации дипломной формализации (Algorithm 2):
+        структура решений берётся из графа, а числовые сэмплы (возраст, калории)
+        и ограничения — из тех же распределений, что и в generate().
+        """
+        r = self._rng
+        node = PROFILE_DECISION_GRAPH
+
+        sex = self._choice_from_outcomes(node.outcomes)  # male/female
+        age_node = node.children[sex]
+        age_bucket = self._choice_from_outcomes(age_node.outcomes)
+        age = self._sample_age_from_bucket(age_bucket)
+
+        psycho_node = age_node.children["next"]
+        psycho = self._choice_from_outcomes(psycho_node.outcomes)
+
+        language_node = psycho_node.children["next"]
+        language = self._choice_from_outcomes(language_node.outcomes)
+
+        # Узел калорий в графе документирует распределение, сам сэмпл считаем функцией.
+        cal = self._sample_calories(sex)  # type: ignore[arg-type]
+
+        adult_flags_node = language_node.children["next"].children["next"]
+        vegan_branch = self._choice_from_outcomes(adult_flags_node.outcomes) == "isVegan=True"
+        flags = self._sample_adult_dietary_flags(vegan_override=vegan_branch)
+
+        companions_node = node.children["companions"]
+        child_quant = self._choice_child_quant(companions_node.outcomes)
+        friends_quant = self._choice_friends_quant(companions_node.outcomes)
+        companions = self._generate_companions(child_quant, friends_quant)
+
+        return {
+            "sex": sex,
+            "age": age,
+            "psycho": psycho,
+            "language": language,
+            "calApprValue": cal,
+            **flags,
+            "childQuant": child_quant,
+            "friendsQuant": friends_quant,
+            "companions": companions,
+        }
+
+    def _sample_adult_dietary_flags(self, vegan_override: bool | None = None) -> dict[str, bool]:
         """
         Пищевые ограничения взрослого (или друга с тем же распределением).
 
@@ -165,7 +220,8 @@ class ProfileGenerator:
         r = self._rng
         p_vegan = _DIETARY_PROBS["isVegan"]
         flags: dict[str, bool] = {}
-        if r.random() < p_vegan:
+        is_vegan = (r.random() < p_vegan) if vegan_override is None else vegan_override
+        if is_vegan:
             flags["isVegan"] = True
             flags["noMilk"] = True
             flags["noFish"] = True
@@ -181,6 +237,32 @@ class ProfileGenerator:
                     continue
                 flags[key] = r.random() < prob
         return flags
+
+    def _choice_from_outcomes(self, outcomes: dict[str, float]) -> str:
+        keys = list(outcomes.keys())
+        weights = list(outcomes.values())
+        return self._rng.choices(keys, weights)[0]
+
+    def _sample_age_from_bucket(self, bucket: str) -> int:
+        bounds = {
+            "18-30": (18, 30),
+            "31-55": (31, 55),
+            "56-80": (56, 80),
+        }
+        lo, hi = bounds.get(bucket, (18, 80))
+        return self._rng.randint(lo, hi)
+
+    def _choice_child_quant(self, outcomes: dict[str, float]) -> int:
+        items = [(k, v) for k, v in outcomes.items() if k.startswith("childQuant=")]
+        vals = [int(k.split("=", 1)[1]) for k, _ in items]
+        ws = [w for _, w in items]
+        return self._rng.choices(vals, ws)[0]
+
+    def _choice_friends_quant(self, outcomes: dict[str, float]) -> int:
+        items = [(k, v) for k, v in outcomes.items() if k.startswith("friendsQuant=")]
+        vals = [int(k.split("=", 1)[1]) for k, _ in items]
+        ws = [w for _, w in items]
+        return self._rng.choices(vals, ws)[0]
 
     # ── Компаньоны ────────────────────────────────────────────────────
 

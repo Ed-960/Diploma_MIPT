@@ -33,11 +33,15 @@ def tmp_dialogs(tmp_path):
             flags={"allergen_violation": ["Milk"] if i == 2 else [],
                    "calorie_warning": False,
                    "empty_order": True,
+                   "incomplete_order": False,
+                   "hallucination": i == 3,
+                   "hallucinated_items": ["Alien Burger"] if i == 3 else [],
                    "total_items": 0,
                    "total_energy": 0,
                    "calorie_target": 2000,
                    "turns": 2,
-                   "per_person": []},
+                   "per_person": [],
+                   "error_localization": []},
             output_dir=tmp_path,
         )
     return tmp_path
@@ -81,6 +85,11 @@ class TestAggregateStats:
         assert "turns" in s
         assert "allergen_violation" in s
         assert "group_size" in s
+        assert "has_companion_violation" in s
+        assert "error_localization" in s
+        assert "incomplete_order" in s
+        assert "hallucination" in s
+        assert "hallucinated_items" in s
 
     def test_allergen_preserved(self, tmp_dialogs):
         summaries = aggregate_stats(tmp_dialogs)
