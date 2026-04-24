@@ -29,6 +29,10 @@ FILE_ORDER: tuple[str, ...] = (
     "scripts/run_experiment.sh",
     "scripts/visualize_profile_graph.py",
     "scripts/visualize_menu_graph.py",
+    "scripts/apply_llm_mode.py",
+    "scripts/voice_browser_server.py",
+    "scripts/static/voice_browser_demo.html",
+    "scripts/export_all_project_for_ai.py",
     "src/mcd_voice/__init__.py",
     "src/mcd_voice/config.py",
     "src/mcd_voice/dialog/__init__.py",
@@ -37,6 +41,7 @@ FILE_ORDER: tuple[str, ...] = (
     "src/mcd_voice/dialog/pipeline.py",
     "src/mcd_voice/dialog/save_dialog.py",
     "src/mcd_voice/dialog/trace_format.py",
+    "src/mcd_voice/dialog/human_voice_session.py",
     "src/mcd_voice/llm/__init__.py",
     "src/mcd_voice/llm/agent.py",
     "src/mcd_voice/llm/prompts.py",
@@ -46,11 +51,13 @@ FILE_ORDER: tuple[str, ...] = (
     "src/mcd_voice/menu/parsing.py",
     "src/mcd_voice/menu/search.py",
     "src/mcd_voice/menu/search_checks.py",
+    "src/mcd_voice/menu/graph_rag.py",
     "src/mcd_voice/profile/__init__.py",
     "src/mcd_voice/profile/decision_graph.py",
     "src/mcd_voice/profile/generator.py",
     "tests/test_llm_config.py",
     "tests/test_pipeline_helpers.py",
+    "tests/test_human_voice_session.py",
     "tests/test_profile_generator.py",
     "tests/test_profile_decision_graph.py",
     "tests/test_rag_trace.py",
@@ -59,6 +66,14 @@ FILE_ORDER: tuple[str, ...] = (
     "tests/test_search.py",
     "pyproject.toml",
     "mcd.json",
+    "PROJECT_CONTEXT.md",
+    "docs/ARCHITECTURE.md",
+    "docs/menu_graph_rag.html",
+    "README.md",
+    "Makefile",
+    "start.md",
+    "requirements.txt",
+    "doploma.txt",
 )
 
 SEP = "=" * 88
@@ -76,7 +91,8 @@ def build_concat(root: Path) -> str:
         "# CONCATENATED PROJECT CODE FOR AI ANALYSIS",
         f"# Root: {root.resolve()}",
         "# Python: "
-        f"{py_count} files (src/mcd_voice, scripts, tests) + pyproject.toml + mcd.json + shell helper",
+        f"{py_count} files (src/mcd_voice, scripts, tests) + pyproject.toml + mcd.json + "
+        "docs/README/Makefile/start/requirements + doploma.txt + shell helper",
         "",
     ]
 

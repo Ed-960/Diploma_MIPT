@@ -27,3 +27,22 @@ make visualize-menu-graph-focus-open FOCUS="Big Mac" MENU_GRAPH_MAX_EDGES=40
 
 make voice-browser-api
 make voice-browser-ollama
+
+//
+REWRITE_MODEL — лёгкая и быстрая
+Задача — коротко переписать запрос под RAG, не «ведёт диалог».
+
+meta-llama/llama-3.2-3b-instruct:free — лучший баланс «мало параметров / нормально следует инструкции» для rewrite.
+google/gemma-3-4b-it:free — чуть крупнее, часто стабильнее на мелких формулировках.
+liquid/lfm-2.5-1.2b-instruct:free — самая лёгкая; может слабее держать русский и капризничать на сложных формулировках.
+Практично начать с Llama 3.2 3B, при проблемах с качеством rewrite — перейти на Gemma 3 4B.
+
+API_MODEL — основной диалог
+Нужна сила и предсказуемость (в т.ч. русский).
+
+meta-llama/llama-3.3-70b-instruct:free — проверенный универсальный вариант для чата.
+qwen/qwen3-next-80b-a3b-instruct:free — сильная многоязычная линейка, часто хорош на русском.
+z-ai/glm-4.5-air:free — компактнее 70B+, но часто ок по качеству/латентности.
+openai/gpt-oss-120b:free или openai/gpt-oss-20b:free — если хотите попробовать новые OSS; 120B может быть тяжелее по ответу.
+Разумный старт: llama-3.3-70b-instruct:free или qwen3-next-80b, если важнее русский.
+

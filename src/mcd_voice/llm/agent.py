@@ -17,6 +17,10 @@
   RAG_MAX_PROMPT_LINES    — максимум строк меню в system prompt после порога по distance
                              (по умолчанию 15; порядок = релевантность Chroma). 0 или отрицательное
                              — без ограничения (старое поведение).
+  OPENROUTER_PROVIDER_IGNORE — только для LLM_BASE_URL с openrouter.ai: список slug через запятую
+                             для provider.ignore (см. OpenRouter routing). Не задано → по умолчанию
+                             Venice/venice (частые 403 «Venice.ai is at capacity» на free-маршрутах).
+                             Значение none|false|0|off|- отключает передачу ignore.
 """
 
 from __future__ import annotations
@@ -77,6 +81,91 @@ _BROAD_MENU_RAG_QUERY = (
     "popular menu items burgers chicken sandwiches sides drinks dessert coffee"
 )
 
+# RAG: клиент просит *другие* варианты кофе — узкий rewrite («coffee») тянет одни и те же хиты.
+_COFFEE_BROAD_RAG_QUERY = (
+    "McCafe coffee menu black coffee cold coffee iced coffee premium roast "
+    "French vanilla latte caramel macchiato mocha frappe caramel frappe "
+    "cold coffee McFloat"
+)
+
+_COFFEE_VARIETY_INTENT_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(another|different|other)\s+coffee\b", re.I),
+    re.compile(r"\bother\s+kinds?\s+of\s+coffee\b", re.I),
+    re.compile(r"\bother\s+coffee\b", re.I),
+    re.compile(r"\bany\s+other\b.*\bcoffee\b", re.I),
+    re.compile(r"\bcoffee\b.*\bany\s+other\b", re.I),
+    re.compile(r"\bwhat\s+(other|kinds?|types?|sorts?)\b.*\bcoffee\b", re.I),
+    re.compile(r"\bkinds?\s+of\s+coffee\b", re.I),
+    re.compile(r"\bbesides\b.*\bcoffee\b|\bcoffee\b.*\bbesides\b", re.I),
+    # «coffee other …», «other … coffee», variants
+    re.compile(
+        r"\bcoffee\b.*\b(other|more|different|variants?|options?)\b|"
+        r"\b(other|more|different)\b.*\bcoffee\b|\bvariants?\b.*\bcoffee\b|\bcoffee\b.*\bvariants?\b",
+        re.I,
+    ),
+    # Russian (профиль часто RU)
+    re.compile(r"\b(другой|ещё|еще|иной)\s+кофе\b", re.I),
+    re.compile(r"\bкак(ой|ие)\s+(еще|ещё)\s+кофе\b", re.I),
+    re.compile(r"\bдруг(ие|их)\s+сорт(а|ов)?\s+кофе\b", re.I),
+)
+
+# Недавний диалог уже про кофе — короткое «what else» / «other variants» без слова coffee.
+_COFFEE_TOPIC_IN_HISTORY_RE = re.compile(
+    r"\bcoffee\b|\blatte\b|\bmacchiato\b|\bmocha\b|\bfrappe\b|\bespresso\b|"
+    r"\bpremium\s+roast\b|\broast\s+coffee\b|\bcold\s+coffee\b|\bblack\s+coffee\b|\biced\s+coffee\b",
+    re.I,
+)
+
+_SHORT_TOPIC_CARRY_RE = re.compile(
+    r"^\s*(what\s+else|something\s+else|anything\s+else|maybe\s+something\s+else)\b",
+    re.I,
+)
+
+_SHORT_OTHER_VARIANTS_RE = re.compile(r"^\s*other\s+variants?\s*[.!?,]?\s*$", re.I)
+
+_COFFEE_COUNT_INTENT_RE = re.compile(
+    r"\b(how\s+many|count|number\s+of|сколько|кол-?во|количество)\b",
+    re.I,
+)
+_COFFEE_NAME_HINT_RE = re.compile(
+    r"\bcoffee\b|\blatte\b|\bmacchiato\b|\bfrappe\b|\bmocha\b|\bmcfloat\b|\bкофе\b",
+    re.I,
+)
+
+_MENU_MORE_THAN_LISTED_RE = re.compile(
+    r"\b(menu|your\s+menu|in\s+the\s+menu)\b.*\b(more|other)\b|"
+    r"\b(more|other)\s+variants?\b.*\b(menu|list)\b|"
+    r"\bsee\s+.*\b(more|other)\b.*\bvariants?\b",
+    re.I,
+)
+
+
+def _enrich_client_text_for_menu_rag(
+    history: list[HistoryEntry],
+    client_text: str,
+) -> str:
+    """
+    Короткие уточнения («what else», «other variants») без слова coffee — подмешиваем
+    тему из недавней истории, иначе RAG уезжает в чай/десерты.
+    """
+    t = (client_text or "").strip()
+    if not t or len(t) > 200:
+        return t
+    recent = " ".join((h.get("text") or "") for h in history[-16:])
+    if not _COFFEE_TOPIC_IN_HISTORY_RE.search(recent.lower()):
+        return t
+    if _SHORT_TOPIC_CARRY_RE.match(t) or _SHORT_OTHER_VARIANTS_RE.match(t):
+        return (
+            f"{t} — customer still exploring coffee drink options "
+            "latte frappe mocha macchiato premium roast iced coffee"
+        )
+    if len(t) <= 120 and _MENU_MORE_THAN_LISTED_RE.search(t):
+        return (
+            f"{t} — still about coffee line more drink names "
+            "premium roast black cold iced latte frappe macchiato"
+        )
+    return t
+
 _BROAD_MENU_INTENT_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bwhat\s+else\b", re.I),
     re.compile(r"\banything\s+else\b", re.I),
@@ -97,6 +186,36 @@ def _client_wants_broader_menu_scan(text: str) -> bool:
     if not (text or "").strip():
         return False
     return any(rx.search(text) for rx in _BROAD_MENU_INTENT_RES)
+
+
+def _client_wants_coffee_variety_scan(text: str) -> bool:
+    """
+    True если клиент просит *ещё варианты* кофе, а не одну конкретную позицию.
+
+    Тогда векторный поиск по одному слову «coffee» даёт узкий срез — подменяем запрос
+    на разнообразные ключевые слова из линейки напитков.
+    """
+    if not (text or "").strip():
+        return False
+    if not re.search(
+        r"\bcoffee\b|\blatte\b|\bmacchiato\b|\bfrappe\b|\bmocha\b|\bкофе\b",
+        text,
+        re.I,
+    ):
+        return False
+    return any(rx.search(text) for rx in _COFFEE_VARIETY_INTENT_RES)
+
+
+def _client_asks_coffee_variant_count(text: str) -> bool:
+    """True when customer asks for coffee variants count in menu."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if not _COFFEE_NAME_HINT_RE.search(t):
+        return False
+    if _COFFEE_COUNT_INTENT_RE.search(t):
+        return True
+    return bool(re.search(r"\bvariants?\b.*\bmenu\b|\bmenu\b.*\bvariants?\b", t, re.I))
 
 
 _NON_FOOD_CLIENT_UTTERANCE_RES: tuple[re.Pattern[str], ...] = (
@@ -130,6 +249,43 @@ def _is_non_food_client_utterance(text: str) -> bool:
     if not parts:
         return False
     return all(any(rx.match(p) for rx in _NON_FOOD_CLIENT_UTTERANCE_RES) for p in parts)
+
+
+def _extract_names_from_rag_context(rag_context: str) -> list[str]:
+    """Extract menu names from '- Name (...)' lines in RAG context."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in (rag_context or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("- "):
+            continue
+        name = line[2:].split("(", maxsplit=1)[0].strip()
+        if not name:
+            continue
+        low = name.lower()
+        if low in seen:
+            continue
+        seen.add(low)
+        out.append(name)
+    return out
+
+
+def _coffee_count_response_from_rag_context(rag_context: str) -> str | None:
+    """
+    Deterministic fallback for 'how many coffee variants' questions.
+    Uses only current RAG context names to avoid hallucinated products.
+    """
+    names = [
+        n for n in _extract_names_from_rag_context(rag_context)
+        if _COFFEE_NAME_HINT_RE.search(n)
+    ]
+    if not names:
+        return None
+    return (
+        f"I can confirm {len(names)} coffee variants in our menu right now: "
+        + ", ".join(names)
+        + ". Which one would you like?"
+    )
 
 
 def _normalize_rewrite_output(text: str) -> str:
@@ -281,6 +437,45 @@ def _cloud_base_url() -> str:
     return ""
 
 
+def _base_url_is_openrouter() -> bool:
+    """True если облачный base URL указывает на OpenRouter (там есть provider routing)."""
+    return "openrouter.ai" in (_cloud_base_url() or "").lower()
+
+
+def _openrouter_provider_ignore_list() -> list[str] | None:
+    """
+    Список slug провайдеров OpenRouter для поля provider.ignore.
+
+    ENV:
+      OPENROUTER_PROVIDER_IGNORE — через запятую, например: venice,deepinfra
+      Пусто (не задано) при LLM_BASE_URL=openrouter → по умолчанию ['venice'],
+      чтобы реже ловить 403 «Venice.ai is at capacity» на бесплатных маршрутах.
+      none|false|0|off|- — не передавать provider.ignore.
+    """
+    if not _base_url_is_openrouter():
+        return None
+    raw = (os.environ.get("OPENROUTER_PROVIDER_IGNORE") or "").strip()
+    if raw.lower() in {"none", "false", "0", "off", "-"}:
+        return None
+    if not raw:
+        # slug в метадатах OpenRouter встречается как Venice; в ignore обычно lowercase
+        return ["Venice", "venice"]
+    out: list[str] = []
+    for part in raw.split(","):
+        p = part.strip()
+        if p and p not in out:
+            out.append(p)
+    return out or None
+
+
+def _openrouter_extra_body() -> dict[str, Any] | None:
+    """Доп. тело запроса для OpenRouter (Chat Completions)."""
+    ign = _openrouter_provider_ignore_list()
+    if not ign:
+        return None
+    return {"provider": {"ignore": ign}}
+
+
 def _ollama_base_url() -> str:
     return _first_env("LLM_BASE_URL", "OLLAMA_URL", "OPENAI_BASE_URL")
 
@@ -354,11 +549,15 @@ def _call_llm(
     timeout_err: APITimeoutError | None = None
     for attempt in range(3):
         try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=payload,
-                temperature=temperature,
-            )
+            create_kwargs: dict[str, Any] = {
+                "model": model,
+                "messages": payload,
+                "temperature": temperature,
+            }
+            xb = _openrouter_extra_body()
+            if xb is not None:
+                create_kwargs["extra_body"] = xb
+            resp = client.chat.completions.create(**create_kwargs)
             content = resp.choices[0].message.content
             if not content:
                 raise RuntimeError("Пустой ответ от модели.")
@@ -533,10 +732,30 @@ class CashierAgent:
         rag_context = self._resolve_rag_context(
             client_text,
             profile,
+            history,
             rag_trace=rag_trace,
             rag_meta=rag_meta,
             llm_trace=llm_trace,
         )
+        if _client_asks_coffee_variant_count(client_text):
+            deterministic = _coffee_count_response_from_rag_context(rag_context)
+            if deterministic:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "deterministic_coffee_count_reply",
+                        **(rag_meta or {}),
+                        "source": "rag_context",
+                        "coffee_variants_count": len(
+                            [
+                                n
+                                for n in _extract_names_from_rag_context(rag_context)
+                                if _COFFEE_NAME_HINT_RE.search(n)
+                            ]
+                        ),
+                    },
+                )
+                return deterministic
         system = self._build_system(profile, order_state, rag_context)
         messages = _history_to_messages(history, my_role="cashier")
         try:
@@ -577,6 +796,7 @@ class CashierAgent:
         self,
         client_text: str,
         profile: dict[str, Any],
+        history: list[HistoryEntry],
         *,
         rag_trace: list[dict[str, Any]] | None,
         rag_meta: dict[str, Any] | None,
@@ -591,6 +811,10 @@ class CashierAgent:
         Если клиент ещё не говорил (приветствие) — используется fallback-запрос.
         """
         base_trace = {**(rag_meta or {}), "client_query": client_text[:800]}
+        rag_text = _enrich_client_text_for_menu_rag(history, client_text)
+        if rag_text != client_text:
+            base_trace["rag_query_enriched"] = True
+            base_trace["client_query_for_rag"] = rag_text[:800]
 
         if self.rag_top_k <= 0:
             _trace(
@@ -606,7 +830,7 @@ class CashierAgent:
 
         if client_text:
             search_query = _rewrite_query(
-                client_text,
+                rag_text,
                 self._client,
                 self._rewrite_model,
                 llm_trace=llm_trace,
@@ -925,7 +1149,20 @@ def _rewrite_query(
         )
         dt_ms = (time.perf_counter() - t0) * 1000.0
         rewritten = _normalize_rewrite_output(rewritten)
-        if _client_is_specific_order(client_text):
+        if _client_wants_coffee_variety_scan(client_text):
+            _trace(
+                llm_trace,
+                {
+                    "event": "rewrite_coffee_variety_override",
+                    **(trace_meta or {}),
+                    "model": model,
+                    "kind": "mini_llm_menu_query_rewrite",
+                    "prior_rewrite": rewritten,
+                    "rewrite_output": _COFFEE_BROAD_RAG_QUERY,
+                },
+            )
+            rewritten = _COFFEE_BROAD_RAG_QUERY
+        elif _client_is_specific_order(client_text):
             broadish = {
                 "burgers",
                 "chicken",
@@ -938,19 +1175,35 @@ def _rewrite_query(
             rw_tokens = {t.lower() for t in rewritten.split()}
             if len(rw_tokens & broadish) >= 3:
                 rewritten = _fallback_query_from_client_text(client_text)
-        if _client_wants_broader_menu_scan(client_text) and len(rewritten.split()) <= 1:
-            _trace(
-                llm_trace,
-                {
-                    "event": "rewrite_broad_menu_override",
-                    **(trace_meta or {}),
-                    "model": model,
-                    "kind": "mini_llm_menu_query_rewrite",
-                    "narrow_rewrite": rewritten,
-                    "rewrite_output": _BROAD_MENU_RAG_QUERY,
-                },
-            )
-            rewritten = _BROAD_MENU_RAG_QUERY
+        if _client_wants_broader_menu_scan(client_text):
+            n_rw = len(rewritten.split())
+            # «Что-то ещё» + кофе в реплике, а rewrite = «coffee» — даёт узкий RAG; тянем линейку McCafe.
+            if re.search(r"\bcoffee\b", client_text, re.I) and n_rw <= 2:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "rewrite_coffee_broad_menu_override",
+                        **(trace_meta or {}),
+                        "model": model,
+                        "kind": "mini_llm_menu_query_rewrite",
+                        "narrow_rewrite": rewritten,
+                        "rewrite_output": _COFFEE_BROAD_RAG_QUERY,
+                    },
+                )
+                rewritten = _COFFEE_BROAD_RAG_QUERY
+            elif n_rw <= 1:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "rewrite_broad_menu_override",
+                        **(trace_meta or {}),
+                        "model": model,
+                        "kind": "mini_llm_menu_query_rewrite",
+                        "narrow_rewrite": rewritten,
+                        "rewrite_output": _BROAD_MENU_RAG_QUERY,
+                    },
+                )
+                rewritten = _BROAD_MENU_RAG_QUERY
         _trace(
             llm_trace,
             {

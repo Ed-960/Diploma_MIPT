@@ -10,6 +10,12 @@ from mcd_voice.llm.agent import CashierAgent
 from mcd_voice.llm.prompts import get_cashier_system_prompt, get_client_system_prompt
 
 
+def _stub_llm_rewrite_then_cashier(client, model, system, messages, temperature=0.8):
+    if "short food search query" in (system or "").lower():
+        return "burgers chicken combo meal"
+    return "Sure."
+
+
 @pytest.fixture(autouse=True)
 def _mock_openai_client(monkeypatch):
     monkeypatch.setattr(
@@ -48,7 +54,7 @@ def test_realistic_cashier_rag_without_allergen_blacklist(
 
     monkeypatch.setattr("mcd_voice.llm.agent.search_menu", fake_search)
     agent = CashierAgent(rag_top_k=3, realistic_cashier=True)
-    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "ok")
+    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", _stub_llm_rewrite_then_cashier)
     profile = {
         "language": "EN",
         "noMilk": True,

@@ -313,6 +313,35 @@ class ProfileGenerator:
 _default_generator = ProfileGenerator()
 
 
+def neutral_drive_through_profile() -> dict[str, Any]:
+    """
+    Профиль для живого пользователя в демо (голос / ручной ввод): без скрытой группы
+    и без пищевых ограничений, пока человек не скажет об этом в репликах.
+
+    Не REG-синтез: случайные аллергии и компаньоны не подставляются. Структура нужна
+    для order_state и валидации; при realistic_cashier кассир не опирается на эти поля
+    в системном промпте.
+    """
+    return {
+        "sex": "male",
+        "age": "middle",
+        "psycho": "regular",
+        "language": "EN",
+        "calApprValue": 2200,
+        "noMilk": False,
+        "noSugar": False,
+        "noBeef": False,
+        "isVegan": False,
+        "noFish": False,
+        "noNuts": False,
+        "noEggs": False,
+        "noGluten": False,
+        "childQuant": 0,
+        "friendsQuant": 0,
+        "companions": [],
+    }
+
+
 def generate_profile() -> dict[str, Any]:
     return _default_generator.generate()
 

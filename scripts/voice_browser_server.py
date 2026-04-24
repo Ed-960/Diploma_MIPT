@@ -29,6 +29,41 @@ import _bootstrap
 _bootstrap.ensure_src()
 
 from mcd_voice.dialog.human_voice_session import HumanDriveThroughSession
+from mcd_voice.dialog.save_dialog import save_dialog
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_VOICE_DIALOGS_DIR = REPO_ROOT / "ALL_DIALOGS" / "voice-dialogs"
+
+_voice_dialog_id_lock = threading.Lock()
+
+
+def _save_voice_dialog_snapshot(
+    out_dir: Path,
+    profile: dict[str, Any],
+    history: list[dict[str, str]],
+    order_state: dict[str, Any],
+    flags: dict[str, Any],
+) -> Path:
+    """Следующий dialog_NNNN.json и запись — под одной блокировкой (без гонок по id)."""
+    with _voice_dialog_id_lock:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        best = 0
+        for p in out_dir.glob("dialog_*.json"):
+            try:
+                n = int(p.stem.split("_", maxsplit=1)[1])
+            except (ValueError, IndexError):
+                continue
+            best = max(best, n)
+        dialog_id = best + 1
+        return save_dialog(
+            dialog_id,
+            profile,
+            history,
+            order_state,
+            flags,
+            output_dir=out_dir,
+        )
 
 
 def _prewarm_menu_rag() -> None:
@@ -128,6 +163,42 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
 
         cfg: argparse.Namespace = self.server.cfg  # type: ignore[attr-defined]
 
+        if parsed.path == "/api/session/status":
+            sid = str(data.get("session_id") or "")
+            if not sid:
+                self._send(
+                    HTTPStatus.BAD_REQUEST,
+                    _json_bytes({"error": "missing_session_id"}),
+                    content_type="application/json; charset=utf-8",
+                )
+                return
+            with _sessions_lock:
+                alive = sid in _sessions
+            self._send(
+                HTTPStatus.OK,
+                _json_bytes({"alive": alive, "session_id": sid}),
+                content_type="application/json; charset=utf-8",
+            )
+            return
+
+        if parsed.path == "/api/session/abandon":
+            sid = str(data.get("session_id") or "")
+            if not sid:
+                self._send(
+                    HTTPStatus.BAD_REQUEST,
+                    _json_bytes({"error": "missing_session_id"}),
+                    content_type="application/json; charset=utf-8",
+                )
+                return
+            with _sessions_lock:
+                _sessions.pop(sid, None)
+            self._send(
+                HTTPStatus.OK,
+                _json_bytes({"ok": True, "session_id": sid}),
+                content_type="application/json; charset=utf-8",
+            )
+            return
+
         if parsed.path == "/api/session/start":
             print("[api] POST /api/session/start …", flush=True)
             sid = uuid.uuid4().hex
@@ -190,9 +261,25 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
                     content_type="application/json; charset=utf-8",
                 )
                 return
+            snap = None
+            if out.get("dialog_ended") and cfg.save_voice_dialogs:
+                snap = session.snapshot_for_save()
             if out.get("dialog_ended"):
                 with _sessions_lock:
                     _sessions.pop(sid, None)
+            if snap is not None:
+                profile, history, order_state, flags = snap
+                out_dir = Path(cfg.voice_output_dir)
+                try:
+                    saved_path = _save_voice_dialog_snapshot(
+                        out_dir, profile, history, order_state, flags,
+                    )
+                    out["saved_dialog_path"] = str(saved_path)
+                    out["saved_dialog_id"] = int(saved_path.stem.split("_", maxsplit=1)[1])
+                    print(f"[api] Saved voice dialog → {saved_path}", flush=True)
+                except Exception as exc:
+                    print(f"[api] Voice dialog save failed: {exc}", flush=True)
+                    out["saved_dialog_error"] = str(exc)
             self._send(
                 HTTPStatus.OK,
                 _json_bytes(out),
@@ -226,6 +313,17 @@ def main() -> None:
         action="store_true",
         help="Skip Chroma/embeddings preload (faster server boot; first Start waits longer).",
     )
+    parser.add_argument(
+        "--voice-output-dir",
+        default=str(DEFAULT_VOICE_DIALOGS_DIR),
+        help=f"Каталог для dialog_*.json при завершении сессии (по умолчанию: {DEFAULT_VOICE_DIALOGS_DIR}).",
+    )
+    parser.add_argument(
+        "--save-voice-dialogs",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Сохранять диалог в JSON при dialog_ended (как generate_dataset; по умолчанию: да).",
+    )
     args = parser.parse_args()
 
     VoiceBrowserHandler._log_requests = args.verbose_http
@@ -234,6 +332,11 @@ def main() -> None:
     httpd = ThreadingHTTPServer((args.host, args.port), VoiceBrowserHandler)
     httpd.cfg = args  # type: ignore[attr-defined]
     print(f"Open http://{args.host}:{args.port}/  (Ctrl+C to stop)", flush=True)
+    if args.save_voice_dialogs:
+        print(
+            f"On session end, dialogs are saved like generate_dataset → {args.voice_output_dir}/",
+            flush=True,
+        )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

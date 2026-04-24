@@ -1,0 +1,185 @@
+{
+  "dialog_id": 1,
+  "profile": {
+    "sex": "male",
+    "age": 35,
+    "psycho": "regular",
+    "language": "EN",
+    "calApprValue": 1600,
+    "isVegan": false,
+    "noMilk": false,
+    "noSugar": false,
+    "noBeef": false,
+    "noFish": false,
+    "noNuts": false,
+    "noEggs": false,
+    "noGluten": false,
+    "childQuant": 1,
+    "friendsQuant": 0,
+    "companions": [
+      {
+        "role": "child",
+        "label": "child_1",
+        "age": 8,
+        "restrictions": {
+          "noMilk": false,
+          "noEggs": false,
+          "noNuts": false,
+          "noGluten": false
+        }
+      }
+    ]
+  },
+  "history": [
+    {
+      "speaker": "cashier",
+      "text": "Hi, welcome to McDonald's. What can I get for you today? We've got options like sundaes, McFlurries, and cold coffees if you're in the mood for something sweet or refreshing."
+    },
+    {
+      "speaker": "client",
+      "text": "Hello, can I have something with chicken but colories limit 1600 for me and something healthy for my son ?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Sure, for you, how about our Chicken McNuggets? And for your son, we have the McVeggie burger as a healthier option. Does that sound good?"
+    },
+    {
+      "speaker": "client",
+      "text": "I thing its good. WHat would you suggest to drink ?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Alright, I've got the Chicken McNuggets for you and the McVeggie burger for your son. For a drink, I'd recommend our Iced Tea. Does that sound good?"
+    },
+    {
+      "speaker": "client",
+      "text": "maybe something esle ?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Sure, instead of Iced Tea, how about a Masala Chai? I've got Chicken McNuggets for you and the McVeggie burger for your son – does that sound good with that drink?"
+    },
+    {
+      "speaker": "client",
+      "text": "Yeah Masala chai sounds good for my son, but also I would like coffee for me, what kind of coffee do you have"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Sounds good, Masala Chai for your son. For your coffee, we have black coffee, cold coffee, or cold coffee McFloat. Which one would you like?"
+    },
+    {
+      "speaker": "client",
+      "text": "maybe something else"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Alright, if not coffee, how about a Masala Chai for you as well? I've got the Chicken McNuggets for you, the McVeggie burger for your son, and the Masala Chai for him – does that sound right?"
+    },
+    {
+      "speaker": "client",
+      "text": "yes, I mean another coffee"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Alright, for another coffee, we have black coffee or cold coffee. Which one would you like? So far, I've got Chicken McNuggets for you, the McVeggie burger for your son, and the Masala Chai for him – does that sound right?"
+    },
+    {
+      "speaker": "client",
+      "text": "dont you have any other kind of coffee besides all these kindes you called ?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Hmm, I'm not sure about other kinds of coffee right now – we mainly have black coffee and cold coffee. If you'd like one of those, which would it be? So far, I've got Chicken McNuggets for you and the McVeggie burger with Masala Chai for your son – does that sound right?"
+    },
+    {
+      "speaker": "client",
+      "text": "yes all right"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Alright, great – so I've got the Chicken McNuggets for you and the McVeggie burger with Masala Chai for your son. Does that sound right? If you need anything else, just let me know."
+    }
+  ],
+  "final_order": {
+    "persons": [
+      {
+        "role": "self",
+        "label": "customer",
+        "items": [
+          {
+            "name": "Chicken McNuggets",
+            "quantity": 1
+          }
+        ],
+        "total_energy": 254.52,
+        "allergens": [
+          "Cereal containing gluten"
+        ]
+      },
+      {
+        "role": "child",
+        "label": "child_1",
+        "age": 8,
+        "restrictions": {
+          "noMilk": false,
+          "noEggs": false,
+          "noNuts": false,
+          "noGluten": false
+        },
+        "items": [
+          {
+            "name": "McVeggie",
+            "quantity": 1
+          },
+          {
+            "name": "Masala Chai",
+            "quantity": 1
+          }
+        ],
+        "total_energy": 496.28,
+        "allergens": [
+          "Cereal containing gluten",
+          "Milk",
+          "Soya"
+        ]
+      }
+    ],
+    "order_complete": true
+  },
+  "validation_flags": {
+    "per_person": [
+      {
+        "label": "customer",
+        "role": "self",
+        "items_count": 1,
+        "total_energy": 254.52,
+        "allergen_violation": [],
+        "restriction_violation": []
+      },
+      {
+        "label": "child_1",
+        "role": "child",
+        "items_count": 2,
+        "total_energy": 496.28,
+        "allergen_violation": [],
+        "restriction_violation": []
+      }
+    ],
+    "allergen_violation": [],
+    "allergen_violation_per_person": [],
+    "restriction_violation": [],
+    "restriction_violation_per_person": [],
+    "calorie_warning": false,
+    "under_target_warning": false,
+    "empty_order": false,
+    "incomplete_order": false,
+    "hallucination": false,
+    "hallucinated_items": [],
+    "total_items": 3,
+    "total_energy": 750.8,
+    "calorie_target": 1600,
+    "companions_without_items": 0,
+    "turns": 17
+  },
+  "timestamp": "2026-04-24T09:47:11.695526+00:00"
+}

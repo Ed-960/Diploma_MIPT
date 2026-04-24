@@ -116,6 +116,11 @@ def get_cashier_system_prompt(
         "- NEVER claim an item is absent from the entire menu just because it is not in this "
         "turn's context. Say you can't confirm it right now or that you can't recommend it for "
         "their dietary needs.",
+        "- If they ask for MORE options in the SAME category (e.g. other coffees), list several "
+        "different items from the context slice; never imply your short list is the full menu.",
+        "- If the customer NAMES a specific menu item that appears in your context slice, treat it "
+        "as available and confirm it — do NOT say you cannot confirm an item that is listed "
+        "in the menu data you were given for this turn.",
         "- When the customer has a dietary restriction, proactively name SPECIFIC items "
         "that ARE available (e.g. 'We have fries, apple slices, and Sprite that work for you'). "
         "Don't keep saying 'we don't have X' — focus on what you DO have.",

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from mcd_voice.dialog.catalog import MenuCatalog
@@ -25,7 +26,7 @@ from mcd_voice.dialog.pipeline import (
 )
 from mcd_voice.llm import CashierAgent
 from mcd_voice.llm.agent import _resolve_model
-from mcd_voice.profile import ProfileGenerator
+from mcd_voice.profile import neutral_drive_through_profile
 
 
 def _compact_validation(flags: dict[str, Any]) -> dict[str, Any]:
@@ -49,6 +50,9 @@ class HumanDriveThroughSession:
 
     Не потоковый «одновременный» разговор: ответ кассира запрашивается после
     того, как пользователь отправил финальный текст реплики.
+
+    При вызове start() без аргумента профиль нейтральный (без скрытых ограничений REG);
+    можно передать свой dict для тестов или расширенного сценария.
     """
 
     def __init__(
@@ -63,7 +67,6 @@ class HumanDriveThroughSession:
         self.model = _resolve_model(model)
         self.realistic_cashier = realistic_cashier
         self.trace_verbose = trace_verbose
-        self._profiles = ProfileGenerator()
         self._catalog = MenuCatalog()
         self._helper = DialogPipeline(
             max_turns=max_turns,
@@ -87,7 +90,7 @@ class HumanDriveThroughSession:
         if self._started:
             raise RuntimeError("Session already started.")
         self._started = True
-        prof = profile if profile is not None else self._profiles.generate()
+        prof = profile if profile is not None else neutral_drive_through_profile()
         self._profile = prof
         menu_names, energy_by_name = self._catalog.load()
         self._menu_names = menu_names
@@ -304,3 +307,29 @@ class HumanDriveThroughSession:
         if self._cot_leak_count:
             out["cot_leak_count"] = self._cot_leak_count
         return out
+
+    def snapshot_for_save(
+        self,
+    ) -> tuple[dict[str, Any], list[dict[str, str]], dict[str, Any], dict[str, Any]] | None:
+        """
+        Снимок для save_dialog (как после simulate_dialog): профиль, история,
+        order_state и полные validation_flags. None, если сессия не запущена.
+        """
+        if not self._started:
+            return None
+        assert self._profile is not None
+        assert self._history is not None
+        assert self._order_state is not None
+        assert self._menu_names is not None
+        flags = validate_dialog(
+            self._profile,
+            self._order_state,
+            self._history,
+            menu_names=self._menu_names,
+        )
+        return (
+            copy.deepcopy(self._profile),
+            [dict(h) for h in self._history],
+            copy.deepcopy(self._order_state),
+            flags,
+        )

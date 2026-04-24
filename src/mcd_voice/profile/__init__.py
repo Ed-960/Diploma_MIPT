@@ -6,6 +6,7 @@ from mcd_voice.profile.generator import (
     generate_text_description,
     get_allergen_blacklist,
     get_group_allergen_blacklist,
+    neutral_drive_through_profile,
     profile_to_json,
 )
 from mcd_voice.profile.decision_graph import (
@@ -21,6 +22,7 @@ __all__ = [
     "generate_text_description",
     "get_allergen_blacklist",
     "get_group_allergen_blacklist",
+    "neutral_drive_through_profile",
     "profile_to_json",
     "DecisionNode",
     "PROFILE_DECISION_GRAPH",

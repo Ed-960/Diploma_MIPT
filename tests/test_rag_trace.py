@@ -15,6 +15,17 @@ from mcd_voice.llm.agent import CashierAgent, _render_rows
 _VALID_OUTCOMES = ("injected", "injected_soft", "above_threshold", "no_chroma_hits")
 
 
+def _stub_llm_rewrite_then_cashier(client, model, system, messages, temperature=0.8):
+    """
+    Отличает mini-LLM rewrite от ответа кассира.
+    Ответ «ok» в rewrite нормализуется в general menu items и отключает RAG — тесты
+    должны возвращать осмысленный поисковый запрос.
+    """
+    if "short food search query" in (system or "").lower():
+        return "burgers chicken sides drinks dessert"
+    return "Got it, thanks for stopping by."
+
+
 @pytest.fixture()
 def minimal_profile() -> dict:
     return {"language": "EN", "psycho": "regular"}
@@ -34,7 +45,7 @@ def test_rag_always_runs_even_for_closing_phrase(
 ) -> None:
     """RAG запускается независимо от текста — результат решается расстоянием."""
     agent = CashierAgent(rag_top_k=3)
-    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "ok")
+    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", _stub_llm_rewrite_then_cashier)
     trace: list[dict] = []
     history = [{"speaker": "client", "text": "That is all, thanks."}]
     agent.generate_response(
@@ -54,7 +65,7 @@ def test_rag_runs_for_menu_query(
 ) -> None:
     """Запрос про меню даёт event=rag с ожидаемыми полями трассы."""
     agent = CashierAgent(rag_top_k=3)
-    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "ok")
+    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", _stub_llm_rewrite_then_cashier)
     trace: list[dict] = []
     history = [
         {"speaker": "client", "text": "What would you recommend from the menu?"},
@@ -141,7 +152,7 @@ def test_graph_rag_mode_uses_graph_retrieval(
         "mcd_voice.llm.agent.search_menu",
         lambda *_a, **_k: pytest.fail("vector search should not run in graph mode"),
     )
-    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "ok")
+    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", _stub_llm_rewrite_then_cashier)
     agent = CashierAgent(rag_top_k=3, rag_mode="graph")
     trace: list[dict] = []
     history = [{"speaker": "client", "text": "Any burger options?"}]
