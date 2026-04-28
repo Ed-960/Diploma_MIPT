@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graph RAG</title>
+  <style>
+:root {
+      --blue-soft: #c5daf0;
+      --blue-mid: #8eb4d9;
+      --blue-deep: #3d6fa8;
+      --line: #3d6fa8;
+      --line-glow: #a8c8e8;
+      --line-dim: #7b9bc4;
+      --blue-header: #e8f2fb;
+      --white: #ffffff;
+      --border: #9bb5d0;
+      --text: #1a2d3d;
+      --muted: #5a6f82;
+      --accent: #e8943a;
+      --shadow: 0 4px 18px rgba(61, 111, 168, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 14px 12px 20px;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #fff;
+      color: var(--text);
+    }
+
+    h1 {
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.32rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+      color: var(--blue-deep);
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      max-width: 920px;
+      margin: 0 auto 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(61, 111, 168, 0.08);
+      overflow: hidden;
+    }
+
+    .panel-body {
+      padding: 6px 4px 10px;
+      background: #fff;
+    }
+
+    .diagram {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .diagram text {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+
+    @page { size: 297mm 158mm; margin: 3mm; }
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      min-height: 0 !important;
+      height: auto !important;
+    }
+    .panel {
+      max-width: none !important;
+      margin: 0 !important;
+      border-radius: 6px;
+      box-shadow: none !important;
+      page-break-inside: avoid;
+    }
+    .panel-body {
+      padding: 2px 0 4px !important;
+      background: #fff !important;
+    }
+    .diagram { display: block; width: 100%; height: auto; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    
+  </style>
+</head>
+<body>
+<section class="panel">
+    <div class="panel-body">
+      <svg class="diagram" viewBox="0 0 820 398" xmlns="http://www.w3.org/2000/svg" aria-label="Graph RAG">
+        <defs>
+          <linearGradient id="g3Llm" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#6fa0cf"/>
+          </linearGradient>
+          <linearGradient id="g3Mini" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#b8d4ec"/>
+            <stop offset="100%" stop-color="#5d94c4"/>
+          </linearGradient>
+          <linearGradient id="g3Graph" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#4a7aa8"/>
+          </linearGradient>
+          <marker id="m3" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#2d5a8a"/>
+          </marker>
+          <marker id="m3d" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6a8ab0"/>
+          </marker>
+        </defs>
+
+        <g class="wires" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 668 94 C 668 118, 560 76, 380 82 C 260 86, 118 72, 118 88 L 118 124" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 668 94 C 668 118, 560 76, 380 82 C 260 86, 118 72, 118 88 L 118 124" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 188 148 L 218 148" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 188 148 L 218 148" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 418 160 L 454 160 L 454 218" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 418 160 L 454 160 L 454 218" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 498 262 L 498 298 L 248 298 L 248 308" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 498 262 L 498 298 L 248 298 L 248 308" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 668 94 C 668 190, 668 240, 668 298 L 248 298 L 248 308" stroke="#dde8f4" stroke-width="5" stroke-dasharray="8 6"/>
+          <path d="M 668 94 C 668 190, 668 240, 668 298 L 248 298 L 248 308" stroke="#6d8eb8" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#m3d)"/>
+          <!-- 5→6 / 6→7: те же зазоры, что на Vector -->
+          <path d="M 328 334 L 402 334" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 328 334 L 402 334" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 542 338 L 590 338" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 542 338 L 590 338" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+        </g>
+
+        <rect x="608" y="48" width="120" height="46" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="668" y="68" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Запрос</text>
+        <text x="668" y="84" text-anchor="middle" fill="var(--muted)" font-size="9">реплика клиента</text>
+
+        <rect x="48" y="128" width="140" height="62" rx="11" fill="url(#g3Mini)" stroke="#5a8ab8" stroke-width="1"/>
+        <text x="118" y="152" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">Мини-LLM</text>
+        <text x="118" y="168" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="9">rewrite</text>
+
+        <rect x="228" y="118" width="190" height="84" rx="12" fill="url(#g3Graph)" stroke="#4a7aa8" stroke-width="1"/>
+        <text x="323" y="150" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Graph RAG</text>
+        <text x="323" y="170" text-anchor="middle" fill="rgba(255,255,255,0.92)" font-size="10">обход графа меню</text>
+
+        <rect x="454" y="218" width="88" height="18" rx="3" fill="#fff" stroke="var(--border)"/>
+        <rect x="458" y="228" width="88" height="18" rx="3" fill="#fff" stroke="var(--border)"/>
+        <rect x="462" y="238" width="88" height="22" rx="3" fill="#fff" stroke="var(--border)"/>
+        <text x="498" y="278" text-anchor="middle" fill="var(--muted)" font-size="10">фрагменты меню для LLM</text>
+
+        <rect x="168" y="308" width="160" height="52" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="248" y="330" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">Запрос + контексты</text>
+        <text x="248" y="346" text-anchor="middle" fill="var(--muted)" font-size="9">промпт кассира</text>
+
+        <rect x="402" y="302" width="140" height="64" rx="11" fill="url(#g3Llm)" stroke="#6b9bc4" stroke-width="1"/>
+        <text x="472" y="332" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">LLM</text>
+        <text x="472" y="350" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="9">основная модель</text>
+
+        <rect x="590" y="308" width="110" height="52" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="645" y="338" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Ответ</text>
+
+        <g class="badges" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI, system-ui, sans-serif">
+          <g transform="translate(668,34)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">1</text></g>
+          <g transform="translate(38,112)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">2</text></g>
+          <!-- «3» над блоком Graph RAG, не в углу прямоугольника -->
+          <g transform="translate(323,102)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">3</text></g>
+          <g transform="translate(558,238)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">4</text></g>
+          <g transform="translate(248,288)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">5</text></g>
+          <g transform="translate(472,288)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">6</text></g>
+          <g transform="translate(645,288)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">7</text></g>
+        </g>
+      </svg>
+    </div>
+  </section>
+</body>
+</html>

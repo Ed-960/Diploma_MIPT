@@ -108,10 +108,10 @@ def test_rag_disabled_when_top_k_zero(
     assert trace[0]["event"] == "rag_disabled"
 
 
-def test_rag_uses_fallback_query_when_no_client_text(
+def test_rag_skips_greeting_when_no_client_text(
     monkeypatch, minimal_profile: dict,
 ) -> None:
-    """Если клиент ещё не говорил (приветствие), используется fallback-запрос."""
+    """На приветствии клиентского запроса ещё нет, поэтому RAG не запускается."""
     agent = CashierAgent(rag_top_k=3)
     monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "ok")
     trace: list[dict] = []
@@ -122,9 +122,9 @@ def test_rag_uses_fallback_query_when_no_client_text(
         rag_trace=trace,
         rag_meta={"call": "greeting"},
     )
-    rag_ev = [e for e in trace if e.get("event") == "rag"]
-    assert len(rag_ev) == 1
-    assert rag_ev[0].get("fallback") is True
+    assert len(trace) == 1
+    assert trace[0]["event"] == "rag_skipped_no_client_query"
+    assert trace[0]["retrieval_mode"] == "vector"
 
 
 def test_graph_rag_mode_uses_graph_retrieval(

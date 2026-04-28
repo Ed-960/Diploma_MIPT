@@ -77,4 +77,41 @@ def summarize_llm_event(ev: dict[str, Any]) -> str:
         return (
             f"LLM ERROR {ev.get('agent', '')} ({model}): {ev.get('error', '')}"
         )
+    if kind == "order_json_rewrite":
+        ms = ev.get("duration_ms")
+        ms_s = f" {ms}ms" if ms is not None else ""
+        cnt = ev.get("orders_count")
+        fb = ev.get("fallback_used")
+        fr = ev.get("fallback_reason")
+        turn = ev.get("turn")
+        turn_s = f" turn={turn}" if turn is not None else ""
+        fr_s = f" reason={fr}" if fr else ""
+        return (
+            f"mini-LLM order parser ({model}){ms_s}{turn_s}: "
+            f"orders={cnt} fallback={fb}{fr_s}"
+        )
+    if kind == "order_json_parse_error":
+        turn = ev.get("turn")
+        turn_s = f" turn={turn}" if turn is not None else ""
+        return (
+            f"mini-LLM order parser ERROR ({model}){turn_s}: {ev.get('error', '')}"
+        )
+    if kind == "order_json_client_error":
+        return (
+            f"mini-LLM order parser INIT ERROR ({model}): {ev.get('error', '')}"
+        )
+    if kind == "order_json_disabled":
+        return (
+            f"mini-LLM order parser DISABLED ({model}): {ev.get('reason', '')}"
+        )
+    if kind == "order_json_fallback_to_deterministic":
+        turn = ev.get("turn")
+        turn_s = f" turn={turn}" if turn is not None else ""
+        cnt = ev.get("structured_orders_count")
+        fr = ev.get("fallback_reason")
+        fr_s = f" reason={fr}" if fr else ""
+        return (
+            "order parser FALLBACK -> deterministic"
+            f"{turn_s}: structured_orders={cnt}{fr_s}"
+        )
     return json.dumps(ev, ensure_ascii=False)[:240]

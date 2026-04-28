@@ -6,6 +6,7 @@
 """
 
 import argparse
+import os
 
 import _bootstrap
 
@@ -49,8 +50,16 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--realistic_cashier",
-        action="store_true",
-        help="Кассир не получает скрытый профиль и RAG без фильтра аллергенов по профилю.",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Кассир не получает скрытый профиль и RAG без фильтра аллергенов по профилю (по умолчанию: true).",
+    )
+    parser.add_argument(
+        "--client_variation",
+        type=str,
+        choices=("high", "normal", "off"),
+        default="high",
+        help="Режим вариативности клиентского промпта: high|normal|off (по умолчанию high).",
     )
     return parser.parse_args()
 
@@ -100,6 +109,8 @@ def _make_progress_printer(*, print_trace: bool, trace_verbose: bool):
 
 if __name__ == "__main__":
     args = _parse_args()
+    os.environ["CLIENT_PROMPT_VARIATION"] = args.client_variation
+    print(f"[config] client_variation={args.client_variation}", flush=True)
     collect_rag = args.rag_trace or args.print_trace
     collect_llm = args.llm_trace or args.print_trace
     try:

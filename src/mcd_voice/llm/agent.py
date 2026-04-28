@@ -29,14 +29,18 @@ import json
 import os
 import re
 import time
+from collections.abc import Sequence
 from typing import Any
 
 from openai import APITimeoutError, OpenAI, OpenAIError
 
 from mcd_voice.llm.prompts import get_cashier_system_prompt, get_client_system_prompt
 from mcd_voice.menu.graph_rag import search_menu_graph
+from mcd_voice.menu.rag_constraints import merge_rag_allergen_blacklist
+from mcd_voice.menu.rag_structured import get_rag_json_system_prompt, parse_rag_json_response
 from mcd_voice.menu.search import search_menu
 from mcd_voice.profile.generator import get_group_allergen_blacklist
+from mcd_voice.text_normalization import normalize_item_text as _normalize_item_text
 
 # ── Константы ─────────────────────────────────────────────────────────────────
 
@@ -76,150 +80,38 @@ RAG_MODE_GRAPH = "graph"
 
 HistoryEntry = dict[str, str]
 
-# RAG: клиент просит «что ещё / другие позиции», а не уточнение одного блюда.
-_BROAD_MENU_RAG_QUERY = (
-    "popular menu items burgers chicken sandwiches sides drinks dessert coffee"
-)
 
-# RAG: клиент просит *другие* варианты кофе — узкий rewrite («coffee») тянет одни и те же хиты.
-_COFFEE_BROAD_RAG_QUERY = (
-    "McCafe coffee menu black coffee cold coffee iced coffee premium roast "
-    "French vanilla latte caramel macchiato mocha frappe caramel frappe "
-    "cold coffee McFloat"
-)
-
-_COFFEE_VARIETY_INTENT_RES: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\b(another|different|other)\s+coffee\b", re.I),
-    re.compile(r"\bother\s+kinds?\s+of\s+coffee\b", re.I),
-    re.compile(r"\bother\s+coffee\b", re.I),
-    re.compile(r"\bany\s+other\b.*\bcoffee\b", re.I),
-    re.compile(r"\bcoffee\b.*\bany\s+other\b", re.I),
-    re.compile(r"\bwhat\s+(other|kinds?|types?|sorts?)\b.*\bcoffee\b", re.I),
-    re.compile(r"\bkinds?\s+of\s+coffee\b", re.I),
-    re.compile(r"\bbesides\b.*\bcoffee\b|\bcoffee\b.*\bbesides\b", re.I),
-    # «coffee other …», «other … coffee», variants
-    re.compile(
-        r"\bcoffee\b.*\b(other|more|different|variants?|options?)\b|"
-        r"\b(other|more|different)\b.*\bcoffee\b|\bvariants?\b.*\bcoffee\b|\bcoffee\b.*\bvariants?\b",
-        re.I,
-    ),
-    # Russian (профиль часто RU)
-    re.compile(r"\b(другой|ещё|еще|иной)\s+кофе\b", re.I),
-    re.compile(r"\bкак(ой|ие)\s+(еще|ещё)\s+кофе\b", re.I),
-    re.compile(r"\bдруг(ие|их)\s+сорт(а|ов)?\s+кофе\b", re.I),
-)
-
-# Недавний диалог уже про кофе — короткое «what else» / «other variants» без слова coffee.
-_COFFEE_TOPIC_IN_HISTORY_RE = re.compile(
-    r"\bcoffee\b|\blatte\b|\bmacchiato\b|\bmocha\b|\bfrappe\b|\bespresso\b|"
-    r"\bpremium\s+roast\b|\broast\s+coffee\b|\bcold\s+coffee\b|\bblack\s+coffee\b|\biced\s+coffee\b",
-    re.I,
-)
-
-_SHORT_TOPIC_CARRY_RE = re.compile(
-    r"^\s*(what\s+else|something\s+else|anything\s+else|maybe\s+something\s+else)\b",
-    re.I,
-)
-
-_SHORT_OTHER_VARIANTS_RE = re.compile(r"^\s*other\s+variants?\s*[.!?,]?\s*$", re.I)
-
-_COFFEE_COUNT_INTENT_RE = re.compile(
-    r"\b(how\s+many|count|number\s+of|сколько|кол-?во|количество)\b",
-    re.I,
-)
-_COFFEE_NAME_HINT_RE = re.compile(
-    r"\bcoffee\b|\blatte\b|\bmacchiato\b|\bfrappe\b|\bmocha\b|\bmcfloat\b|\bкофе\b",
-    re.I,
-)
-
-_MENU_MORE_THAN_LISTED_RE = re.compile(
-    r"\b(menu|your\s+menu|in\s+the\s+menu)\b.*\b(more|other)\b|"
-    r"\b(more|other)\s+variants?\b.*\b(menu|list)\b|"
-    r"\bsee\s+.*\b(more|other)\b.*\bvariants?\b",
-    re.I,
-)
-
-
-def _enrich_client_text_for_menu_rag(
-    history: list[HistoryEntry],
-    client_text: str,
-) -> str:
+def _use_lexical_exclusions() -> bool:
     """
-    Короткие уточнения («what else», «other variants») без слова coffee — подмешиваем
-    тему из недавней истории, иначе RAG уезжает в чай/десерты.
+    Post-filter by lexical terms is optional and disabled by default.
+    Default vector-only behavior: rely on embeddings + metadata filters.
     """
-    t = (client_text or "").strip()
-    if not t or len(t) > 200:
-        return t
-    recent = " ".join((h.get("text") or "") for h in history[-16:])
-    if not _COFFEE_TOPIC_IN_HISTORY_RE.search(recent.lower()):
-        return t
-    if _SHORT_TOPIC_CARRY_RE.match(t) or _SHORT_OTHER_VARIANTS_RE.match(t):
-        return (
-            f"{t} — customer still exploring coffee drink options "
-            "latte frappe mocha macchiato premium roast iced coffee"
-        )
-    if len(t) <= 120 and _MENU_MORE_THAN_LISTED_RE.search(t):
-        return (
-            f"{t} — still about coffee line more drink names "
-            "premium roast black cold iced latte frappe macchiato"
-        )
-    return t
+    v = (os.environ.get("RAG_USE_LEXICAL_EXCLUDE") or "0").strip().lower()
+    return v in ("1", "true", "yes", "on")
 
-_BROAD_MENU_INTENT_RES: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bwhat\s+else\b", re.I),
-    re.compile(r"\banything\s+else\b", re.I),
-    re.compile(r"\bsomething\s+else\b", re.I),
-    re.compile(r"\b(other\s+options?|other\s+items?|other\s+choices?)\b", re.I),
-    re.compile(r"\bbesides\s+(that|this)\b", re.I),
-    re.compile(r"\bother\s+than\b", re.I),
-    re.compile(r"\bnot\s+just\b", re.I),
-    re.compile(r"\bany\s+other\b", re.I),
-    re.compile(r"\belse\s+do\s+you\s+have\b", re.I),
-    re.compile(r"\belse\s+on\s+the\s+menu\b", re.I),
-    re.compile(r"\bwhat\s+other\b", re.I),
-)
-
-
-def _client_wants_broader_menu_scan(text: str) -> bool:
-    """True если реплика про расширение выбора, а не про одно конкретное блюдо."""
-    if not (text or "").strip():
+def _was_name_already_discussed(name: str, history: list[HistoryEntry]) -> bool:
+    n = _normalize_item_text(name)
+    if not n:
         return False
-    return any(rx.search(text) for rx in _BROAD_MENU_INTENT_RES)
+    for h in history[-24:]:
+        t = _normalize_item_text(h.get("text") or "")
+        if not t:
+            continue
+        if n in t:
+            return True
+    return False
 
 
-def _client_wants_coffee_variety_scan(text: str) -> bool:
-    """
-    True если клиент просит *ещё варианты* кофе, а не одну конкретную позицию.
-
-    Тогда векторный поиск по одному слову «coffee» даёт узкий срез — подменяем запрос
-    на разнообразные ключевые слова из линейки напитков.
-    """
-    if not (text or "").strip():
-        return False
-    if not re.search(
-        r"\bcoffee\b|\blatte\b|\bmacchiato\b|\bfrappe\b|\bmocha\b|\bкофе\b",
-        text,
-        re.I,
-    ):
-        return False
-    return any(rx.search(text) for rx in _COFFEE_VARIETY_INTENT_RES)
-
-
-def _client_asks_coffee_variant_count(text: str) -> bool:
-    """True when customer asks for coffee variants count in menu."""
-    t = (text or "").strip()
-    if not t:
-        return False
-    if not _COFFEE_NAME_HINT_RE.search(t):
-        return False
-    if _COFFEE_COUNT_INTENT_RE.search(t):
-        return True
-    return bool(re.search(r"\bvariants?\b.*\bmenu\b|\bmenu\b.*\bvariants?\b", t, re.I))
+def _rag_intent(spec: dict[str, Any] | None) -> str:
+    raw = str((spec or {}).get("intent") or "lookup").strip().lower()
+    if raw in {"lookup", "alternatives", "details", "calorie_tune", "compare"}:
+        return raw
+    return "lookup"
 
 
 _NON_FOOD_CLIENT_UTTERANCE_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(yes|yeah|yep|correct|right|okay|ok)\s*[.!?]*\s*$", re.I),
+    re.compile(r"^\s*(okay|ok),?\s*(that'?s|thats)\s+all(?:,?\s*thanks?)?\s*[.!?]*\s*$", re.I),
     re.compile(r"^\s*(okay|ok|yes|yeah|yep),?\s*thanks?(?:\s+you)?\s*[.!?]*\s*$", re.I),
     re.compile(r"^\s*(yes|yeah|yep),?\s*(that'?s|thats)\s+right\s*[.!?]*\s*$", re.I),
     re.compile(r"^\s*(that'?s|thats)\s+(right|correct|fine)\s*[.!?]*\s*$", re.I),
@@ -229,18 +121,23 @@ _NON_FOOD_CLIENT_UTTERANCE_RES: tuple[re.Pattern[str], ...] = (
 )
 
 
+_ORDER_INTENT_RE = re.compile(
+    r"\b("
+    r"order|add|take|want|need|get|have|choose|pick|recommend|suggest|"
+    r"burger|sandwich|nuggets?|fries|salad|drink|coffee|tea|cola|coke|sprite|fanta|"
+    r"meal|combo|side|dessert|kcal|calories?|nutrition|protein|fat|carbs|sugar|sodium"
+    r")\b",
+    re.I,
+)
+
+
 def _is_non_food_client_utterance(text: str) -> bool:
     """True for short confirmation/closure phrases where RAG should be skipped."""
     t = (text or "").strip()
     if not t:
         return False
-    t_low = t.lower()
-    # If customer mentions concrete food, do not skip RAG.
-    if re.search(
-        r"\b(big mac|burger|hamburger|fries|nuggets?|mcchicken|coke|diet coke|sprite|"
-        r"fanta|dr pepper|coffee|tea|lemonade|salad|happy meal)\b",
-        t_low,
-    ):
+    # Generic order/menu/nutrition intent should keep RAG enabled.
+    if _ORDER_INTENT_RE.search(t):
         return False
     if any(rx.match(t) for rx in _NON_FOOD_CLIENT_UTTERANCE_RES):
         return True
@@ -270,22 +167,110 @@ def _extract_names_from_rag_context(rag_context: str) -> list[str]:
     return out
 
 
-def _coffee_count_response_from_rag_context(rag_context: str) -> str | None:
-    """
-    Deterministic fallback for 'how many coffee variants' questions.
-    Uses only current RAG context names to avoid hallucinated products.
-    """
-    names = [
-        n for n in _extract_names_from_rag_context(rag_context)
-        if _COFFEE_NAME_HINT_RE.search(n)
-    ]
-    if not names:
-        return None
-    return (
-        f"I can confirm {len(names)} coffee variants in our menu right now: "
-        + ", ".join(names)
-        + ". Which one would you like?"
+def _matches_menu_name_in_text(name: str, text: str) -> bool:
+    n = _normalize_item_text(name)
+    t = _normalize_item_text(text)
+    if not n or not t:
+        return False
+    return n in t
+
+
+def _allergen_hits(
+    allergens: Sequence[str] | None,
+    blacklist: Sequence[str] | None,
+) -> list[str]:
+    if not allergens or not blacklist:
+        return []
+    bl = {str(x).strip().lower() for x in blacklist if str(x).strip()}
+    if not bl:
+        return []
+    hits: list[str] = []
+    for a in allergens:
+        token = str(a).strip()
+        if token and token.lower() in bl and token not in hits:
+            hits.append(token)
+    return hits
+
+
+def _collect_allergen_excluded_candidates(
+    *,
+    query: str,
+    shown_rows: Sequence[dict[str, Any]],
+    blacklist: Sequence[str],
+    top_k: int,
+    max_energy: float | None,
+    min_energy: float | None,
+    excluded_lexical: Sequence[str] | None,
+) -> list[dict[str, Any]]:
+    if not blacklist:
+        return []
+    try:
+        unfiltered_rows = search_menu(
+            query,
+            allergens_blacklist=None,
+            top_k=max(top_k, RAG_CATALOG_TOP_K),
+            max_energy=max_energy,
+            min_energy=min_energy,
+            excluded_lexical=excluded_lexical,
+        )
+    except Exception:
+        return []
+
+    shown_names = {str(r.get("name") or "") for r in shown_rows}
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in unfiltered_rows:
+        name = str(row.get("name") or "")
+        if not name or name in shown_names:
+            continue
+        hits = _allergen_hits(row.get("allergens"), blacklist)
+        if not hits:
+            continue
+        existing = by_name.get(name)
+        if existing is None:
+            by_name[name] = {
+                "name": name,
+                "distance": float(row.get("distance") or 0.0),
+                "allergens": hits,
+                "mentioned_in_query": _matches_menu_name_in_text(name, query),
+            }
+            continue
+        existing["distance"] = min(existing["distance"], float(row.get("distance") or 0.0))
+        merged = list(existing.get("allergens") or [])
+        for h in hits:
+            if h not in merged:
+                merged.append(h)
+        existing["allergens"] = merged
+        existing["mentioned_in_query"] = bool(existing["mentioned_in_query"]) or _matches_menu_name_in_text(name, query)
+
+    out = sorted(
+        by_name.values(),
+        key=lambda r: (
+            0 if bool(r.get("mentioned_in_query")) else 1,
+            float(r.get("distance") or 0.0),
+            str(r.get("name") or ""),
+        ),
     )
+    return out[:3]
+
+
+def _render_excluded_constraints_block(
+    excluded_rows: Sequence[dict[str, Any]],
+) -> str:
+    if not excluded_rows:
+        return ""
+    lines = [
+        "Items excluded by dietary constraints this turn (they may exist on menu but are not suitable):",
+    ]
+    for row in excluded_rows:
+        name = str(row.get("name") or "").strip()
+        allergens = ", ".join(str(a) for a in (row.get("allergens") or []) if str(a).strip())
+        if not name:
+            continue
+        if allergens:
+            lines.append(f"* {name} (contains: {allergens})")
+        else:
+            lines.append(f"* {name}")
+    return "\n".join(lines) if len(lines) > 1 else ""
 
 
 def _normalize_rewrite_output(text: str) -> str:
@@ -331,46 +316,7 @@ def _should_skip_rag(client_text: str, search_query: str) -> bool:
     return False
 
 
-def _client_is_specific_order(text: str) -> bool:
-    t = (text or "").lower()
-    if re.search(r"\b(i('ll| will)?|can i|i would like|i want|i'll take)\b", t):
-        return True
-    return bool(
-        re.search(
-            r"\b(big mac|burger|hamburger|fries|nuggets?|mcchicken|coke|diet coke|sprite|"
-            r"fanta|dr pepper|coffee|tea|lemonade|salad|happy meal)\b",
-            t,
-        )
-    )
-
-
-def _fallback_query_from_client_text(text: str) -> str:
-    t = (text or "").lower()
-    picked: list[str] = []
-
-    def add_if(cond: bool, token: str) -> None:
-        if cond and token not in picked:
-            picked.append(token)
-
-    add_if("big mac" in t, "big mac")
-    add_if("mcchicken" in t, "mcchicken")
-    add_if("fries" in t, "fries")
-    add_if("diet coke" in t, "diet coke")
-    add_if("coke" in t and "diet coke" not in t, "coke")
-    add_if("nugget" in t, "nuggets")
-    add_if("burger" in t and "big mac" not in t, "burger")
-    add_if("sandwich" in t, "sandwich")
-    add_if("coffee" in t, "coffee")
-    add_if("tea" in t, "tea")
-    add_if("lemonade" in t, "lemonade")
-    add_if("sprite" in t, "sprite")
-
-    if picked:
-        return " ".join(picked[:6])
-    return "general menu items"
-
-
-def _sanitize_cashier_response(text: str) -> str:
+def _sanitize_cashier_response(text: str, *, allow_calories: bool = True) -> str:
     """Remove formatting/emoji artifacts forbidden by cashier prompt."""
     cleaned = (text or "").strip()
     if not cleaned:
@@ -397,6 +343,11 @@ def _sanitize_cashier_response(text: str) -> str:
             # case-insensitive single replacement preserving surrounding text.
             cleaned = re.sub(re.escape(src), dst, cleaned, flags=re.I)
             low = cleaned.lower()
+    cleaned = re.sub(r"\bfoodwould\b", "food would", cleaned, flags=re.I)
+    if not allow_calories:
+        # Remove unsolicited calories from free-form cashier output.
+        cleaned = re.sub(r"\(\s*~?\s*\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?\s*kcal\s*\)", "", cleaned, flags=re.I)
+        cleaned = re.sub(r"~?\s*\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?\s*kcal", "", cleaned, flags=re.I)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
@@ -547,6 +498,7 @@ def _call_llm(
     """Один Chat Completions вызов; бросает RuntimeError при пустом ответе."""
     payload = [{"role": "system", "content": system}, *messages]
     timeout_err: APITimeoutError | None = None
+    openai_err: OpenAIError | None = None
     for attempt in range(3):
         try:
             create_kwargs: dict[str, Any] = {
@@ -570,9 +522,106 @@ def _call_llm(
                 continue
             raise RuntimeError(f"Таймаут OpenAI API: {exc}") from exc
         except OpenAIError as exc:
+            openai_err = exc
+            # Free/cloud routes often emit transient 429/5xx; small retry helps
+            # reduce hard dialog failures during batch dataset generation.
+            err_text = str(exc).lower()
+            is_retryable = (
+                "429" in err_text
+                or "rate limit" in err_text
+                or "timeout" in err_text
+                or "temporarily unavailable" in err_text
+                or "503" in err_text
+                or "502" in err_text
+                or "500" in err_text
+            )
+            if is_retryable and attempt < 2:
+                time.sleep(1.0 * (attempt + 1))
+                continue
             raise RuntimeError(f"Ошибка OpenAI API: {exc}") from exc
     # unreachable, but keeps type checkers happy
-    raise RuntimeError(f"Таймаут OpenAI API: {timeout_err}")
+    if timeout_err is not None:
+        raise RuntimeError(f"Таймаут OpenAI API: {timeout_err}")
+    raise RuntimeError(f"Ошибка OpenAI API: {openai_err}")
+
+
+def _rewrite_rag_structured_json(
+    rag_text: str,
+    client: OpenAI,
+    model: str,
+    *,
+    llm_trace: list[dict[str, Any]] | None = None,
+    trace_meta: dict[str, Any] | None = None,
+    trace_verbose: bool = False,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """
+    Один вызов mini-LLM: JSON с intent, search_query, excluded_allergens,
+    excluded_lexical, max/min kcal.
+    Успех: (spec, None). Иначе (None, error_message).
+    """
+    t0 = time.perf_counter()
+    try:
+        raw = _call_llm(
+            client,
+            model,
+            get_rag_json_system_prompt(),
+            [{"role": "user", "content": rag_text}],
+            temperature=0.0,
+        )
+        spec = parse_rag_json_response(raw)
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        _trace(
+            llm_trace,
+            {
+                "event": "rag_json_rewrite",
+                **(trace_meta or {}),
+                "model": model,
+                "kind": "rag_structured_json",
+                "rag_json_duration_ms": round(dt_ms, 2),
+                **(
+                    {
+                        "raw_response": raw,
+                        "spec": spec,
+                    }
+                    if trace_verbose
+                    else {
+                        "raw_preview": _preview(raw),
+                    }
+                ),
+            },
+        )
+        return (spec, None)
+    except (json.JSONDecodeError, TypeError, ValueError, KeyError) as exc:
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        _trace(
+            llm_trace,
+            {
+                "event": "rag_json_parse_error",
+                **(trace_meta or {}),
+                "model": model,
+                "error": str(exc)[:200],
+                "rag_json_duration_ms": round(dt_ms, 2),
+            },
+        )
+        return (None, str(exc))
+    except (RuntimeError, OSError) as exc:
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        _trace(
+            llm_trace,
+            {
+                "event": "rag_json_llm_error",
+                **(trace_meta or {}),
+                "model": model,
+                "error": str(exc)[:200],
+                "rag_json_duration_ms": round(dt_ms, 2),
+            },
+        )
+        return (None, str(exc))
+
+
+def _use_rag_json_rewrite() -> bool:
+    v = (os.environ.get("RAG_JSON_REWRITE") or "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
 
 
 def _history_to_messages(
@@ -669,19 +718,6 @@ class CashierAgent:
     правила и реплики из диалога; фильтр аллергенов в RAG по профилю отключается.
     """
 
-    _FALLBACK_QUERIES = [
-        "popular burgers Big Mac Quarter Pounder cheeseburger",
-        "chicken sandwiches nuggets crispy spicy tenders",
-        "breakfast items Egg McMuffin hash browns hotcakes biscuit",
-        "sides fries apple slices mozzarella sticks",
-        "drinks Coca-Cola Sprite Diet Coke Dr Pepper sweet tea lemonade",
-        "coffee latte macchiato frappe iced coffee hot chocolate",
-        "milkshakes chocolate vanilla strawberry smoothie",
-        "salads caesar grilled chicken light options",
-        "desserts McFlurry sundae apple pie brownie cookie",
-        "value menu hamburger McDouble cheeseburger",
-    ]
-
     def __init__(
         self,
         model: str | None = None,
@@ -692,11 +728,16 @@ class CashierAgent:
         rag_mode: str = RAG_MODE_VECTOR,
         *,
         trace_verbose: bool = False,
-        realistic_cashier: bool = False,
+        realistic_cashier: bool = True,
         rag_max_prompt_lines: int | None = None,
     ) -> None:
         self.model = _resolve_model(model)
-        self.rag_top_k = rag_top_k
+        # Always query broad vector slice by default; very small top_k leads
+        # to artificial menu narrowing (e.g. only fries/coffee).
+        if rag_top_k <= 0:
+            self.rag_top_k = 0
+        else:
+            self.rag_top_k = max(int(rag_top_k), RAG_CATALOG_TOP_K)
         self.distance_threshold = distance_threshold
         self.rag_max_prompt_lines = (
             rag_max_prompt_lines
@@ -729,7 +770,7 @@ class CashierAgent:
         llm_trace: list[dict[str, Any]] | None = None,
     ) -> str:
         client_text = query or _last_client_text(history)
-        rag_context = self._resolve_rag_context(
+        rag_context, rag_spec = self._resolve_rag_context(
             client_text,
             profile,
             history,
@@ -737,26 +778,66 @@ class CashierAgent:
             rag_meta=rag_meta,
             llm_trace=llm_trace,
         )
-        if _client_asks_coffee_variant_count(client_text):
-            deterministic = _coffee_count_response_from_rag_context(rag_context)
-            if deterministic:
-                _trace(
-                    llm_trace,
-                    {
-                        "event": "deterministic_coffee_count_reply",
-                        **(rag_meta or {}),
-                        "source": "rag_context",
-                        "coffee_variants_count": len(
-                            [
-                                n
-                                for n in _extract_names_from_rag_context(rag_context)
-                                if _COFFEE_NAME_HINT_RE.search(n)
-                            ]
-                        ),
-                    },
-                )
-                return deterministic
-        system = self._build_system(profile, order_state, rag_context)
+        intent = _rag_intent(rag_spec)
+        allow_calories = (
+            intent == "calorie_tune"
+            or any(
+                str(m.get("field")) == "energy"
+                for m in (rag_spec or {}).get("compare_metrics", [])
+                if isinstance(m, dict)
+            )
+            or (rag_spec or {}).get("max_kcal") is not None
+            or (rag_spec or {}).get("min_kcal") is not None
+        )
+        macro_reply = (
+            self._deterministic_compare_reply(profile, client_text, rag_spec)
+            if intent == "compare"
+            else None
+        )
+        if macro_reply:
+            _trace(
+                llm_trace,
+                {
+                    "event": "deterministic_compare_reply",
+                    **(rag_meta or {}),
+                },
+            )
+            return macro_reply
+        meal_details = (
+            self._deterministic_meal_details_reply(client_text, rag_context)
+            if intent == "details"
+            else None
+        )
+        if meal_details:
+            _trace(
+                llm_trace,
+                {
+                    "event": "deterministic_meal_details_reply",
+                    **(rag_meta or {}),
+                },
+            )
+            return meal_details
+        tune_reply = (
+            self._deterministic_calorie_tuning_reply(profile, order_state, client_text)
+            if intent == "calorie_tune"
+            else None
+        )
+        if tune_reply:
+            _trace(
+                llm_trace,
+                {
+                    "event": "deterministic_calorie_tuning_reply",
+                    **(rag_meta or {}),
+                    "target_kcal": profile.get("calApprValue"),
+                },
+            )
+            return tune_reply
+        system = self._build_system(
+            profile,
+            order_state,
+            rag_context,
+            allow_calories=allow_calories,
+        )
         messages = _history_to_messages(history, my_role="cashier")
         try:
             t0 = time.perf_counter()
@@ -775,7 +856,7 @@ class CashierAgent:
                 ),
             )
             raise
-        response = _sanitize_cashier_response(response)
+        response = _sanitize_cashier_response(response, allow_calories=allow_calories)
         _trace(
             llm_trace,
             _llm_call_payload(
@@ -790,6 +871,211 @@ class CashierAgent:
         )
         return response
 
+    def _deterministic_meal_details_reply(self, client_text: str, rag_context: str) -> str | None:
+        if not (client_text or "").strip():
+            return None
+        names = _extract_names_from_rag_context(rag_context)
+        if not names:
+            return None
+        target = names[0]
+        rows = search_menu(target, top_k=min(max(self.rag_top_k, 8), RAG_CATALOG_TOP_K))
+        if not rows:
+            return None
+        norm_target = re.sub(r"[^a-z0-9]+", " ", target.lower()).strip()
+        picked = None
+        for r in rows:
+            n = re.sub(r"[^a-z0-9]+", " ", str(r.get("name") or "").lower()).strip()
+            if n == norm_target:
+                picked = r
+                break
+        if picked is None:
+            picked = rows[0]
+        name = str(picked.get("name") or target).strip()
+        ingredients = str(picked.get("ingredients") or "").strip()
+        description = str(picked.get("description") or "").strip()
+        allergens = picked.get("allergens") or []
+        allergens_text = ", ".join(str(x) for x in allergens if str(x).strip()) or "none listed"
+        kcal = float(picked.get("energy") or 0.0)
+        parts: list[str] = []
+        if description:
+            parts.append(f"{name}: {description}")
+        else:
+            parts.append(f"{name}: this is one of our available menu items.")
+        if ingredients:
+            parts.append(f"Ingredients: {ingredients}.")
+        parts.append(f"Allergens: {allergens_text}.")
+        if kcal > 0:
+            parts.append(f"Approx. {kcal:.0f} kcal.")
+        parts.append("Would you like to add it to your order?")
+        return " ".join(parts)
+
+    def _deterministic_calorie_tuning_reply(
+        self,
+        profile: dict[str, Any],
+        order_state: dict[str, Any],
+        client_text: str,
+    ) -> str | None:
+        if not (client_text or "").strip():
+            return None
+        try:
+            target = float(profile.get("calApprValue") or 0.0)
+        except (TypeError, ValueError):
+            return None
+        if target <= 0:
+            return None
+        persons = order_state.get("persons", []) or []
+        current = float(sum(float(p.get("total_energy") or 0.0) for p in persons))
+        delta = round(target - current, 1)
+        if abs(delta) <= 40:
+            return (
+                f"You are already very close to your target: about {current:.0f} kcal "
+                f"vs target {target:.0f} kcal. We can keep the order as-is."
+            )
+        base: list[str] = [] if self._realistic_cashier else get_group_allergen_blacklist(profile)
+        blacklist, _ = merge_rag_allergen_blacklist(base, [client_text])
+        rows = search_menu(
+            "light sides drinks snacks simple add-on options",
+            allergens_blacklist=blacklist or None,
+            top_k=max(self.rag_top_k, RAG_CATALOG_TOP_K),
+        )
+        if not rows:
+            return None
+        current_items = {
+            str(it.get("name", "")).strip()
+            for p in persons
+            for it in (p.get("items", []) or [])
+            if str(it.get("name", "")).strip()
+        }
+        dedup: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            name = str(r.get("name") or "").strip()
+            if not name:
+                continue
+            if name in dedup and float(dedup[name].get("distance", 9.0)) <= float(r.get("distance", 9.0)):
+                continue
+            dedup[name] = r
+        candidates = [
+            r for r in dedup.values()
+            if float(r.get("energy") or 0.0) > 0.0 and str(r.get("name") or "").strip() not in current_items
+        ]
+        if not candidates:
+            candidates = [r for r in dedup.values() if float(r.get("energy") or 0.0) > 0.0]
+        if not candidates:
+            return None
+        if delta > 0:
+            best = min(candidates, key=lambda r: abs(float(r.get("energy") or 0.0) - delta))
+            add_kcal = float(best.get("energy") or 0.0)
+            return (
+                f"To stay near your target with minimal change, add 1 {best['name']} "
+                f"(~{add_kcal:.0f} kcal). This moves the order from ~{current:.0f} to "
+                f"~{current + add_kcal:.0f} kcal."
+            )
+        reduce = abs(delta)
+        best_low = min(candidates, key=lambda r: abs(float(r.get("energy") or 0.0) - reduce))
+        low_kcal = float(best_low.get("energy") or 0.0)
+        return (
+            f"You are above target by about {reduce:.0f} kcal. Minimal tweak: replace one higher-calorie "
+            f"item with {best_low['name']} (~{low_kcal:.0f} kcal) to bring total closer to "
+            f"{target:.0f} kcal."
+        )
+
+    def _deterministic_compare_reply(
+        self,
+        profile: dict[str, Any],
+        client_text: str,
+        rag_spec: dict[str, Any] | None,
+    ) -> str | None:
+        metrics = [
+            m for m in (rag_spec or {}).get("compare_metrics", [])
+            if isinstance(m, dict) and m.get("field") and m.get("goal")
+        ]
+        if not metrics:
+            return None
+        search_query = str((rag_spec or {}).get("search_query") or "").strip()
+        if not search_query:
+            return None
+        base: list[str] = [] if self._realistic_cashier else get_group_allergen_blacklist(profile)
+        blacklist, _ = merge_rag_allergen_blacklist(base, [client_text])
+        rows = search_menu(
+            search_query,
+            allergens_blacklist=blacklist or None,
+            max_energy=float((rag_spec or {}).get("max_kcal"))
+            if (rag_spec or {}).get("max_kcal") is not None else None,
+            min_energy=float((rag_spec or {}).get("min_kcal"))
+            if (rag_spec or {}).get("min_kcal") is not None else None,
+            top_k=max(self.rag_top_k, RAG_CATALOG_TOP_K),
+        )
+        if not rows:
+            return None
+        uniq: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            name = str(r.get("name") or "").strip()
+            if not name:
+                continue
+            cur = uniq.get(name)
+            if cur is None or float(r.get("distance") or 9.0) < float(cur.get("distance") or 9.0):
+                uniq[name] = r
+        cands = list(uniq.values())
+        if not cands:
+            return None
+        def _metric_val(row: dict[str, Any], field: str) -> float:
+            try:
+                return float(row.get(field) or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _sort_key(row: dict[str, Any]) -> tuple[float, ...]:
+            vals: list[float] = []
+            for m in metrics:
+                fld = str(m.get("field"))
+                goal = str(m.get("goal"))
+                val = _metric_val(row, fld)
+                vals.append(-val if goal == "max" else val)
+            vals.append(float(row.get("distance") or 9.0))
+            return tuple(vals)
+
+        cands.sort(key=_sort_key)
+        best = cands[0]
+        alt = cands[1] if len(cands) > 1 else None
+        field_units = {
+            "energy": "kcal",
+            "protein": "g",
+            "total_fat": "g",
+            "sat_fat": "g",
+            "trans_fat": "g",
+            "chol": "mg",
+            "carbs": "g",
+            "total_sugar": "g",
+            "added_sugar": "g",
+            "sodium": "mg",
+        }
+        field_labels = {
+            "energy": "energy",
+            "protein": "protein",
+            "total_fat": "fat",
+            "sat_fat": "saturated fat",
+            "trans_fat": "trans fat",
+            "chol": "cholesterol",
+            "carbs": "carbs",
+            "total_sugar": "total sugar",
+            "added_sugar": "added sugar",
+            "sodium": "sodium",
+        }
+
+        def _metrics_text(row: dict[str, Any]) -> str:
+            parts: list[str] = []
+            for m in metrics:
+                fld = str(m.get("field"))
+                v = _metric_val(row, fld)
+                parts.append(f"{field_labels.get(fld, fld)} ~{v:.0f} {field_units.get(fld, '')}".strip())
+            return ", ".join(parts)
+
+        msg = f"Best fit is {best['name']}: {_metrics_text(best)}."
+        if alt:
+            msg += f" Another option is {alt['name']}: {_metrics_text(alt)}."
+        msg += " Would you like to go with the first one?"
+        return msg
+
     # ── RAG ───────────────────────────────────────────────────────────────────
 
     def _resolve_rag_context(
@@ -801,7 +1087,7 @@ class CashierAgent:
         rag_trace: list[dict[str, Any]] | None,
         rag_meta: dict[str, Any] | None,
         llm_trace: list[dict[str, Any]] | None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any] | None]:
         """
         Запускает семантический поиск по меню и возвращает контекст для промпта.
 
@@ -811,10 +1097,7 @@ class CashierAgent:
         Если клиент ещё не говорил (приветствие) — используется fallback-запрос.
         """
         base_trace = {**(rag_meta or {}), "client_query": client_text[:800]}
-        rag_text = _enrich_client_text_for_menu_rag(history, client_text)
-        if rag_text != client_text:
-            base_trace["rag_query_enriched"] = True
-            base_trace["client_query_for_rag"] = rag_text[:800]
+        rag_text = (client_text or "").strip()
 
         if self.rag_top_k <= 0:
             _trace(
@@ -826,17 +1109,27 @@ class CashierAgent:
                     "retrieval_mode": self.rag_mode,
                 },
             )
-            return ""
+            return ("", None)
 
         if client_text:
-            search_query = _rewrite_query(
-                rag_text,
-                self._client,
-                self._rewrite_model,
-                llm_trace=llm_trace,
-                trace_meta=rag_meta,
-                trace_verbose=self._trace_verbose,
-            )
+            rag_json_spec: dict[str, Any] | None = None
+            if _use_rag_json_rewrite():
+                jspec, _jerr = _rewrite_rag_structured_json(
+                    rag_text,
+                    self._client,
+                    self._rewrite_model,
+                    llm_trace=llm_trace,
+                    trace_meta=rag_meta,
+                    trace_verbose=self._trace_verbose,
+                )
+                if jspec is not None:
+                    rag_json_spec = dict(jspec)
+            if rag_json_spec is not None:
+                search_query = str(rag_json_spec.get("search_query", "")).strip()
+                if not search_query:
+                    rag_json_spec = None
+            if rag_json_spec is None:
+                search_query = _normalize_rewrite_output(rag_text)
             is_fallback = False
             if _should_skip_rag(client_text, search_query):
                 _trace(
@@ -849,14 +1142,33 @@ class CashierAgent:
                         "retrieval_mode": self.rag_mode,
                     },
                 )
-                return ""
+                return ("", rag_json_spec)
         else:
-            import random as _rand
-            search_query = _rand.choice(self._FALLBACK_QUERIES)
-            is_fallback = True
+            _trace(
+                rag_trace,
+                {
+                    **base_trace,
+                    "event": "rag_skipped_no_client_query",
+                    "retrieval_mode": self.rag_mode,
+                },
+            )
+            return ("", None)
 
+        ctexts: tuple[str, ...] = (
+            (str(rag_text), str(search_query))
+            if (client_text and not is_fallback)
+            else (str(search_query),)
+        )
+        rj = locals().get("rag_json_spec")
+        prefer_novel = _rag_intent(rj) == "alternatives"
         context, info = self._do_rag(
-            search_query, profile, rag_trace=rag_trace,
+            search_query,
+            profile,
+            rag_constraint_texts=ctexts,
+            rag_json_spec=rj if client_text and not is_fallback else None,
+            history=history,
+            prefer_novel=prefer_novel,
+            rag_trace=rag_trace,
         )
         _trace(rag_trace, {
             **base_trace,
@@ -865,16 +1177,34 @@ class CashierAgent:
             "rewrite_model": self._rewrite_model,
             **({"fallback": True} if is_fallback else {}),
             "retrieval_mode": self.rag_mode,
+            **(
+                {
+                    "rag_json_spec": {
+                        "intent": rj.get("intent"),
+                        "compare_metrics": rj.get("compare_metrics", []),
+                        "excluded_allergens": rj.get("excluded_allergens", []),
+                        "excluded_lexical": rj.get("excluded_lexical", []),
+                        "max_kcal": rj.get("max_kcal"),
+                        "min_kcal": rj.get("min_kcal"),
+                    }
+                }
+                if rj
+                else {}
+            ),
             **info,
             "context_preview": _preview(context),
         })
-        return context
+        return (context, rj if isinstance(rj, dict) else None)
 
     def _do_rag(
         self,
         text: str,
         profile: dict[str, Any],
         *,
+        rag_constraint_texts: Sequence[str] = (),
+        rag_json_spec: dict[str, Any] | None = None,
+        history: list[HistoryEntry] | None = None,
+        prefer_novel: bool = False,
         rag_trace: list[dict[str, Any]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
@@ -882,20 +1212,66 @@ class CashierAgent:
         Возвращает (текст для system prompt, метаданные для rag_trace).
         """
         if self.rag_mode == RAG_MODE_GRAPH:
-            return self._do_graph_rag(text, profile)
+            return self._do_graph_rag(
+                text,
+                profile,
+                rag_constraint_texts=rag_constraint_texts,
+                rag_json_spec=rag_json_spec,
+            )
 
-        blacklist = (
+        base: list[str] = (
             []
             if self._realistic_cashier
             else get_group_allergen_blacklist(profile)
+        )
+        if rag_json_spec is not None:
+            u = set(base) | set(rag_json_spec.get("excluded_allergens", []) or [])
+            blacklist = sorted(u)
+            cmeta = {
+                "utterance_allergen_exclusions": [],
+                "rag_json_excluded": list(rag_json_spec.get("excluded_allergens", [])),
+                "rag_json_lexical": list(rag_json_spec.get("excluded_lexical", []) or []),
+            }
+        else:
+            blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
+        max_e = rag_json_spec.get("max_kcal") if rag_json_spec else None
+        min_e = rag_json_spec.get("min_kcal") if rag_json_spec else None
+        lex_e = (
+            list(rag_json_spec.get("excluded_lexical") or [])
+            if (rag_json_spec and _use_lexical_exclusions())
+            else []
         )
         chroma_buf: list[dict[str, Any]] = []
         rows = search_menu(
             text,
             allergens_blacklist=blacklist or None,
             top_k=self.rag_top_k,
+            max_energy=float(max_e) if max_e is not None else None,
+            min_energy=float(min_e) if min_e is not None else None,
+            excluded_lexical=lex_e or None,
             chroma_trace=chroma_buf if rag_trace is not None else None,
         )
+        excluded_by_constraints = _collect_allergen_excluded_candidates(
+            query=text,
+            shown_rows=rows,
+            blacklist=blacklist,
+            top_k=self.rag_top_k,
+            max_energy=float(max_e) if max_e is not None else None,
+            min_energy=float(min_e) if min_e is not None else None,
+            excluded_lexical=lex_e or None,
+        )
+        excluded_block = _render_excluded_constraints_block(excluded_by_constraints)
+        if prefer_novel and rows:
+            seen: list[dict[str, Any]] = []
+            fresh: list[dict[str, Any]] = []
+            for r in rows:
+                nm = str(r.get("name") or "")
+                if _was_name_already_discussed(nm, history or []):
+                    seen.append(r)
+                else:
+                    fresh.append(r)
+            if fresh:
+                rows = [*fresh, *seen]
         for ev in chroma_buf:
             _trace(rag_trace, ev)
         soft_max = RAG_SOFT_DISTANCE_MAX
@@ -907,15 +1283,29 @@ class CashierAgent:
             "distance_threshold": self.distance_threshold,
             "soft_distance_max": soft_max,
             "allergen_blacklist_tokens": list(blacklist),
+            "prefer_novel": bool(prefer_novel),
+            **cmeta,
             "candidates": [
                 {"name": r["name"], "distance": r["distance"], "energy": r["energy"]}
                 for r in rows
+            ],
+            "excluded_by_constraints": [
+                {
+                    "name": str(r.get("name") or ""),
+                    "distance": float(r.get("distance") or 0.0),
+                    "allergens": list(r.get("allergens") or []),
+                    "mentioned_in_query": bool(r.get("mentioned_in_query")),
+                }
+                for r in excluded_by_constraints
             ],
         }
 
         if not rows:
             info["outcome"] = "no_chroma_hits"
-            return "(no matching menu items found for this request)", info
+            base_context = "(no matching menu items found for this request)"
+            if excluded_block:
+                return base_context + "\n\n" + excluded_block, info
+            return base_context, info
 
         best = rows[0]["distance"]
         info["best_distance"] = best
@@ -930,7 +1320,10 @@ class CashierAgent:
                 info["rag_prompt_line_cap"] = self.rag_max_prompt_lines
                 info["rag_prompt_lines_included"] = len(lines)
             info.update(outcome="injected", injected_hits=used)
-            return "\n".join(lines), info
+            context = "\n".join(lines)
+            if excluded_block:
+                context += "\n\n" + excluded_block
+            return context, info
 
         if best <= soft_max:
             lines, used = _render_rows(
@@ -943,29 +1336,59 @@ class CashierAgent:
                     info["rag_prompt_line_cap"] = self.rag_max_prompt_lines
                     info["rag_prompt_lines_included"] = len(lines)
                 info.update(outcome="injected_soft", injected_hits=used)
-                return _SOFT_PREFIX + "\n".join(lines), info
+                context = _SOFT_PREFIX + "\n".join(lines)
+                if excluded_block:
+                    context += "\n\n" + excluded_block
+                return context, info
 
         info["outcome"] = "above_threshold"
-        return "(no matching menu items found — closest match too distant)", info
+        base_context = "(no matching menu items found — closest match too distant)"
+        if excluded_block:
+            return base_context + "\n\n" + excluded_block, info
+        return base_context, info
 
     def _do_graph_rag(
         self,
         text: str,
         profile: dict[str, Any],
+        *,
+        rag_constraint_texts: Sequence[str] = (),
+        rag_json_spec: dict[str, Any] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        blacklist = (
+        base: list[str] = (
             []
             if self._realistic_cashier
             else get_group_allergen_blacklist(profile)
+        )
+        if rag_json_spec is not None:
+            u = set(base) | set(rag_json_spec.get("excluded_allergens", []) or [])
+            blacklist = sorted(u)
+            cmeta = {
+                "utterance_allergen_exclusions": [],
+                "rag_json_excluded": list(rag_json_spec.get("excluded_allergens", [])),
+                "rag_json_lexical": list(rag_json_spec.get("excluded_lexical", []) or []),
+            }
+        else:
+            blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
+        max_e = rag_json_spec.get("max_kcal") if rag_json_spec else None
+        min_e = rag_json_spec.get("min_kcal") if rag_json_spec else None
+        lex_e = (
+            list(rag_json_spec.get("excluded_lexical") or [])
+            if rag_json_spec
+            else []
         )
         rows, graph_info = search_menu_graph(
             text,
             allergens_blacklist=blacklist or None,
             top_k=self.rag_top_k,
+            max_energy=float(max_e) if max_e is not None else None,
+            min_energy=float(min_e) if min_e is not None else None,
+            excluded_lexical=lex_e or None,
         )
         info: dict[str, Any] = {
             "top_k": self.rag_top_k,
             "allergen_blacklist_tokens": list(blacklist),
+            **cmeta,
             "candidates": [
                 {"name": r["name"], "distance": r["distance"], "energy": r["energy"]}
                 for r in rows
@@ -992,16 +1415,21 @@ class CashierAgent:
         profile: dict[str, Any],
         order_state: dict[str, Any],
         rag_context: str,
+        *,
+        allow_calories: bool,
     ) -> str:
         """Собирает системный промпт: базовый + опциональные блоки RAG и заказа."""
         base = get_cashier_system_prompt(profile, realistic=self._realistic_cashier)
         extras: list[str] = []
         if rag_context:
+            context_payload = (
+                rag_context if allow_calories else _hide_kcal_in_rag_context(rag_context)
+            )
             extras.append(
                 "Menu data slice for this turn (each line: product name, kcal estimate, "
                 "allergen tags, approximate added/total sugar — not full ingredients or full "
                 "nutrition):\n"
-                f"{rag_context}"
+                f"{context_payload}"
             )
         if any(p.get("items") for p in order_state.get("persons", [])):
             extras.append(
@@ -1101,159 +1529,30 @@ def _render_rows(
     return lines, used
 
 
+def _hide_kcal_in_rag_context(rag_context: str) -> str:
+    out_lines: list[str] = []
+    for raw in (rag_context or "").splitlines():
+        line = re.sub(
+            r"~?\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?\s*kcal,\s*",
+            "",
+            raw,
+            flags=re.I,
+        )
+        line = re.sub(
+            r"\(\s*~?\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?\s*kcal\s*\)",
+            "",
+            line,
+            flags=re.I,
+        )
+        out_lines.append(re.sub(r"\s+", " ", line).strip())
+    return "\n".join(out_lines)
+
+
 _SOFT_PREFIX = (
     "Semantic match is weak; below are real menu rows. "
     "Use exact names and calories; do NOT claim the menu is empty or has no "
     "suitable items if the list is non-empty.\n\n"
 )
-
-
-def _rewrite_query(
-    client_text: str,
-    client: OpenAI,
-    model: str,
-    *,
-    llm_trace: list[dict[str, Any]] | None = None,
-    trace_meta: dict[str, Any] | None = None,
-    trace_verbose: bool = False,
-) -> str:
-    """
-    Rewrites a conversational customer message into a concise menu search query.
-
-    Example: "I'm lactose intolerant, what can my 6-year-old have?"
-             → "children's meal without dairy"
-
-    Falls back to the original text if the LLM call fails.
-    """
-    system = (
-        "You extract a short food search query (3–8 words, English) "
-        "from a customer's drive-through message. "
-        "Focus on food type, category, or dietary need. "
-        "If the customer asks what ELSE is available, for OTHER options, "
-        "anything BESIDES what was already mentioned, or NOT JUST one item, "
-        "they want a broad menu slice — output a mix of categories, e.g. "
-        "burgers chicken sandwiches sides drinks dessert coffee. "
-        "Do NOT reduce the whole message to a single side or ingredient "
-        "they only mentioned in passing (e.g. do not output only fries). "
-        "Reply with ONLY the query — no explanation, no punctuation at the end. "
-        "If there is no food intent, reply: general menu items"
-    )
-    messages = [{"role": "user", "content": client_text}]
-
-    try:
-        t0 = time.perf_counter()
-        rewritten = _call_llm(
-            client, model, system,
-            messages,
-            temperature=0.0,
-        )
-        dt_ms = (time.perf_counter() - t0) * 1000.0
-        rewritten = _normalize_rewrite_output(rewritten)
-        if _client_wants_coffee_variety_scan(client_text):
-            _trace(
-                llm_trace,
-                {
-                    "event": "rewrite_coffee_variety_override",
-                    **(trace_meta or {}),
-                    "model": model,
-                    "kind": "mini_llm_menu_query_rewrite",
-                    "prior_rewrite": rewritten,
-                    "rewrite_output": _COFFEE_BROAD_RAG_QUERY,
-                },
-            )
-            rewritten = _COFFEE_BROAD_RAG_QUERY
-        elif _client_is_specific_order(client_text):
-            broadish = {
-                "burgers",
-                "chicken",
-                "sandwiches",
-                "sides",
-                "drinks",
-                "dessert",
-                "coffee",
-            }
-            rw_tokens = {t.lower() for t in rewritten.split()}
-            if len(rw_tokens & broadish) >= 3:
-                rewritten = _fallback_query_from_client_text(client_text)
-        if _client_wants_broader_menu_scan(client_text):
-            n_rw = len(rewritten.split())
-            # «Что-то ещё» + кофе в реплике, а rewrite = «coffee» — даёт узкий RAG; тянем линейку McCafe.
-            if re.search(r"\bcoffee\b", client_text, re.I) and n_rw <= 2:
-                _trace(
-                    llm_trace,
-                    {
-                        "event": "rewrite_coffee_broad_menu_override",
-                        **(trace_meta or {}),
-                        "model": model,
-                        "kind": "mini_llm_menu_query_rewrite",
-                        "narrow_rewrite": rewritten,
-                        "rewrite_output": _COFFEE_BROAD_RAG_QUERY,
-                    },
-                )
-                rewritten = _COFFEE_BROAD_RAG_QUERY
-            elif n_rw <= 1:
-                _trace(
-                    llm_trace,
-                    {
-                        "event": "rewrite_broad_menu_override",
-                        **(trace_meta or {}),
-                        "model": model,
-                        "kind": "mini_llm_menu_query_rewrite",
-                        "narrow_rewrite": rewritten,
-                        "rewrite_output": _BROAD_MENU_RAG_QUERY,
-                    },
-                )
-                rewritten = _BROAD_MENU_RAG_QUERY
-        _trace(
-            llm_trace,
-            {
-                "event": "llm_rewrite",
-                **(trace_meta or {}),
-                "model": model,
-                "kind": "mini_llm_menu_query_rewrite",
-                "rewrite_duration_ms": round(dt_ms, 2),
-                **(
-                    {
-                        "rewrite_system": system,
-                        "rewrite_input": client_text,
-                        "rewrite_messages": messages,
-                        "rewrite_output": rewritten,
-                    }
-                    if trace_verbose
-                    else {
-                        "rewrite_input": _preview(client_text),
-                        "messages_preview": _messages_preview(messages),
-                        "rewrite_output": _preview(rewritten),
-                    }
-                ),
-            },
-        )
-        return rewritten
-    except Exception:
-        _trace(
-            llm_trace,
-            {
-                "event": "llm_rewrite_fallback",
-                **(trace_meta or {}),
-                "model": model,
-                "kind": "mini_llm_menu_query_rewrite",
-                **(
-                    {
-                        "rewrite_system": system,
-                        "rewrite_input": client_text,
-                        "rewrite_messages": messages,
-                        "rewrite_output": client_text,
-                    }
-                    if trace_verbose
-                    else {
-                        "rewrite_input": _preview(client_text),
-                        "messages_preview": _messages_preview(messages),
-                        "rewrite_output": _preview(client_text),
-                    }
-                ),
-            },
-        )
-        return client_text
 
 
 def _llm_call_payload(

@@ -39,3 +39,45 @@ def test_neutral_drive_through_profile_is_unrestricted() -> None:
             "noGluten",
         )
     )
+
+
+def test_human_session_step_updates_order_without_live_llm(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ORDER_JSON_REWRITE", "0")
+    monkeypatch.setattr(
+        "mcd_voice.dialog.catalog.MenuCatalog.load_runtime_index",
+        lambda _self: (
+            ["Big Mac®"],
+            {"Big Mac®": 493.0},
+            {"Big Mac®": []},
+            {"Big Mac®": {}},
+        ),
+    )
+
+    class FakeCashierAgent:
+        def __init__(self, **_kwargs):
+            pass
+
+        def generate_response(self, profile, history, order_state, **_kwargs):
+            if not history:
+                return "Hi, what can I get for you?"
+            return "Got it, a Big Mac."
+
+    monkeypatch.setattr(
+        "mcd_voice.dialog.human_voice_session.CashierAgent",
+        FakeCashierAgent,
+    )
+    s = HumanDriveThroughSession(max_turns=2)
+    start = s.start()
+    assert start["greeting"] == "Hi, what can I get for you?"
+
+    out = s.step("Can I get a Big Mac?")
+
+    assert out["cashier_text"] == "Got it, a Big Mac."
+    assert out["validation"]["total_items"] == 1
+    snap = s.snapshot_for_save()
+    assert snap is not None
+    _profile, _history, order_state, flags = snap
+    assert flags["total_items"] == 1
+    assert order_state["persons"][0]["items"][0]["name"] == "Big Mac®"

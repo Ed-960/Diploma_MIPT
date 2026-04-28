@@ -26,6 +26,7 @@ PRINT_TRACE ?=
 # Непустое — полные промпты/ответы и сырой Chroma в трассе (--trace_verbose).
 TRACE_VERBOSE ?=
 TRACE_VERBOSE_FLAG = $(if $(TRACE_VERBOSE),--trace_verbose,)
+VOICE_FLAGS ?=
 PROFILES_FILE ?= profiles_1000.json
 SEED ?=
 CLIENT_MODEL ?=
@@ -36,6 +37,9 @@ SHUFFLE_PROFILES ?=
 # Непустое — кассир без скрытого профиля и без RAG-фильтра аллергенов по профилю (--realistic_cashier).
 REALISTIC_CASHIER ?=
 REALISTIC_FLAG = $(if $(REALISTIC_CASHIER),--realistic_cashier,)
+# Вариативность клиентского промпта: high | normal | off (см. scripts/generate_dataset.py --client_variation).
+CLIENT_VARIATION ?= high
+CLIENT_VARIATION_FLAG = --client_variation $(CLIENT_VARIATION)
 # Выходной файл для make export-ai (один файл со всем кодом для ИИ).
 AI_EXPORT ?= allProject_forAI_Test.txt
 
@@ -92,6 +96,8 @@ help:
 	@echo "  make voice-browser-api    # микрофон браузера + LLM, облако (см. .env LLM_*)"
 	@echo "  make voice-browser-ollama # то же, локальный Ollama"
 	@echo "  make voice-browser        # alias на voice-browser-api"
+	@echo "    + логи: make voice-browser-api VOICE_FLAGS='--trace-all'"
+	@echo "    + умеренно: VOICE_FLAGS='--print-trace --trace-verbose'"
 	@echo "  (make demo-dialog-* — только консольный текст, без микрофона.)"
 	@echo ""
 	@echo "Генерация (переменные: NUM, TURNS, OUT_RAG, OUT_GRAPH_RAG, OUT_NORAG, OUT_TRACE):"
@@ -108,6 +114,7 @@ help:
 	@echo "  make dataset-rag-from-profiles NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) PRINT_TRACE=1 TRACE_VERBOSE=1   # vector RAG"
 	@echo "  make dataset-rag-graph-from-profiles NUM=$(NUM) OUT_GRAPH_RAG=$(OUT_GRAPH_RAG) ...   # graph RAG (как выше)"
 	@echo "  make dataset-rag-from-profiles ... SHUFFLE_PROFILES=1 SEED=42   # профили из файла — случайная выборка"
+	@echo "  make dataset-rag-from-profiles ... CLIENT_VARIATION=high|normal|off   # вариативность клиента (по умолчанию high)"
 	@echo "  make dataset-rag ... REALISTIC_CASHIER=1   # реалистичный кассир (без скрытого профиля)"
 	@echo "  Для каждой цели dataset-* есть суффиксы -api и -ollama (принудительный LLM, как demo-dialog-api)."
 	@echo ""
@@ -183,114 +190,114 @@ demo-menu-search:
 	$(PY) scripts/menu_search_demo.py
 
 voice-browser-api:
-	$(_LLM_API) scripts/voice_browser_server.py
+	$(_LLM_API) scripts/voice_browser_server.py $(VOICE_FLAGS)
 
 voice-browser-ollama:
-	$(_LLM_OLLAMA) scripts/voice_browser_server.py
+	$(_LLM_OLLAMA) scripts/voice_browser_server.py $(VOICE_FLAGS)
 
 voice-browser: voice-browser-api
 
 dataset-rag:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-vector:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-vector-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-vector-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-graph:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-graph-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-graph-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-norag:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-norag-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-norag-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace:
-	$(PY) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 1 --output_dir $(OUT_TRACE) --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-10:
-	$(PY) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-10-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-10-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 10 --output_dir $(OUT_TRACE)_10 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-20:
-	$(PY) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-20-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-20-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 20 --output_dir $(OUT_TRACE)_20 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-50:
-	$(PY) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-50-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-50-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 50 --output_dir $(OUT_TRACE)_50 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-100:
-	$(PY) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-100-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-trace-100-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs 100 --output_dir $(OUT_TRACE)_100 --max_turns $(TURNS) $(REALISTIC_FLAG) $(TRACE_FLAGS) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 profiles-gen:
 	$(PY) scripts/generate_profiles.py --num_profiles $(NUM) --output_file $(PROFILES_FILE) $(if $(SEED),--seed $(SEED),)
 
 dataset-rag-from-profiles:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-from-profiles-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-from-profiles-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_RAG) --rag_mode vector --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-graph-from-profiles:
-	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-graph-from-profiles-api:
-	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 dataset-rag-graph-from-profiles-ollama:
-	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(TRACE_VERBOSE_FLAG)
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 visualize-menu-graph:
 	$(PY) scripts/visualize_menu_graph.py

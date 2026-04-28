@@ -14,15 +14,18 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 import re
-from functools import lru_cache
+import time
+from collections import Counter
 from typing import Any, Callable
 
 from mcd_voice.dialog.catalog import MenuCatalog
 from mcd_voice.llm import CashierAgent, ClientAgent
-from mcd_voice.llm.agent import _resolve_model
+from mcd_voice.llm.agent import _build_openai_client, _call_llm, _resolve_model
 from mcd_voice.profile import ProfileGenerator
 from mcd_voice.profile.generator import get_allergen_blacklist
+from mcd_voice.text_normalization import normalize_item_text
 
 
 # ── Эвристики завершения ──────────────────────────────────────────────
@@ -105,6 +108,40 @@ def _client_says_farewell(text: str) -> bool:
     return bool(_CLIENT_FAREWELL_PATTERNS.search(text))
 
 
+def _order_parser_reason_stats(
+    llm_trace: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Сводка по причинам fallback mini-LLM order parser за диалог."""
+    rewrite_fallback_reasons: Counter[str] = Counter()
+    deterministic_fallback_reasons: Counter[str] = Counter()
+    rewrite_calls = 0
+    rewrite_fallbacks = 0
+    deterministic_fallbacks = 0
+    for ev in llm_trace or []:
+        if not isinstance(ev, dict):
+            continue
+        kind = str(ev.get("event") or "")
+        if kind == "order_json_rewrite":
+            rewrite_calls += 1
+            if ev.get("fallback_used"):
+                rewrite_fallbacks += 1
+                reason = str(ev.get("fallback_reason") or "unknown")
+                rewrite_fallback_reasons[reason] += 1
+            continue
+        if kind == "order_json_fallback_to_deterministic":
+            deterministic_fallbacks += 1
+            reason = str(ev.get("fallback_reason") or "unknown")
+            deterministic_fallback_reasons[reason] += 1
+    return {
+        "total_order_parser_events": rewrite_calls + deterministic_fallbacks,
+        "rewrite_calls": rewrite_calls,
+        "rewrite_fallbacks": rewrite_fallbacks,
+        "deterministic_fallbacks": deterministic_fallbacks,
+        "rewrite_fallback_reasons": dict(rewrite_fallback_reasons),
+        "deterministic_fallback_reasons": dict(deterministic_fallback_reasons),
+    }
+
+
 # ── Парсинг количества блюд ──────────────────────────────────────────
 
 def _normalize_item_text(text: str) -> str:
@@ -112,10 +149,34 @@ def _normalize_item_text(text: str) -> str:
     Нормализация названий для мягкого матчинга:
     убираем trademark-символы и пунктуацию, схлопываем пробелы.
     """
-    s = text.lower()
-    s = re.sub(r"[®™℠]", "", s)
-    s = re.sub(r"[^a-z0-9]+", " ", s)
-    return " ".join(s.split())
+    return normalize_item_text(text)
+
+
+_RESTRICTION_CUE_RE = re.compile(
+    r"\b(allerg\w*|intoleran\w*|without|avoid|exclude|free from|"
+    r"no|not|dont|can't|cannot|must not)\b",
+    re.IGNORECASE,
+)
+_ORDER_CUE_RE = re.compile(
+    r"\b(i(?:\s+would)?\s+like|i\s+want|i\s+need|i\s+take|i\s+ll\s+have|"
+    r"can\s+i\s+have|give\s+me|add|order|for\s+me)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_restriction_mention(lower_text: str, idx: int, name_norm: str) -> bool:
+    """
+    True when an item mention is likely a dietary restriction, not an order.
+    Example: "I have allergy on milk" should not add menu item "Milk".
+    """
+    left = lower_text[max(0, idx - 40):idx]
+    ctx = lower_text[max(0, idx - 40): min(len(lower_text), idx + len(name_norm) + 24)]
+    if not _RESTRICTION_CUE_RE.search(ctx):
+        return False
+    # Explicit ordering cue near the mention should still count as an order.
+    if _ORDER_CUE_RE.search(left):
+        return False
+    return True
 
 
 def parse_order_from_text(
@@ -136,6 +197,8 @@ def parse_order_from_text(
             continue
         idx = lower.find(name_norm)
         if idx == -1 or name in seen:
+            continue
+        if _is_restriction_mention(lower, idx, name_norm):
             continue
         seen.add(name)
 
@@ -160,6 +223,9 @@ def parse_order_from_text(
             continue
         m = rx.search(lower)
         if not m:
+            continue
+        target_norm = _normalize_item_text(target_name)
+        if _is_restriction_mention(lower, m.start(), target_norm):
             continue
         qty = 1
         prefix = lower[max(0, m.start() - 24):m.start()].strip()
@@ -247,6 +313,8 @@ def _build_alias_patterns(menu_names: list[str]) -> list[tuple[re.Pattern[str], 
 _UNAVAILABLE_CUES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bi don't have\b", re.I),
     re.compile(r"\bwe don't have\b", re.I),
+    re.compile(r"\b(?:i|we)\s+(?:am|are)\s+not seeing\b", re.I),
+    re.compile(r"\bi'm\s+not\s+seeing\b", re.I),
     re.compile(r"\bnot (currently )?in (our )?menu\b", re.I),
     re.compile(r"\bnot available\b", re.I),
     re.compile(r"\bcan'?t (offer|do)\b", re.I),
@@ -278,6 +346,8 @@ def _extract_unavailable_items(
         name_pat = r"\b" + r"\W+".join(re.escape(tok) for tok in name_norm.split()) + r"\b"
         before_item = re.compile(
             rf"\b(?:i|we)\s+don['’]?t\s+have\b[^.!?;\n]{{0,30}}{name_pat}"
+            rf"|\b(?:i|we)\s+(?:am|are)\s+not\s+seeing\b[^.!?;\n]{{0,30}}{name_pat}"
+            rf"|\bi['’]?m\s+not\s+seeing\b[^.!?;\n]{{0,30}}{name_pat}"
             rf"|\bnot\s+available\b[^.!?;\n]{{0,30}}{name_pat}"
             rf"|\bcan['’]?t\s+(?:offer|recommend|do)\b[^.!?;\n]{{0,30}}{name_pat}",
             re.I,
@@ -292,17 +362,6 @@ def _extract_unavailable_items(
         if before_item.search(raw) or after_item.search(raw):
             unavailable.add(name)
     return unavailable
-
-
-_MEAT_BEEF_RE = re.compile(
-    r"\b(beef|hamburger|cheeseburger|big mac|mcdouble|quarter pounder)\b",
-    re.I,
-)
-_FISH_RE = re.compile(r"\b(fish|filet[\s-]*o[\s-]*fish|tuna|salmon)\b", re.I)
-_EGG_RE = re.compile(r"\b(egg|mayo|mayonnaise)\b", re.I)
-_NUTS_RE = re.compile(r"\b(nut|nuts|peanut|almond|hazelnut|cashew|walnut)\b", re.I)
-_GLUTEN_TEXT_RE = re.compile(r"\b(bun|bread|wrap|tortilla|muffin|biscuit)\b", re.I)
-_ANIMAL_RE = re.compile(r"\b(chicken|beef|fish|egg|bacon|sausage|ham)\b", re.I)
 
 
 def _restriction_flags_from_profile(profile_or_restrictions: dict[str, Any]) -> dict[str, bool]:
@@ -325,75 +384,12 @@ def _restriction_flags_from_profile(profile_or_restrictions: dict[str, Any]) -> 
     return flags
 
 
-@lru_cache(maxsize=1)
-def _menu_restriction_map() -> dict[str, dict[str, bool]]:
-    """
-    Name -> coarse restriction markers built from mcd.json text+allergens+sugar.
-    """
-    from mcd_voice.config import MCD_JSON_PATH
-    from mcd_voice.menu.parsing import parse_allergy_field
-
-    with open(MCD_JSON_PATH, "r", encoding="utf-8") as f:
-        items: list[dict[str, Any]] = json.load(f)
-
-    out: dict[str, dict[str, bool]] = {}
-    for it in items:
-        name = it.get("name")
-        if not name:
-            continue
-        blob = " ".join(
-            str(it.get(k, "") or "")
-            for k in ("name", "ingredients", "tag", "description")
-        ).lower()
-        allergens = {
-            str(a).strip().lower()
-            for a in parse_allergy_field(it.get("allergy"))
-            if str(a).strip()
-        }
-        try:
-            added_sugar = float(it.get("added_sugar") or 0.0)
-        except (TypeError, ValueError):
-            added_sugar = 0.0
-
-        flags = out.setdefault(
-            name,
-            {
-                "noMilk": False,
-                "noFish": False,
-                "noNuts": False,
-                "noEggs": False,
-                "noGluten": False,
-                "noBeef": False,
-                "isVegan": False,
-                "noSugar": False,
-            },
-        )
-
-        has_milk = ("milk" in allergens) or bool(re.search(r"\b(milk|cheese|paneer|butter|latte|shake|sundae|mcflurry)\b", blob))
-        has_fish = ("fish" in allergens) or bool(_FISH_RE.search(blob))
-        has_eggs = ("egg" in allergens) or bool(_EGG_RE.search(blob))
-        has_nuts = ("nuts" in allergens) or bool(_NUTS_RE.search(blob))
-        has_gluten = ("cereal containing gluten" in allergens) or bool(_GLUTEN_TEXT_RE.search(blob))
-        has_beef = bool(_MEAT_BEEF_RE.search(blob))
-        has_animal = has_milk or has_fish or has_eggs or has_beef or bool(_ANIMAL_RE.search(blob))
-
-        flags["noMilk"] = flags["noMilk"] or has_milk
-        flags["noFish"] = flags["noFish"] or has_fish
-        flags["noNuts"] = flags["noNuts"] or has_nuts
-        flags["noEggs"] = flags["noEggs"] or has_eggs
-        flags["noGluten"] = flags["noGluten"] or has_gluten
-        flags["noBeef"] = flags["noBeef"] or has_beef
-        flags["isVegan"] = flags["isVegan"] or has_animal
-        flags["noSugar"] = flags["noSugar"] or (added_sugar > 0.0)
-
-    return out
-
-
 def _item_restriction_violations(
     item_name: str,
     restriction_flags: dict[str, bool],
+    restriction_map: dict[str, dict[str, bool]],
 ) -> set[str]:
-    meta = _menu_restriction_map().get(item_name)
+    meta = restriction_map.get(item_name)
     if not meta:
         return set()
     violated: set[str] = set()
@@ -405,23 +401,57 @@ def _item_restriction_violations(
 
 # ── Назначение блюд персонам ─────────────────────────────────────────
 
-_PERSON_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bfor (my |the )?wife\b", re.I), "spouse"),
-    (re.compile(r"\bfor (my |the )?husband\b", re.I), "spouse"),
-    (re.compile(r"\bfor (my |the )?(youngest|little|smaller)", re.I), "child_youngest"),
-    (re.compile(r"\bfor (my |the )?(oldest|elder|bigger|older)", re.I), "child_oldest"),
-    (re.compile(r"\bfor (my |the )?(kid|child|son|daughter|children|kids)\b", re.I), "child_generic"),
-    (re.compile(r"\bfor (my |the )?friend\b", re.I), "friend_generic"),
-    (re.compile(r"\bfor (me|myself)\b", re.I), "self"),
-    (re.compile(r"\b(i.?ll have|i want|i.?d like|для меня)\b", re.I), "self"),
-]
+_NUM_WORDS: dict[int, str] = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+}
+
+
+def _label_to_aliases(label: str) -> set[str]:
+    raw = (label or "").strip().lower()
+    if not raw:
+        return set()
+    out = {raw}
+    s = re.sub(r"[_\-]+", " ", raw)
+    s = re.sub(r"\s+", " ", s).strip()
+    out.add(s)
+    m = re.search(r"\b(\d+)\b", s)
+    if m:
+        n = int(m.group(1))
+        out.add(s.replace(m.group(1), f" {n} ").strip())
+        if n in _NUM_WORDS:
+            out.add(s.replace(m.group(1), _NUM_WORDS[n]).strip())
+    return {x for x in out if x}
 
 
 def _detect_target_person(text: str) -> str:
-    """Определяет, для кого заказ по тексту. Возвращает ключ или 'self'."""
-    for pattern, label in _PERSON_PATTERNS:
-        if pattern.search(text):
-            return label
+    """
+    Lightweight public detector kept for tests/backward compatibility.
+    Main runtime routing is resolved in _resolve_target_indices() using persons.
+    """
+    t = (text or "").lower()
+    if re.search(r"\bfor (me|myself)\b|\bi.?ll have\b|\bi want\b|\bi.?d like\b|\bдля меня\b", t):
+        return "self"
+    if re.search(r"\b(wife|husband|spouse)\b", t):
+        return "spouse"
+    if re.search(r"\b(youngest|little|smaller)\b", t):
+        return "child_youngest"
+    if re.search(r"\b(oldest|elder|bigger|older)\b", t):
+        return "child_oldest"
+    if re.search(r"\b\d{1,2}\s*[- ]?\s*year\s*[- ]?\s*old\b", t):
+        return "child_generic"
+    if re.search(r"\b(kid|child|son|daughter|children|kids)\b|\b(child|kid)\s*(one|1|first|two|2|second)\b", t):
+        return "child_generic"
+    if re.search(r"\bfriend\b", t):
+        return "friend_generic"
     return "self"
 
 
@@ -463,10 +493,11 @@ def _resolve_target_indices(
     Возвращает список индексов персон для фразы заказа.
     Поддерживает массовые формулировки: for both / for everyone / for my kids.
     """
-    lower = text.lower()
+    lower = (text or "").lower()
     all_indices = list(range(len(persons)))
     child_indices = [i for i, p in enumerate(persons) if p.get("role") == "child"]
     friend_indices = [i for i, p in enumerate(persons) if p.get("role") == "friend"]
+    spouse_indices = [i for i, p in enumerate(persons) if p.get("role") == "spouse"]
 
     if (
         "for everyone" in lower
@@ -485,9 +516,139 @@ def _resolve_target_indices(
         if friend_indices:
             return [0, friend_indices[0]]
         return [0]
+    age_match = re.search(r"\b(\d{1,2})\s*[- ]?\s*year\s*[- ]?\s*old\b", lower)
+    if age_match and child_indices:
+        target_age = int(age_match.group(1))
+        for i in child_indices:
+            age = persons[i].get("age")
+            if isinstance(age, int) and age == target_age:
+                return [i]
+    if re.search(r"\b(youngest|little|smaller)\b", lower) and child_indices:
+        return [min(child_indices, key=lambda i: persons[i].get("age", 99))]
+    if re.search(r"\b(oldest|elder|bigger|older)\b", lower) and child_indices:
+        return [max(child_indices, key=lambda i: persons[i].get("age", 0))]
+    if re.search(r"\b(spouse|wife|husband)\b", lower) and spouse_indices:
+        return [spouse_indices[0]]
 
-    target_key = _detect_target_person(text)
-    return [_resolve_person_index(target_key, persons)]
+    hits: list[tuple[int, int]] = []
+    for idx, p in enumerate(persons):
+        role = str(p.get("role") or "").lower()
+        aliases: set[str] = set()
+        aliases.update(_label_to_aliases(str(p.get("label") or "")))
+        if idx == 0:
+            aliases.update({"me", "myself"})
+        if role == "child":
+            child_no = child_indices.index(idx) + 1 if idx in child_indices else None
+            if len(child_indices) == 1:
+                aliases.update({"child", "kid", "son", "daughter"})
+            if child_no is not None:
+                aliases.update({f"child {child_no}", f"kid {child_no}"})
+                if child_no in _NUM_WORDS:
+                    w = _NUM_WORDS[child_no]
+                    aliases.update({f"child {w}", f"kid {w}"})
+            age = p.get("age")
+            if isinstance(age, int) and age > 0:
+                aliases.update({f"{age} year old", f"{age}-year-old"})
+        elif role == "friend":
+            friend_no = friend_indices.index(idx) + 1 if idx in friend_indices else None
+            if len(friend_indices) == 1:
+                aliases.add("friend")
+            if friend_no is not None:
+                aliases.add(f"friend {friend_no}")
+                if friend_no in _NUM_WORDS:
+                    aliases.add(f"friend {_NUM_WORDS[friend_no]}")
+        elif role == "spouse":
+            aliases.update({"spouse", "wife", "husband"})
+        for alias in aliases:
+            a = alias.strip()
+            if len(a) < 2:
+                continue
+            patt = r"\b" + re.escape(a).replace(r"\ ", r"\s+") + r"\b"
+            m = re.search(patt, lower, re.I)
+            if m:
+                hits.append((m.start(), idx))
+    if hits:
+        hits.sort(key=lambda x: x[0])
+        out: list[int] = []
+        seen: set[int] = set()
+        for _, i in hits:
+            if i in seen:
+                continue
+            seen.add(i)
+            out.append(i)
+        if out:
+            return out
+
+    # Universal fallback: if no explicit person marker is found,
+    # treat the segment as customer's own order.
+    return [0]
+
+
+def _split_order_segments(text: str) -> list[str]:
+    """
+    Split complex multi-person order into segments likely tied to different people.
+    Keeps default behavior for simple one-person phrases.
+    """
+    if not (text or "").strip():
+        return []
+    split_re = re.compile(
+        r"(?:(?<=[.;])\s+|,\s+)"
+        r"(?=(?:and\s+)?(?:for\s+(?:my|the|me|myself)|"
+        r"child\s+\w+|kid\s+\w+|my\s+friend|friend\s+\w+|"
+        r"my\s+wife|my\s+husband|spouse|child[_\s-]?\d+|friend[_\s-]?\d+))",
+        re.I,
+    )
+    parts = [p.strip() for p in split_re.split(text) if p.strip()]
+    return parts or [text]
+
+
+_ORDER_JSON_REWRITE_SYSTEM = """You extract structured order assignments from one customer utterance.
+Return JSON only.
+
+Schema:
+{
+  "orders": [
+    {
+      "target": "self | spouse | child_1 | child_2 | ... | friend_1 | friend_2 | ... | everyone | both",
+      "items": [{"name": "menu item name", "quantity": 1}]
+    }
+  ]
+}
+
+Rules:
+- Use exact menu item names from MENU_NAMES list only.
+- target:
+  - self for customer
+  - spouse for spouse
+  - child_N / friend_N when explicitly referenced by number/age/label
+  - everyone for all persons
+  - both for customer + one explicitly referenced person
+- If item is not clearly ordered (restriction-only phrase), do not include it.
+- quantity must be integer >= 1.
+- Output valid JSON only.
+"""
+
+
+def _normalize_menu_lookup(menu_names: list[str]) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for n in menu_names:
+        key = _normalize_item_text(n)
+        if key and key not in lookup:
+            lookup[key] = n
+    return lookup
+
+
+def _map_item_name_to_menu(name: str, menu_lookup: dict[str, str]) -> str | None:
+    k = _normalize_item_text(name)
+    if not k:
+        return None
+    if k in menu_lookup:
+        return menu_lookup[k]
+    # soft contains fallback for minor punctuation/spacing differences
+    for nk, original in menu_lookup.items():
+        if k in nk or nk in k:
+            return original
+    return None
 
 
 def _is_main_item_name(name: str) -> bool:
@@ -548,7 +709,7 @@ class DialogPipeline:
         collect_llm_trace: bool = False,
         emit_trace_progress: bool = False,
         trace_verbose: bool = False,
-        realistic_cashier: bool = False,
+        realistic_cashier: bool = True,
     ) -> None:
         self.max_turns = max_turns
         # При отсутствии явной модели берем API_MODEL из env.
@@ -563,6 +724,13 @@ class DialogPipeline:
         self._emit_trace_progress = emit_trace_progress
         self._trace_verbose = trace_verbose
         self._realistic_cashier = realistic_cashier
+        self._order_json_enabled = (
+            (os.environ.get("ORDER_JSON_REWRITE") or "1").strip().lower()
+            not in {"0", "false", "off", "no"}
+        )
+        self._order_json_model = os.environ.get("REWRITE_MODEL") or self.model
+        self._order_json_client = None
+        self._order_json_disabled_reason: str | None = None
 
     def run(
         self,
@@ -576,8 +744,12 @@ class DialogPipeline:
         if profile is None:
             profile = self._profiles.generate()
 
-        menu_names, energy_by_name = self._catalog.load()
-        allergen_map = self._build_allergen_map()
+        (
+            menu_names,
+            energy_by_name,
+            allergen_map,
+            restriction_map,
+        ) = self._load_catalog_runtime_index()
 
         client = self._client_agent or ClientAgent(
             model=self.model, trace_verbose=self._trace_verbose,
@@ -721,7 +893,11 @@ class DialogPipeline:
                 loop_detected = True
                 # Если заказ уже собран, считаем диалог завершённым, чтобы не тянуть до max_turns.
                 if validate_dialog(
-                    profile, order_state, history, menu_names=menu_names,
+                    profile,
+                    order_state,
+                    history,
+                    menu_names=menu_names,
+                    restriction_map=restriction_map,
                 )["total_items"] > 0:
                     order_state["order_complete"] = True
                 self._emit_progress(
@@ -736,11 +912,25 @@ class DialogPipeline:
 
             # Обновляем заказ только по реплике клиента: так не добавляем
             # предложения кассира, которые клиент не подтверждал.
+            structured_orders = self._parse_structured_orders(
+                client_msg,
+                menu_names,
+                order_state.get("persons", []),
+                llm_trace=llm_trace,
+                trace_meta={"event_scope": "order_parser", "turn": turn},
+            )
             self._update_order(
-                client_msg, menu_names, order_state, energy_by_name, allergen_map,
+                client_msg,
+                menu_names,
+                order_state,
+                energy_by_name,
+                allergen_map,
+                structured_orders=structured_orders,
+                llm_trace=llm_trace,
+                trace_meta={"event_scope": "order_parser", "turn": turn},
             )
             self._enforce_restriction_safety(
-                profile, order_state, energy_by_name, allergen_map,
+                profile, order_state, energy_by_name, allergen_map, restriction_map,
             )
 
             # Если кассир явно сообщил, что некоторые позиции недоступны/не подходят,
@@ -749,7 +939,7 @@ class DialogPipeline:
                 cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
             )
             self._enforce_restriction_safety(
-                profile, order_state, energy_by_name, allergen_map,
+                profile, order_state, energy_by_name, allergen_map, restriction_map,
             )
 
             cashier_signaled = _cashier_signals_end(cashier_msg)
@@ -760,7 +950,11 @@ class DialogPipeline:
                     cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
                 )
                 self._enforce_restriction_safety(
-                    profile, order_state, energy_by_name, allergen_map,
+                    profile,
+                    order_state,
+                    energy_by_name,
+                    allergen_map,
+                    restriction_map,
                 )
                 # Защита от бесконечного хвоста "Yes." -> "Order confirmed."
                 # Если клиент уже дал краткое подтверждение, завершаем сразу.
@@ -786,7 +980,13 @@ class DialogPipeline:
                 message="Диалог остановлен по лимиту max_turns.",
             )
 
-        flags = validate_dialog(profile, order_state, history, menu_names=menu_names)
+        flags = validate_dialog(
+            profile,
+            order_state,
+            history,
+            menu_names=menu_names,
+            restriction_map=restriction_map,
+        )
         if cot_leak_count:
             flags = {**flags, "cot_leak_count": cot_leak_count}
         if stall_detected:
@@ -800,7 +1000,49 @@ class DialogPipeline:
             flags = {**flags, "rag_trace": rag_trace}
         if llm_trace is not None:
             flags = {**flags, "llm_trace": llm_trace}
+            order_parser_stats = _order_parser_reason_stats(llm_trace)
+            if order_parser_stats.get("total_order_parser_events", 0) > 0:
+                flags = {**flags, "order_parser_stats": order_parser_stats}
+                self._emit_progress(
+                    "order_parser_summary",
+                    summary=order_parser_stats,
+                )
         return history, profile, order_state, flags
+
+    def _build_allergen_map(self) -> dict[str, list[str]]:
+        """
+        Backward-compatible helper kept for tests and old integrations.
+        Runtime pipeline now gets allergen_map from MenuCatalog.load_runtime_index().
+        """
+        load_rt = getattr(self._catalog, "load_runtime_index", None)
+        if callable(load_rt):
+            _, _, allergen_map, _ = load_rt()
+            return allergen_map
+        return {}
+
+    def _load_catalog_runtime_index(
+        self,
+    ) -> tuple[
+        list[str],
+        dict[str, float],
+        dict[str, list[str]],
+        dict[str, dict[str, bool]],
+    ]:
+        """
+        Runtime catalog accessor with backward compatibility for legacy test stubs.
+        Preferred API: load_runtime_index() -> (names, energy, allergen_map, restriction_map).
+        Legacy API: load() -> (names, energy).
+        """
+        load_rt = getattr(self._catalog, "load_runtime_index", None)
+        if callable(load_rt):
+            return load_rt()
+        load_legacy = getattr(self._catalog, "load", None)
+        if callable(load_legacy):
+            menu_names, energy_by_name = load_legacy()
+            allergen_map = self._build_allergen_map()
+            restriction_map: dict[str, dict[str, bool]] = {}
+            return menu_names, energy_by_name, allergen_map, restriction_map
+        raise AttributeError("Menu catalog must provide load_runtime_index() or load().")
 
     @staticmethod
     def _remove_unavailable_from_order(
@@ -839,6 +1081,7 @@ class DialogPipeline:
         order_state: dict[str, Any],
         energy_by_name: dict[str, float],
         allergen_map: dict[str, list[str]],
+        restriction_map: dict[str, dict[str, bool]],
     ) -> None:
         """
         Hard safety pass for synthetic data:
@@ -860,7 +1103,7 @@ class DialogPipeline:
             safe_items: list[dict[str, Any]] = []
             for it in p.get("items", []):
                 name = it.get("name", "")
-                if _item_restriction_violations(name, restriction_flags):
+                if _item_restriction_violations(name, restriction_flags, restriction_map):
                     continue
                 safe_items.append(it)
             p["items"] = safe_items
@@ -878,6 +1121,205 @@ class DialogPipeline:
             for it in p.get("items", []):
                 all_ag.update(allergen_map.get(it["name"], []))
             p["allergens"] = sorted(all_ag)
+
+    @staticmethod
+    def _target_indices_from_token(
+        token: str,
+        persons: list[dict[str, Any]],
+    ) -> list[int]:
+        t = (token or "").strip().lower()
+        if not t:
+            return []
+        all_indices = list(range(len(persons)))
+        child_indices = [i for i, p in enumerate(persons) if p.get("role") == "child"]
+        friend_indices = [i for i, p in enumerate(persons) if p.get("role") == "friend"]
+        spouse_indices = [i for i, p in enumerate(persons) if p.get("role") == "spouse"]
+        if t in {"self", "customer", "me", "myself"}:
+            return [0] if persons else []
+        if t == "everyone":
+            return all_indices
+        if t == "both":
+            return all_indices[:2]
+        if t == "spouse":
+            return spouse_indices[:1]
+        if t.startswith("child_"):
+            try:
+                idx = int(t.split("_", 1)[1]) - 1
+            except ValueError:
+                return child_indices[:1]
+            return [child_indices[idx]] if 0 <= idx < len(child_indices) else child_indices[:1]
+        if t.startswith("friend_"):
+            try:
+                idx = int(t.split("_", 1)[1]) - 1
+            except ValueError:
+                return friend_indices[:1]
+            return [friend_indices[idx]] if 0 <= idx < len(friend_indices) else friend_indices[:1]
+        # label/alias fallback
+        for i, p in enumerate(persons):
+            aliases = _label_to_aliases(str(p.get("label") or ""))
+            if t in aliases:
+                return [i]
+        return []
+
+    def _parse_structured_orders(
+        self,
+        text: str,
+        menu_names: list[str],
+        persons: list[dict[str, Any]],
+        *,
+        llm_trace: list[dict[str, Any]] | None = None,
+        trace_meta: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Optional mini-LLM parser: extract structured (target, items[]) assignments.
+        Always returns [] on errors, so deterministic parser can fallback safely.
+        """
+        if not self._order_json_enabled:
+            if llm_trace is not None:
+                llm_trace.append(
+                    {
+                        "event": "order_json_disabled",
+                        **(trace_meta or {}),
+                        "model": self._order_json_model,
+                        "reason": "env_disabled",
+                    }
+                )
+            return []
+        if self._order_json_disabled_reason:
+            if llm_trace is not None:
+                llm_trace.append(
+                    {
+                        "event": "order_json_disabled",
+                        **(trace_meta or {}),
+                        "model": self._order_json_model,
+                        "reason": self._order_json_disabled_reason,
+                    }
+                )
+            return []
+        if not (text or "").strip() or not menu_names or not persons:
+            return []
+        if self._order_json_client is None:
+            try:
+                self._order_json_client = _build_openai_client(timeout=20.0)
+            except Exception as exc:
+                self._order_json_disabled_reason = str(exc)[:200]
+                if llm_trace is not None:
+                    llm_trace.append(
+                        {
+                            "event": "order_json_client_error",
+                            **(trace_meta or {}),
+                            "model": self._order_json_model,
+                            "error": self._order_json_disabled_reason,
+                        }
+                    )
+                return []
+        persons_desc = []
+        for i, p in enumerate(persons):
+            persons_desc.append(
+                {
+                    "index": i,
+                    "label": p.get("label"),
+                    "role": p.get("role"),
+                    "age": p.get("age"),
+                }
+            )
+        user_payload = {
+            "utterance": text,
+            "persons": persons_desc,
+            "menu_names": menu_names,
+        }
+        t0 = time.perf_counter()
+        try:
+            raw = _call_llm(
+                self._order_json_client,
+                self._order_json_model,
+                _ORDER_JSON_REWRITE_SYSTEM,
+                [{"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)}],
+                temperature=0.0,
+            )
+            data = json.loads(raw)
+        except Exception as exc:
+            if llm_trace is not None:
+                llm_trace.append(
+                    {
+                        "event": "order_json_parse_error",
+                        **(trace_meta or {}),
+                        "model": self._order_json_model,
+                        "error": str(exc)[:200],
+                        "duration_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+                    }
+                )
+            return []
+        orders = data.get("orders") if isinstance(data, dict) else None
+        if not isinstance(orders, list):
+            if llm_trace is not None:
+                llm_trace.append(
+                    {
+                        "event": "order_json_parse_error",
+                        **(trace_meta or {}),
+                        "model": self._order_json_model,
+                        "error": "orders_missing_or_not_list",
+                        "duration_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+                    }
+                )
+            return []
+        menu_lookup = _normalize_menu_lookup(menu_names)
+        out: list[dict[str, Any]] = []
+        rows_with_targets = 0
+        rows_with_raw_items = 0
+        rows_with_mapped_items = 0
+        for row in orders:
+            if not isinstance(row, dict):
+                continue
+            indices = self._target_indices_from_token(str(row.get("target") or ""), persons)
+            if not indices:
+                continue
+            rows_with_targets += 1
+            raw_items = row.get("items")
+            if not isinstance(raw_items, list):
+                continue
+            rows_with_raw_items += 1
+            items: list[tuple[str, int]] = []
+            for it in raw_items:
+                if not isinstance(it, dict):
+                    continue
+                mapped = _map_item_name_to_menu(str(it.get("name") or ""), menu_lookup)
+                if not mapped:
+                    continue
+                try:
+                    qty = int(it.get("quantity") or 1)
+                except (TypeError, ValueError):
+                    qty = 1
+                qty = max(1, min(20, qty))
+                items.append((mapped, qty))
+            if items:
+                rows_with_mapped_items += 1
+                out.append({"target_indices": indices, "items": items})
+        fallback_reason: str | None = None
+        if not out:
+            if not orders:
+                fallback_reason = "empty_orders"
+            elif rows_with_targets == 0:
+                fallback_reason = "no_valid_targets"
+            elif rows_with_raw_items == 0:
+                fallback_reason = "items_missing_or_not_list"
+            elif rows_with_mapped_items == 0:
+                fallback_reason = "no_mapped_items"
+            else:
+                fallback_reason = "no_valid_structured_rows"
+        if llm_trace is not None:
+            llm_trace.append(
+                {
+                    "event": "order_json_rewrite",
+                    **(trace_meta or {}),
+                    "model": self._order_json_model,
+                    "duration_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+                    "orders_count": len(out),
+                    "fallback_used": len(out) == 0,
+                    "fallback_reason": fallback_reason,
+                }
+            )
+        return out
 
     def _emit_progress(self, stage: str, **payload: Any) -> None:
         if self._progress_callback is None:
@@ -923,18 +1365,6 @@ class DialogPipeline:
 
     # ── Внутренние методы ─────────────────────────────────────────────
 
-    def _build_allergen_map(self) -> dict[str, list[str]]:
-        from mcd_voice.config import MCD_JSON_PATH
-        from mcd_voice.menu.parsing import parse_allergy_field
-
-        with open(MCD_JSON_PATH, "r", encoding="utf-8") as f:
-            items: list[dict[str, Any]] = json.load(f)
-        return {
-            it["name"]: parse_allergy_field(it.get("allergy"))
-            for it in items
-            if it.get("name")
-        }
-
     @staticmethod
     def _update_order(
         text: str,
@@ -942,48 +1372,90 @@ class DialogPipeline:
         order_state: dict[str, Any],
         energy_by_name: dict[str, float],
         allergen_map: dict[str, list[str]],
+        *,
+        structured_orders: list[dict[str, Any]] | None = None,
+        llm_trace: list[dict[str, Any]] | None = None,
+        trace_meta: dict[str, Any] | None = None,
     ) -> None:
-        parsed = parse_order_from_text(text, menu_names)
-        if not parsed:
-            return
-
         persons = order_state["persons"]
         group_size = max(1, len(persons))
-        target_indices = _resolve_target_indices(text, persons)
-        has_instead_cue = bool(re.search(r"\binstead\b", text, re.I))
-
-        # Если заказ адресован нескольким людям ("for both", "for everyone"),
-        # каждый получает по 1 штуке — не умножаем quantity на одного.
-        distribute_to_many = len(target_indices) > 1
-
-        for idx in target_indices:
-            if idx >= len(persons):
-                continue
-            person = persons[idx]
-            # Replacement intent: "I'll take X instead."
-            # Keep sides/drinks, but swap out previously collected mains.
-            if has_instead_cue:
-                parsed_names = {name for name, _ in parsed}
-                parsed_has_main = any(_is_main_item_name(name) for name in parsed_names)
-                if parsed_has_main:
-                    person["items"] = [
-                        it
-                        for it in person.get("items", [])
-                        if not (
-                            _is_main_item_name(it.get("name", ""))
-                            and it.get("name") not in parsed_names
-                        )
-                    ]
-            for name, qty in parsed:
-                if distribute_to_many:
-                    qty = 1
-                else:
-                    qty = _apply_group_quantity_hint(text, qty, group_size)
-                existing = next((it for it in person["items"] if it["name"] == name), None)
-                if existing:
-                    existing["quantity"] = max(existing["quantity"], qty)
-                else:
-                    person["items"].append({"name": name, "quantity": qty})
+        applied = False
+        if structured_orders:
+            for row in structured_orders:
+                target_indices = list(row.get("target_indices") or [])
+                parsed = list(row.get("items") or [])
+                if not target_indices or not parsed:
+                    continue
+                distribute_to_many = len(target_indices) > 1
+                for idx in target_indices:
+                    if idx >= len(persons):
+                        continue
+                    person = persons[idx]
+                    for name, qty in parsed:
+                        qty = int(qty or 1)
+                        if distribute_to_many:
+                            qty = 1
+                        else:
+                            qty = _apply_group_quantity_hint(text, qty, group_size)
+                        existing = next((it for it in person["items"] if it["name"] == name), None)
+                        applied = True
+                        if existing:
+                            existing["quantity"] = max(existing["quantity"], qty)
+                        else:
+                            person["items"].append({"name": name, "quantity": qty})
+        if not applied:
+            if structured_orders is not None and llm_trace is not None:
+                fallback_reason = (
+                    "empty_structured_orders"
+                    if len(structured_orders) == 0
+                    else "structured_orders_not_applied"
+                )
+                llm_trace.append(
+                    {
+                        "event": "order_json_fallback_to_deterministic",
+                        **(trace_meta or {}),
+                        "structured_orders_count": len(structured_orders),
+                        "fallback_reason": fallback_reason,
+                    }
+                )
+            segments = _split_order_segments(text)
+            for seg in segments:
+                parsed = parse_order_from_text(seg, menu_names)
+                if not parsed:
+                    continue
+                target_indices = _resolve_target_indices(seg, persons)
+                has_instead_cue = bool(re.search(r"\binstead\b", seg, re.I))
+                # Если заказ адресован нескольким людям ("for both", "for everyone"),
+                # каждый получает по 1 штуке — не умножаем quantity на одного.
+                distribute_to_many = len(target_indices) > 1
+                for idx in target_indices:
+                    if idx >= len(persons):
+                        continue
+                    person = persons[idx]
+                    # Replacement intent: "I'll take X instead."
+                    # Keep sides/drinks, but swap out previously collected mains.
+                    if has_instead_cue:
+                        parsed_names = {name for name, _ in parsed}
+                        parsed_has_main = any(_is_main_item_name(name) for name in parsed_names)
+                        if parsed_has_main:
+                            person["items"] = [
+                                it
+                                for it in person.get("items", [])
+                                if not (
+                                    _is_main_item_name(it.get("name", ""))
+                                    and it.get("name") not in parsed_names
+                                )
+                            ]
+                    for name, qty in parsed:
+                        if distribute_to_many:
+                            qty = 1
+                        else:
+                            qty = _apply_group_quantity_hint(seg, qty, group_size)
+                        existing = next((it for it in person["items"] if it["name"] == name), None)
+                        if existing:
+                            existing["quantity"] = max(existing["quantity"], qty)
+                        else:
+                            person["items"].append({"name": name, "quantity": qty})
 
         # Пересчёт energy и allergens для каждой персоны
         for p in persons:
@@ -1007,6 +1479,7 @@ def validate_dialog(
     history: list[dict[str, str]],
     *,
     menu_names: list[str] | None = None,
+    restriction_map: dict[str, dict[str, bool]] | None = None,
 ) -> dict[str, Any]:
     """
     Валидация per-person + общая.
@@ -1023,6 +1496,7 @@ def validate_dialog(
       incomplete_order: при наличии детей не все дети получили позиции
     """
     persons = order_state.get("persons", [])
+    rmap = restriction_map or {}
     profile_blacklist = set(get_allergen_blacklist(profile))
 
     per_person: list[dict[str, Any]] = []
@@ -1070,7 +1544,9 @@ def validate_dialog(
             name = str(it.get("name", "")).strip()
             if not name:
                 continue
-            restriction_violation.update(_item_restriction_violations(name, restriction_flags))
+            restriction_violation.update(
+                _item_restriction_violations(name, restriction_flags, rmap)
+            )
         if restriction_violation:
             all_restriction_violations.update(restriction_violation)
             restriction_violation_per_person.append(
@@ -1245,7 +1721,7 @@ def simulate_dialog(
     collect_llm_trace: bool = False,
     emit_trace_progress: bool = False,
     trace_verbose: bool = False,
-    realistic_cashier: bool = False,
+    realistic_cashier: bool = True,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Функциональный фасад: один диалог с валидацией."""
     pipeline = DialogPipeline(
@@ -1271,7 +1747,7 @@ def generate_dialog(
     collect_llm_trace: bool = False,
     emit_trace_progress: bool = False,
     trace_verbose: bool = False,
-    realistic_cashier: bool = False,
+    realistic_cashier: bool = True,
 ) -> tuple[list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
     return simulate_dialog(
         max_turns=max_turns,

@@ -122,6 +122,20 @@ class TestParseOrderFromText:
         result = parse_order_from_text("I want tea", ["Tea"])
         assert result == []
 
+    def test_allergy_mention_does_not_add_item(self):
+        result = parse_order_from_text(
+            "I have allergy on milk, please no milk.",
+            ["Milk", "Big Mac"],
+        )
+        assert ("Milk", 1) not in result
+
+    def test_explicit_order_cue_still_allows_item(self):
+        result = parse_order_from_text(
+            "Can I have milk please?",
+            ["Milk", "Big Mac"],
+        )
+        assert ("Milk", 1) in result
+
 
 # ── _detect_target_person ─────────────────────────────────────────────
 
@@ -149,6 +163,12 @@ class TestDetectTargetPerson:
 
     def test_friend(self):
         assert _detect_target_person("For my friend, a Cola") == "friend_generic"
+
+    def test_child_age_phrase(self):
+        assert _detect_target_person("For my 7-year-old, a Happy Meal") == "child_generic"
+
+    def test_child_numbered_phrase(self):
+        assert _detect_target_person("Child one needs nuggets") == "child_generic"
 
     def test_default_self(self):
         assert _detect_target_person("A burger and fries") == "self"
@@ -201,6 +221,39 @@ class TestBuildInitialOrderState:
         for p in os["persons"]:
             assert p["items"] == []
             assert p["total_energy"] == 0.0
+
+
+def test_update_order_multi_person_segmented_assignment(family_profile):
+    os = build_initial_order_state(family_profile)
+    menu_names = ["Big Mac", "Happy Meal (4pc McNuggets)"]
+    energy = {"Big Mac": 550.0, "Happy Meal (4pc McNuggets)": 395.0}
+    allergen_map = {"Big Mac": [], "Happy Meal (4pc McNuggets)": []}
+    DialogPipeline._update_order(
+        "I'll take a Big Mac. For my 7-year-old kid, a Happy Meal (4pc McNuggets).",
+        menu_names,
+        os,
+        energy,
+        allergen_map,
+    )
+    assert any(it["name"] == "Big Mac" for it in os["persons"][0]["items"])
+    # 7-year-old in fixture is child_2, so assignment should be explicit.
+    assert any(it["name"] == "Happy Meal (4pc McNuggets)" for it in os["persons"][2]["items"])
+
+
+def test_update_order_segmented_assignment_with_label_reference(family_profile):
+    os = build_initial_order_state(family_profile)
+    menu_names = ["Big Mac", "Happy Meal (4pc McNuggets)"]
+    energy = {"Big Mac": 550.0, "Happy Meal (4pc McNuggets)": 395.0}
+    allergen_map = {"Big Mac": [], "Happy Meal (4pc McNuggets)": []}
+    DialogPipeline._update_order(
+        "For me, Big Mac. For child_1, Happy Meal (4pc McNuggets).",
+        menu_names,
+        os,
+        energy,
+        allergen_map,
+    )
+    assert any(it["name"] == "Big Mac" for it in os["persons"][0]["items"])
+    assert any(it["name"] == "Happy Meal (4pc McNuggets)" for it in os["persons"][1]["items"])
 
 
 # ── validate_dialog ──────────────────────────────────────────────────
@@ -499,10 +552,11 @@ def test_dialog_pipeline_collect_llm_trace_with_trace_agents(
     _, _, _, flags = pipeline.run(profile=family_profile)
 
     assert "llm_trace" in flags
-    assert len(flags["llm_trace"]) == 3
-    assert flags["llm_trace"][0]["agent"] == "cashier"
-    assert flags["llm_trace"][1]["agent"] == "client"
-    assert flags["llm_trace"][2]["agent"] == "cashier"
+    llm_calls = [ev for ev in flags["llm_trace"] if ev.get("event") == "llm_call"]
+    assert len(llm_calls) == 3
+    assert llm_calls[0]["agent"] == "cashier"
+    assert llm_calls[1]["agent"] == "client"
+    assert llm_calls[2]["agent"] == "cashier"
 
 
 def test_dialog_pipeline_emits_progress_events(monkeypatch, family_profile) -> None:

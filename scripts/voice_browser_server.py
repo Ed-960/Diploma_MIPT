@@ -201,16 +201,21 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/session/start":
             print("[api] POST /api/session/start …", flush=True)
+            if cfg.trace_all:
+                print(f"[api] start payload={data}", flush=True)
             sid = uuid.uuid4().hex
             session = HumanDriveThroughSession(
                 max_turns=cfg.max_turns,
                 model=cfg.model,
                 realistic_cashier=cfg.realistic_cashier,
                 trace_verbose=cfg.trace_verbose,
+                print_trace=cfg.print_trace or cfg.trace_all,
+                trace_all=cfg.trace_all,
             )
             try:
                 start_payload = session.start()
             except Exception as exc:
+                print(f"[api] /start ERROR: {exc}", flush=True)
                 self._send(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     _json_bytes({"error": str(exc)}),
@@ -226,6 +231,8 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
                 "validation": start_payload["validation"],
             }
             print("[api] POST /api/session/start OK", flush=True)
+            if cfg.trace_all:
+                print(f"[api] start response={out}", flush=True)
             self._send(
                 HTTPStatus.OK,
                 _json_bytes(out),
@@ -236,6 +243,11 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/session/message":
             sid = str(data.get("session_id") or "")
             text = str(data.get("text") or "")
+            if cfg.trace_all:
+                print(
+                    f"[api] POST /api/session/message sid={sid} text={text!r}",
+                    flush=True,
+                )
             with _sessions_lock:
                 session = _sessions.get(sid)
             if session is None:
@@ -248,6 +260,7 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
             try:
                 out = session.step(text)
             except ValueError as exc:
+                print(f"[api] /message BAD_REQUEST: {exc}", flush=True)
                 self._send(
                     HTTPStatus.BAD_REQUEST,
                     _json_bytes({"error": str(exc)}),
@@ -255,6 +268,7 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
                 )
                 return
             except Exception as exc:
+                print(f"[api] /message ERROR: {exc}", flush=True)
                 self._send(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     _json_bytes({"error": str(exc)}),
@@ -280,6 +294,15 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
                 except Exception as exc:
                     print(f"[api] Voice dialog save failed: {exc}", flush=True)
                     out["saved_dialog_error"] = str(exc)
+            order_parser_stats = out.get("order_parser_stats")
+            if isinstance(order_parser_stats, dict):
+                print(
+                    "[api] order_parser_stats="
+                    + json.dumps(order_parser_stats, ensure_ascii=False),
+                    flush=True,
+                )
+            if cfg.trace_all:
+                print(f"[api] message response={out}", flush=True)
             self._send(
                 HTTPStatus.OK,
                 _json_bytes(out),
@@ -307,6 +330,16 @@ def main() -> None:
     )
     parser.add_argument("--model", default=None, help="Override API_MODEL for this process.")
     parser.add_argument("--trace-verbose", action="store_true", help="Verbose LLM traces in agents.")
+    parser.add_argument(
+        "--print-trace",
+        action="store_true",
+        help="Print RAG/mini-LLM/LLM trace events for each turn.",
+    )
+    parser.add_argument(
+        "--trace-all",
+        action="store_true",
+        help="Maximum terminal logs: request payloads, traces, order snapshots.",
+    )
     parser.add_argument("--verbose-http", action="store_true", help="Log each HTTP request.")
     parser.add_argument(
         "--no-prewarm",
@@ -327,6 +360,9 @@ def main() -> None:
     args = parser.parse_args()
 
     VoiceBrowserHandler._log_requests = args.verbose_http
+    if args.trace_all:
+        args.print_trace = True
+        args.trace_verbose = True
     if not args.no_prewarm:
         _prewarm_menu_rag()
     httpd = ThreadingHTTPServer((args.host, args.port), VoiceBrowserHandler)
@@ -337,6 +373,10 @@ def main() -> None:
             f"On session end, dialogs are saved like generate_dataset → {args.voice_output_dir}/",
             flush=True,
         )
+    print(
+        f"Tracing: print_trace={args.print_trace} trace_verbose={args.trace_verbose} trace_all={args.trace_all}",
+        flush=True,
+    )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

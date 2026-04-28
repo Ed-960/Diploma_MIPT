@@ -8,10 +8,15 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Sequence
 
 from mcd_voice.menu.chroma import configure_hf_cache, get_menu_collection
 from mcd_voice.menu.parsing import allergens_meta_to_list
+from mcd_voice.menu.rag_lexical import (
+    chroma_fetch_n_for_lexical,
+    filter_rows_by_excluded_lexical,
+    normalize_excluded_lexical_terms,
+)
 
 
 def _build_where_for_blacklist(allergens_blacklist: list[str] | None) -> dict[str, Any] | None:
@@ -69,6 +74,7 @@ def search_menu(
     *,
     max_energy: float | None = None,
     min_energy: float | None = None,
+    excluded_lexical: Sequence[str] | None = None,
     chroma_trace: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """
@@ -76,6 +82,8 @@ def search_menu(
 
     :param max_energy: только блюда с energy <= этого значения (ккал).
     :param min_energy: только блюда с energy >= этого значения (ккал).
+    :param excluded_lexical: слова/короткие фразы; позиции, где они встречаются в тексте
+        карточки меню, отбрасываются после векторного поиска (см. ``rag_lexical``).
 
     Возвращает списки словарей: name, energy, allergens, sugar fields, ingredients, distance.
     """
@@ -87,7 +95,9 @@ def search_menu(
         min_energy=min_energy,
     )
 
-    n = min(top_k, max(1, collection.count()))
+    lex = normalize_excluded_lexical_terms(excluded_lexical or ())
+    total_docs = max(1, collection.count())
+    n = chroma_fetch_n_for_lexical(top_k, total_docs, bool(lex))
     kwargs: dict[str, Any] = {
         "query_texts": [query],
         "n_results": n,
@@ -169,6 +179,8 @@ def search_menu(
                 "distance":     float(dist),
             }
         )
+    if lex:
+        out = filter_rows_by_excluded_lexical(out, lex)[: max(1, top_k)]
     return out
 
 

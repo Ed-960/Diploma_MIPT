@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from mcd_voice.profile.generator import generate_text_description
@@ -15,12 +16,24 @@ def _language_name(profile: dict[str, Any] | None) -> str:
     return _LANG_NAMES.get(str(profile.get("language", "EN")), "English")
 
 
+def _client_variation_mode() -> str:
+    """
+    Prompt-level style control for synthetic client diversity.
+    Env: CLIENT_PROMPT_VARIATION in {"high", "normal", "off"}.
+    """
+    mode = (os.environ.get("CLIENT_PROMPT_VARIATION") or "high").strip().lower()
+    if mode in {"high", "normal", "off"}:
+        return mode
+    return "high"
+
+
 def get_client_system_prompt(profile: dict[str, Any]) -> str:
     """Customer agent: role, psychotype, restrictions, group composition."""
     desc = generate_text_description(profile)
     psycho = profile.get("psycho", "regular")
     cal = profile.get("calApprValue", 2000)
     lang = _language_name(profile)
+    variation_mode = _client_variation_mode()
 
     lines = [
         f"You are a real customer at a McDonald's drive-through. Speak in {lang}.",
@@ -32,9 +45,6 @@ def get_client_system_prompt(profile: dict[str, Any]) -> str:
         "- When the cashier suggests items, refer to them naturally — "
         "'the fries', 'a Big Mac', 'some nuggets' are fine. "
         "Don't repeat the full official name every time.",
-        "- You are a returning customer who knows popular items (Big Mac, nuggets, fries, "
-        "Coke). You can order these from memory. For less common items, wait until the "
-        "cashier mentions them.",
         f"- {_calorie_hint(cal)}",
         "- If you have dietary restrictions, mention them naturally ONCE early on "
         "(e.g. 'I can't have dairy'). Don't repeat them every turn.",
@@ -50,6 +60,23 @@ def get_client_system_prompt(profile: dict[str, Any]) -> str:
         "finish with a short confirmation like 'That's all, thanks.'",
         "- Do not keep adding items after the order is logically complete.",
     ]
+    if variation_mode == "off":
+        lines.append(
+            "- You are a returning customer who knows popular items (Big Mac, nuggets, fries, "
+            "Coke). You can order these from memory. For less common items, wait until the "
+            "cashier mentions them."
+        )
+    else:
+        lines.append("- Vary your choices naturally. Do not default to the same combo every dialog.")
+        lines.append(
+            "- If you mention a dietary restriction, keep your order consistent with it "
+            "(do not order items that clearly conflict)."
+        )
+        if variation_mode == "high":
+            lines.append(
+                "- Across different dialogs, vary opening phrasing, main item family "
+                "(burger/chicken/wrap/vegetarian), and side/drink choices."
+            )
 
     if profile.get("companions"):
         lines.append(
@@ -116,8 +143,13 @@ def get_cashier_system_prompt(
         "- NEVER claim an item is absent from the entire menu just because it is not in this "
         "turn's context. Say you can't confirm it right now or that you can't recommend it for "
         "their dietary needs.",
+        "- If a requested item conflicts with the customer's dietary restriction, NEVER say "
+        "'we don't have it' or 'it's not in the menu'. Say it exists but is not suitable for "
+        "their dietary needs, then offer suitable alternatives.",
         "- If they ask for MORE options in the SAME category (e.g. other coffees), list several "
         "different items from the context slice; never imply your short list is the full menu.",
+        "- If context includes an 'Items excluded by dietary constraints' block, treat those "
+        "items as existing on the menu but unsuitable for this customer's restrictions.",
         "- If the customer NAMES a specific menu item that appears in your context slice, treat it "
         "as available and confirm it — do NOT say you cannot confirm an item that is listed "
         "in the menu data you were given for this turn.",

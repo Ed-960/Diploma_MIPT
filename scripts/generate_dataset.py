@@ -281,13 +281,21 @@ def main() -> None:
     )
     parser.add_argument(
         "--realistic_cashier",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="Кассир без скрытого профиля: не видит психотип/группу/ограничения до реплик клиента; "
-        "RAG без фильтра аллергенов по профилю.",
+        "RAG без фильтра аллергенов по профилю (по умолчанию: true).",
     )
     parser.add_argument(
         "--retry_on_loop", type=int, default=1,
         help="Сколько раз перегенерировать диалог при loop/stall/max_turns без завершения.",
+    )
+    parser.add_argument(
+        "--client_variation",
+        type=str,
+        choices=("high", "normal", "off"),
+        default="high",
+        help="Режим вариативности клиентского промпта: high|normal|off (по умолчанию high).",
     )
     args = parser.parse_args()
 
@@ -304,6 +312,7 @@ def main() -> None:
         mode_label = "graph-RAG" if rag_mode == "graph" else "vector-RAG"
     workers = max(1, args.workers)
     ensure_llm_credentials()
+    os.environ["CLIENT_PROMPT_VARIATION"] = args.client_variation
 
     collect_rag = args.rag_trace or args.print_trace
     collect_llm = args.llm_trace or args.print_trace
@@ -350,6 +359,7 @@ def main() -> None:
         f"  shuffle_profiles={bool(args.profiles_file and args.shuffle_profiles)}"
         f"  realistic_cashier={args.realistic_cashier}"
         f"  retry_on_loop={max(0, args.retry_on_loop)}"
+        f"  client_variation={args.client_variation}"
     )
     if args.print_trace or args.trace_verbose:
         rt = get_llm_runtime_config()

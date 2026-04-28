@@ -1,99 +1,79 @@
-"""Детектор «другие варианты кофе» для RAG rewrite."""
+"""Тесты универсальных helper-функций RAG/intent в CashierAgent."""
 
 from __future__ import annotations
-
-from unittest.mock import MagicMock
 
 import pytest
 
 from mcd_voice.llm.agent import (
-    _COFFEE_BROAD_RAG_QUERY,
-    _client_asks_coffee_variant_count,
-    _client_wants_coffee_variety_scan,
-    _coffee_count_response_from_rag_context,
-    _enrich_client_text_for_menu_rag,
-    _rewrite_query,
+    _extract_names_from_rag_context,
+    _is_non_food_client_utterance,
+    _normalize_rewrite_output,
+    _rag_intent,
+    _should_skip_rag,
 )
 
 
 @pytest.mark.parametrize(
     "text,expected",
     [
-        (
-            "dont you have any other kind of coffee besides all these kinds you called ?",
-            True,
-        ),
-        ("yes, I mean another coffee", True),
-        ("What other kinds of coffee do you have?", True),
-        ("I'd like a black coffee", False),
-        ("something else", False),
-        ("другой кофе есть?", True),
-        ("coffee other variants", True),
-        ("other variants of coffee please", True),
+        ("thanks", True),
+        ("Okay, that's all.", True),
+        ("A burger and fries, please", False),
+        ("Can I get salad?", False),
     ],
 )
-def test_coffee_variety_scan(text: str, expected: bool) -> None:
-    assert _client_wants_coffee_variety_scan(text) is expected
-
-
-def test_enrich_short_followup_carries_coffee_topic_from_history() -> None:
-    history = [
-        {"speaker": "client", "text": "Which kind of coffee do you have"},
-        {"speaker": "cashier", "text": "We have black coffee and cold coffee."},
-        {"speaker": "client", "text": "what else"},
-    ]
-    out = _enrich_client_text_for_menu_rag(history, "what else")
-    assert "what else" in out
-    assert "coffee" in out.lower()
-
-
-def test_enrich_other_variants_after_coffee_thread() -> None:
-    history = [
-        {"speaker": "client", "text": "coffee other variants"},
-        {"speaker": "cashier", "text": "Cold Coffee McFloat"},
-        {"speaker": "client", "text": "other variants"},
-    ]
-    out = _enrich_client_text_for_menu_rag(history, "other variants")
-    assert "other variants" in out
-    assert "premium roast" in out.lower() or "latte" in out.lower()
-
-
-def test_rewrite_query_overrides_narrow_coffee_with_broad_keywords(monkeypatch) -> None:
-    """Узкий ответ mini-LLM («coffee») заменяется на разнообразный запрос к Chroma."""
-    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "coffee")
-    out = _rewrite_query(
-        "What other kinds of coffee do you have?",
-        MagicMock(),
-        "rewrite-model",
-        llm_trace=None,
-    )
-    assert out == _COFFEE_BROAD_RAG_QUERY
+def test_non_food_utterance_detection(text: str, expected: bool) -> None:
+    assert _is_non_food_client_utterance(text) is expected
 
 
 @pytest.mark.parametrize(
-    "text,expected",
+    "spec,expected",
     [
-        ("I need the count of all the coffee variants in menu", True),
-        ("How many coffee variants do you have?", True),
-        ("сколько видов кофе у вас в меню", True),
-        ("I need a coffee", False),
+        ({"intent": "lookup"}, "lookup"),
+        ({"intent": "alternatives"}, "alternatives"),
+        ({"intent": "details"}, "details"),
+        ({"intent": "calorie_tune"}, "calorie_tune"),
+        ({"intent": "compare"}, "compare"),
+        ({"intent": "unknown"}, "lookup"),
+        ({}, "lookup"),
+        (None, "lookup"),
     ],
 )
-def test_detects_coffee_count_intent(text: str, expected: bool) -> None:
-    assert _client_asks_coffee_variant_count(text) is expected
+def test_rag_intent_normalization(spec, expected: str) -> None:
+    assert _rag_intent(spec) == expected
 
 
-def test_coffee_count_response_uses_only_rag_context_names() -> None:
+def test_extract_names_from_rag_context_unique_and_ordered() -> None:
     rag_context = (
-        "- Premium Roast Coffee (120 kcal, allergens: none listed)\n"
-        "- Caramel Macchiato (260 kcal, allergens: Milk)\n"
-        "- Caramel Frappe (380 kcal, allergens: Milk)\n"
-        "- Big Mac (563 kcal, allergens: gluten)\n"
+        "- Side Salad (~15 kcal)\n"
+        "- Big Mac (~550 kcal)\n"
+        "- Side Salad (~15 kcal)\n"
+        "Some other line\n"
     )
-    out = _coffee_count_response_from_rag_context(rag_context)
-    assert out is not None
-    assert "3 coffee variants" in out
-    assert "Premium Roast Coffee" in out
-    assert "Caramel Macchiato" in out
-    assert "Caramel Frappe" in out
-    assert "Big Mac" not in out
+    assert _extract_names_from_rag_context(rag_context) == ["Side Salad", "Big Mac"]
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("food type: burgers", "food type burgers"),
+        ("  all  ", "general menu items"),
+        ("okay thanks", "general menu items"),
+        ("grilled chicken, no beef", "grilled chicken no beef"),
+    ],
+)
+def test_normalize_rewrite_output(raw: str, expected: str) -> None:
+    assert _normalize_rewrite_output(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "client_text,search_query,expected",
+    [
+        ("thanks", "thanks", True),
+        ("I want a burger", "big mac burger", False),
+        ("", "", True),
+        ("ok", "general menu items", True),
+    ],
+)
+def test_should_skip_rag(client_text: str, search_query: str, expected: bool) -> None:
+    assert _should_skip_rag(client_text, search_query) is expected

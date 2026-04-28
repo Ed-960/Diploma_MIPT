@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Архитектура LLM / RAG</title>
+  <style>
+    :root {
+      --blue-soft: #c5daf0;
+      --blue-mid: #8eb4d9;
+      --blue-deep: #3d6fa8;
+      --line: #3d6fa8;
+      --line-glow: #a8c8e8;
+      --line-dim: #7b9bc4;
+      --blue-header: #e8f2fb;
+      --white: #ffffff;
+      --border: #9bb5d0;
+      --text: #1a2d3d;
+      --muted: #5a6f82;
+      --accent: #e8943a;
+      --shadow: 0 4px 18px rgba(61, 111, 168, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 14px 12px 20px;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #fff;
+      color: var(--text);
+    }
+
+    h1 {
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.32rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+      color: var(--blue-deep);
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      max-width: 920px;
+      margin: 0 auto 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(61, 111, 168, 0.08);
+      overflow: hidden;
+    }
+
+    .panel-body {
+      padding: 6px 4px 10px;
+      background: #fff;
+    }
+
+    .diagram {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .diagram text {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>Архитектура ответа кассира</h1>
+  <p class="subtitle">Линии связи · базовая LLM · Vector RAG · Graph RAG · генерация датасета</p>
+
+  <!-- 1. Базовая -->
+  <section class="panel">
+    <div class="panel-body">
+      <svg class="diagram" viewBox="0 0 676 128" xmlns="http://www.w3.org/2000/svg" aria-label="Базовая LLM">
+        <defs>
+          <linearGradient id="g1Llm" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#6fa0cf"/>
+          </linearGradient>
+          <marker id="m1" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#2d5a8a"/>
+          </marker>
+        </defs>
+        <!-- Стрелки по всей длине промежутка (~78px и ~76px) -->
+        <path d="M 174 64 L 248 64" stroke="#cfe2f4" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <path d="M 174 64 L 248 64" stroke="#3d6fa8" stroke-width="2.4" fill="none" stroke-linecap="round" marker-end="url(#m1)"/>
+        <path d="M 428 64 L 500 64" stroke="#cfe2f4" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <path d="M 428 64 L 500 64" stroke="#3d6fa8" stroke-width="2.4" fill="none" stroke-linecap="round" marker-end="url(#m1)"/>
+
+        <rect x="32" y="38" width="142" height="52" rx="12" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="103" y="62" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Запрос</text>
+        <text x="103" y="78" text-anchor="middle" fill="var(--muted)" font-size="10">контекст диалога</text>
+
+        <rect x="254" y="32" width="174" height="62" rx="12" fill="url(#g1Llm)" stroke="#6b9bc4" stroke-width="1"/>
+        <text x="341" y="62" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">LLM</text>
+        <text x="341" y="80" text-anchor="middle" fill="rgba(255,255,255,0.92)" font-size="10">кассир</text>
+
+        <rect x="504" y="38" width="142" height="52" rx="12" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="575" y="70" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Ответ</text>
+
+        <g class="badges" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI, system-ui, sans-serif">
+          <g transform="translate(103,14)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">1</text></g>
+          <g transform="translate(341,14)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">2</text></g>
+          <g transform="translate(575,14)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">3</text></g>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 2. Vector RAG -->
+  <section class="panel">
+    <div class="panel-body">
+      <svg class="diagram" viewBox="0 0 820 392" xmlns="http://www.w3.org/2000/svg" aria-label="Vector RAG">
+        <defs>
+          <linearGradient id="g2Llm" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#6fa0cf"/>
+          </linearGradient>
+          <linearGradient id="g2Mini" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#b8d4ec"/>
+            <stop offset="100%" stop-color="#5d94c4"/>
+          </linearGradient>
+          <linearGradient id="g2Emb" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#7aa8cf"/>
+          </linearGradient>
+          <marker id="m2" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#2d5a8a"/>
+          </marker>
+          <marker id="m2d" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6a8ab0"/>
+          </marker>
+        </defs>
+
+        <!-- Линии (под фигурами): подложка + контур -->
+        <g class="wires" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <!-- 1→2: дуга выше + длинный вертикальный спуск — стрелка сверху по нормали к мини-LLM -->
+          <path d="M 668 94 C 668 118, 560 76, 380 82 C 260 86, 118 72, 118 88 L 118 124" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 668 94 C 668 118, 560 76, 380 82 C 260 86, 118 72, 118 88 L 118 124" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m2)"/>
+          <path d="M 188 148 L 218 148" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 188 148 L 218 148" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m2)"/>
+          <!-- 3→4: длиннее горизонталь до цилиндра (было ~30px) -->
+          <path d="M 368 148 L 446 148" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 368 148 L 446 148" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m2)"/>
+          <path d="M 498 200 L 498 228" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 498 200 L 498 228" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m2)"/>
+          <path d="M 498 272 L 498 318 L 248 318 L 248 328" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 498 272 L 498 318 L 248 318 L 248 328" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m2)"/>
+          <path d="M 668 94 C 668 200, 668 260, 668 318 L 248 318 L 248 328" stroke="#dde8f4" stroke-width="5" stroke-dasharray="8 6"/>
+          <path d="M 668 94 C 668 200, 668 260, 668 318 L 248 318 L 248 328" stroke="#6d8eb8" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#m2d)"/>
+          <!-- 6→7 / 7→8: увеличенные зазоры до LLM и до «Ответ» -->
+          <path d="M 328 354 L 402 354" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 328 354 L 402 354" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m2)"/>
+          <path d="M 542 358 L 590 358" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 542 358 L 590 358" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m2)"/>
+        </g>
+
+        <rect x="608" y="48" width="120" height="46" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="668" y="68" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Запрос</text>
+        <text x="668" y="84" text-anchor="middle" fill="var(--muted)" font-size="9">реплика клиента</text>
+
+        <rect x="48" y="128" width="140" height="62" rx="11" fill="url(#g2Mini)" stroke="#5a8ab8" stroke-width="1"/>
+        <text x="118" y="152" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">Мини-LLM</text>
+        <text x="118" y="168" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="9">rewrite для поиска</text>
+
+        <path d="M 228 128 L 368 128 L 388 190 L 208 190 Z" fill="url(#g2Emb)" stroke="#6b9bc4" stroke-width="1"/>
+        <text x="298" y="158" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">Embedding</text>
+        <text x="298" y="174" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="9">вектор запроса</text>
+
+        <ellipse cx="498" cy="132" rx="44" ry="12" fill="#d4e6f7" stroke="var(--border)" stroke-width="1"/>
+        <path d="M 454 132 L 454 186 L 542 186 L 542 132" fill="url(#g2Emb)" stroke="#6b9bc4" stroke-width="1"/>
+        <ellipse cx="498" cy="186" rx="44" ry="12" fill="#5d8ab8" stroke="#4a7a9e" stroke-width="1"/>
+        <text x="498" y="156" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">Vector DB</text>
+        <text x="498" y="176" text-anchor="middle" fill="#f0f7ff" font-size="10" font-weight="600" opacity="0.95">Chroma</text>
+
+        <rect x="454" y="228" width="88" height="18" rx="3" fill="#fff" stroke="var(--border)"/>
+        <rect x="458" y="238" width="88" height="18" rx="3" fill="#fff" stroke="var(--border)"/>
+        <rect x="462" y="248" width="88" height="22" rx="3" fill="#fff" stroke="var(--border)"/>
+        <text x="498" y="288" text-anchor="middle" fill="var(--muted)" font-size="10">фрагменты меню</text>
+
+        <rect x="168" y="328" width="160" height="52" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="248" y="350" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">Запрос + контексты</text>
+        <text x="248" y="366" text-anchor="middle" fill="var(--muted)" font-size="9">промпт кассира</text>
+
+        <rect x="402" y="322" width="140" height="64" rx="11" fill="url(#g2Llm)" stroke="#6b9bc4" stroke-width="1"/>
+        <text x="472" y="352" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">LLM</text>
+        <text x="472" y="370" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="9">основная модель</text>
+
+        <rect x="590" y="328" width="110" height="52" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="645" y="358" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Ответ</text>
+
+        <g class="badges" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI, system-ui, sans-serif">
+          <g transform="translate(668,34)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">1</text></g>
+          <g transform="translate(38,112)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">2</text></g>
+          <g transform="translate(208,112)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">3</text></g>
+          <g transform="translate(438,112)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">4</text></g>
+          <g transform="translate(558,238)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">5</text></g>
+          <g transform="translate(248,308)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">6</text></g>
+          <g transform="translate(472,308)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">7</text></g>
+          <g transform="translate(645,308)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">8</text></g>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 3. Graph RAG -->
+  <section class="panel">
+    <div class="panel-body">
+      <svg class="diagram" viewBox="0 0 820 398" xmlns="http://www.w3.org/2000/svg" aria-label="Graph RAG">
+        <defs>
+          <linearGradient id="g3Llm" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#6fa0cf"/>
+          </linearGradient>
+          <linearGradient id="g3Mini" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#b8d4ec"/>
+            <stop offset="100%" stop-color="#5d94c4"/>
+          </linearGradient>
+          <linearGradient id="g3Graph" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#4a7aa8"/>
+          </linearGradient>
+          <marker id="m3" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#2d5a8a"/>
+          </marker>
+          <marker id="m3d" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6a8ab0"/>
+          </marker>
+        </defs>
+
+        <g class="wires" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 668 94 C 668 118, 560 76, 380 82 C 260 86, 118 72, 118 88 L 118 124" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 668 94 C 668 118, 560 76, 380 82 C 260 86, 118 72, 118 88 L 118 124" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 188 148 L 218 148" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 188 148 L 218 148" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 418 160 L 454 160 L 454 218" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 418 160 L 454 160 L 454 218" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 498 262 L 498 298 L 248 298 L 248 308" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 498 262 L 498 298 L 248 298 L 248 308" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 668 94 C 668 190, 668 240, 668 298 L 248 298 L 248 308" stroke="#dde8f4" stroke-width="5" stroke-dasharray="8 6"/>
+          <path d="M 668 94 C 668 190, 668 240, 668 298 L 248 298 L 248 308" stroke="#6d8eb8" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#m3d)"/>
+          <!-- 5→6 / 6→7: те же зазоры, что на Vector -->
+          <path d="M 328 334 L 402 334" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 328 334 L 402 334" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+          <path d="M 542 338 L 590 338" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 542 338 L 590 338" stroke="#3d6fa8" stroke-width="2.3" marker-end="url(#m3)"/>
+        </g>
+
+        <rect x="608" y="48" width="120" height="46" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="668" y="68" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Запрос</text>
+        <text x="668" y="84" text-anchor="middle" fill="var(--muted)" font-size="9">реплика клиента</text>
+
+        <rect x="48" y="128" width="140" height="62" rx="11" fill="url(#g3Mini)" stroke="#5a8ab8" stroke-width="1"/>
+        <text x="118" y="152" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">Мини-LLM</text>
+        <text x="118" y="168" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="9">rewrite</text>
+
+        <rect x="228" y="118" width="190" height="84" rx="12" fill="url(#g3Graph)" stroke="#4a7aa8" stroke-width="1"/>
+        <text x="323" y="150" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Graph RAG</text>
+        <text x="323" y="170" text-anchor="middle" fill="rgba(255,255,255,0.92)" font-size="10">обход графа меню</text>
+
+        <rect x="454" y="218" width="88" height="18" rx="3" fill="#fff" stroke="var(--border)"/>
+        <rect x="458" y="228" width="88" height="18" rx="3" fill="#fff" stroke="var(--border)"/>
+        <rect x="462" y="238" width="88" height="22" rx="3" fill="#fff" stroke="var(--border)"/>
+        <text x="498" y="278" text-anchor="middle" fill="var(--muted)" font-size="10">фрагменты меню для LLM</text>
+
+        <rect x="168" y="308" width="160" height="52" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="248" y="330" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">Запрос + контексты</text>
+        <text x="248" y="346" text-anchor="middle" fill="var(--muted)" font-size="9">промпт кассира</text>
+
+        <rect x="402" y="302" width="140" height="64" rx="11" fill="url(#g3Llm)" stroke="#6b9bc4" stroke-width="1"/>
+        <text x="472" y="332" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">LLM</text>
+        <text x="472" y="350" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="9">основная модель</text>
+
+        <rect x="590" y="308" width="110" height="52" rx="11" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="645" y="338" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Ответ</text>
+
+        <g class="badges" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI, system-ui, sans-serif">
+          <g transform="translate(668,34)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">1</text></g>
+          <g transform="translate(38,112)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">2</text></g>
+          <!-- «3» над блоком Graph RAG, не в углу прямоугольника -->
+          <g transform="translate(323,102)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">3</text></g>
+          <g transform="translate(558,238)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">4</text></g>
+          <g transform="translate(248,288)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">5</text></g>
+          <g transform="translate(472,288)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">6</text></g>
+          <g transform="translate(645,288)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">7</text></g>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 4. Генерация диалогов и итерация (по фактическому потоку generate_dataset.py + simulate_dialog) -->
+  <section class="panel">
+    <div class="panel-body">
+      <svg class="diagram" viewBox="0 0 700 404" xmlns="http://www.w3.org/2000/svg" aria-label="Генерация диалогов">
+        <defs>
+          <linearGradient id="g4Llm" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#c5daf0"/>
+            <stop offset="100%" stop-color="#6fa0cf"/>
+          </linearGradient>
+          <linearGradient id="g4Mini" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#b8d4ec"/>
+            <stop offset="100%" stop-color="#5d94c4"/>
+          </linearGradient>
+          <marker id="m4" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#2d5a8a"/>
+          </marker>
+          <marker id="m4d" markerWidth="10" markerHeight="7" refX="9.5" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6a8ab0"/>
+          </marker>
+        </defs>
+
+        <text x="350" y="16" text-anchor="middle" fill="var(--muted)" font-size="10" font-weight="600">Датасет и исследование (как в репозитории)</text>
+
+        <g class="wires" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 350 86 L 350 102" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 350 86 L 350 102" stroke="#3d6fa8" stroke-width="2.2" marker-end="url(#m4)"/>
+          <path d="M 350 170 L 378 170" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 350 170 L 378 170" stroke="#3d6fa8" stroke-width="2.2" marker-end="url(#m4)"/>
+          <path d="M 350 224 L 350 238" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 350 224 L 350 238" stroke="#3d6fa8" stroke-width="2.2" marker-end="url(#m4)"/>
+          <path d="M 350 280 L 350 294" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 350 280 L 350 294" stroke="#3d6fa8" stroke-width="2.2" marker-end="url(#m4)"/>
+          <path d="M 350 334 L 350 346" stroke="#cfe2f4" stroke-width="6"/>
+          <path d="M 350 334 L 350 346" stroke="#3d6fa8" stroke-width="2.2" marker-end="url(#m4)"/>
+        </g>
+
+        <!-- 1: скрипт -->
+        <rect x="50" y="36" width="600" height="50" rx="11" fill="#eef4fb" stroke="#9eb6d4" stroke-width="1.2"/>
+        <text x="350" y="58" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">scripts/generate_dataset.py</text>
+        <text x="350" y="76" text-anchor="middle" fill="var(--muted)" font-size="9">N задач: каждая вызывает simulate_dialog → save_dialog (пул потоков)</text>
+
+        <!-- рамка «одна итерация датасета» -->
+        <rect x="62" y="102" width="576" height="122" rx="12" fill="#f8fbfe" stroke="#7a9bc4" stroke-width="1.3" stroke-dasharray="7 5"/>
+        <text x="350" y="120" text-anchor="middle" fill="#4a6a8a" font-size="9" font-weight="700">тело цикла по i = 1 … N (внутри скрипта)</text>
+
+        <rect x="82" y="132" width="268" height="76" rx="10" fill="url(#g4Mini)" stroke="#5a8ab8" stroke-width="1"/>
+        <text x="216" y="158" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">simulate_dialog</text>
+        <text x="216" y="176" text-anchor="middle" fill="rgba(255,255,255,0.95)" font-size="9">mcd_voice.dialog — фасад DialogPipeline.run</text>
+        <text x="216" y="192" text-anchor="middle" fill="rgba(255,255,255,0.88)" font-size="8">REG-профиль · ClientAgent / CashierAgent · validate_dialog → flags</text>
+
+        <rect x="378" y="140" width="240" height="60" rx="10" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="498" y="166" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">save_dialog</text>
+        <text x="498" y="184" text-anchor="middle" fill="var(--muted)" font-size="9">mcd_voice.dialog — dialog_*.json в output_dir</text>
+
+        <!-- после пакета -->
+        <rect x="120" y="238" width="460" height="42" rx="10" fill="url(#g4Llm)" stroke="#6b9bc4" stroke-width="1"/>
+        <text x="350" y="258" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">aggregate_stats(output_dir)</text>
+        <text x="350" y="274" text-anchor="middle" fill="rgba(255,255,255,0.92)" font-size="9">summary.json по всем JSON в каталоге</text>
+
+        <rect x="175" y="294" width="350" height="40" rx="10" fill="#eef4fb" stroke="#9eb6d4" stroke-width="1.2"/>
+        <text x="350" y="318" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="700">scripts/compare_rag.py</text>
+
+        <rect x="195" y="346" width="310" height="36" rx="10" fill="#fff" stroke="var(--border)" stroke-width="1.2"/>
+        <text x="350" y="368" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">Правки</text>
+        <text x="350" y="380" text-anchor="middle" fill="var(--muted)" font-size="8">промпты · RAG · модель — затем новый прогон датасета</text>
+
+        <g class="wires-cycle" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 505 364 L 648 364 L 648 24 L 350 24 L 350 36" stroke="#dde8f4" stroke-width="6" stroke-dasharray="9 6"/>
+          <path d="M 505 364 L 648 364 L 648 24 L 350 24 L 350 36" stroke="#5a7aa0" stroke-width="2.2" stroke-dasharray="9 6" marker-end="url(#m4d)"/>
+        </g>
+
+        <g class="badges" fill="#fff" font-size="11" font-weight="700" font-family="Segoe UI, system-ui, sans-serif">
+          <g transform="translate(64,50)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">1</text></g>
+          <g transform="translate(216,118)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">2</text></g>
+          <g transform="translate(498,118)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">3</text></g>
+          <g transform="translate(350,226)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">4</text></g>
+          <g transform="translate(350,276)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">5</text></g>
+          <g transform="translate(350,330)"><circle r="13" fill="#e8943a" stroke="#fff" stroke-width="2.5"/><text x="0" y="0" text-anchor="middle" dominant-baseline="middle">6</text></g>
+        </g>
+
+        <text x="350" y="398" text-anchor="middle" fill="var(--muted)" font-size="8">Светло-серый — scripts/ · градиент — mcd_voice.dialog</text>
+      </svg>
+    </div>
+  </section>
+
+</body>
+</html>

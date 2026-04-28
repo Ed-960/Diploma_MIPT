@@ -14,6 +14,7 @@ from typing import Any, Sequence
 
 from mcd_voice.menu.dataset import load_menu_from_json
 from mcd_voice.menu.parsing import allergens_meta_to_list
+from mcd_voice.menu.rag_lexical import filter_rows_by_excluded_lexical, normalize_excluded_lexical_terms
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = {
@@ -129,8 +130,16 @@ def search_menu_graph(
     allergens_blacklist: list[str] | None = None,
     top_k: int = 5,
     seed_k: int = 4,
+    max_energy: float | None = None,
+    min_energy: float | None = None,
+    excluded_lexical: Sequence[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Возвращает menu rows для prompt и trace-info для graph-RAG."""
+    """Возвращает menu rows для prompt и trace-info для graph-RAG.
+
+    ``max_energy`` / ``min_energy`` — по средней энергии вариантов с тем же name (как в строке ответа).
+
+    ``excluded_lexical`` — те же правила, что у ``search_menu`` (текст карточки по имени из ``mcd.json``).
+    """
     graph = _build_menu_graph()
     nodes: dict[str, dict[str, Any]] = graph["nodes"]
     edges: dict[str, list[tuple[str, float]]] = graph["edges"]
@@ -153,6 +162,8 @@ def search_menu_graph(
             candidate_scores[nb] = max(candidate_scores.get(nb, 0.0), s * 0.5 + w)
 
     ranked = sorted(candidate_scores.items(), key=lambda x: (x[1], x[0]), reverse=True)
+    lex = normalize_excluded_lexical_terms(excluded_lexical or ())
+    pool_k = max(top_k * 8, top_k + 20) if lex else top_k
     rows: list[dict[str, Any]] = []
     for name, score in ranked:
         node = nodes[name]
@@ -161,20 +172,30 @@ def search_menu_graph(
         energies = node["energies"] or [0.0]
         added = node["added_sugar"] or [0.0]
         total = node["total_sugar"] or [0.0]
+        avg_e = sum(energies) / len(energies)
+        if max_energy is not None and avg_e > float(max_energy) + 1e-6:
+            continue
+        if min_energy is not None and avg_e < float(min_energy) - 1e-6:
+            continue
         # "distance" kept for compatibility with existing render/trace pipeline.
         dist = 1.0 / (1.0 + max(0.01, score))
         rows.append(
             {
                 "name": name,
                 "allergens": sorted(node["allergens"]),
-                "energy": sum(energies) / len(energies),
+                "energy": avg_e,
                 "added_sugar": sum(added) / len(added),
                 "total_sugar": sum(total) / len(total),
                 "distance": float(dist),
             }
         )
-        if len(rows) >= max(1, top_k):
+        if len(rows) >= max(1, pool_k):
             break
+
+    if lex:
+        rows = filter_rows_by_excluded_lexical(rows, lex)[: max(1, top_k)]
+    else:
+        rows = rows[: max(1, top_k)]
 
     info = {
         "retrieval_mode": "graph",
