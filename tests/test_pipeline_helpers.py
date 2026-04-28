@@ -136,6 +136,13 @@ class TestParseOrderFromText:
         )
         assert ("Milk", 1) in result
 
+    def test_diet_coke_does_not_add_regular_coke(self):
+        result = parse_order_from_text(
+            "I'll take a Diet Coke.",
+            ["Coca-Cola", "Diet Coke"],
+        )
+        assert result == [("Diet Coke", 1)]
+
 
 # ── _detect_target_person ─────────────────────────────────────────────
 
@@ -254,6 +261,84 @@ def test_update_order_segmented_assignment_with_label_reference(family_profile):
     )
     assert any(it["name"] == "Big Mac" for it in os["persons"][0]["items"])
     assert any(it["name"] == "Happy Meal (4pc McNuggets)" for it in os["persons"][1]["items"])
+
+
+def test_update_order_swap_removes_previous_nuggets(family_profile):
+    os = build_initial_order_state(family_profile)
+    os["persons"][0]["items"] = [{"name": "10pc Chicken McNuggets", "quantity": 1}]
+    menu_names = ["10pc Chicken McNuggets", "McChicken"]
+    energy = {"10pc Chicken McNuggets": 420.0, "McChicken": 400.0}
+    allergen_map = {"10pc Chicken McNuggets": [], "McChicken": []}
+
+    DialogPipeline._update_order(
+        "Swap the nuggets for a McChicken.",
+        menu_names,
+        os,
+        energy,
+        allergen_map,
+    )
+
+    assert os["persons"][0]["items"] == [{"name": "McChicken", "quantity": 1}]
+
+
+def test_remove_unavailable_handles_cant_confirm_alias(family_profile):
+    os = build_initial_order_state(family_profile)
+    os["persons"][0]["items"] = [
+        {"name": "10pc Chicken McNuggets", "quantity": 1},
+        {"name": "Diet Coke", "quantity": 1},
+    ]
+    menu_names = ["10pc Chicken McNuggets", "Diet Coke"]
+    energy = {"10pc Chicken McNuggets": 420.0, "Diet Coke": 0.0}
+    allergen_map = {"10pc Chicken McNuggets": [], "Diet Coke": []}
+
+    DialogPipeline._remove_unavailable_from_order(
+        "I can't confirm the 10-piece nuggets right now, but Diet Coke is fine.",
+        menu_names,
+        os,
+        energy,
+        allergen_map,
+    )
+
+    assert os["persons"][0]["items"] == [{"name": "Diet Coke", "quantity": 1}]
+
+
+def test_replace_order_from_readback_drops_stale_items(family_profile):
+    os = build_initial_order_state(family_profile)
+    os["persons"][0]["items"] = [
+        {"name": "Coca-Cola", "quantity": 1},
+        {"name": "10pc Chicken McNuggets", "quantity": 1},
+        {"name": "Diet Coke", "quantity": 1},
+    ]
+    menu_names = [
+        "Coca-Cola",
+        "10pc Chicken McNuggets",
+        "Side Salad",
+        "Our World Famous Fries",
+        "Diet Coke",
+    ]
+    energy = {
+        "Coca-Cola": 140.0,
+        "10pc Chicken McNuggets": 420.0,
+        "Side Salad": 20.0,
+        "Our World Famous Fries": 320.0,
+        "Diet Coke": 0.0,
+    }
+    allergen_map = {name: [] for name in menu_names}
+
+    replaced = DialogPipeline._replace_order_from_text(
+        "Alright, I've got a side salad, fries, and a Diet Coke. Does that sound right?",
+        menu_names,
+        os,
+        energy,
+        allergen_map,
+    )
+
+    assert replaced is True
+    assert os["persons"][0]["items"] == [
+        {"name": "Side Salad", "quantity": 1},
+        {"name": "Our World Famous Fries", "quantity": 1},
+        {"name": "Diet Coke", "quantity": 1},
+    ]
 
 
 # ── validate_dialog ──────────────────────────────────────────────────

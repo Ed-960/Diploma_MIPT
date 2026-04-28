@@ -276,6 +276,7 @@ def _build_alias_patterns(menu_names: list[str]) -> list[tuple[re.Pattern[str], 
         (r"\biced tea\b", pick("iced", "tea")),
         (r"\bcheesy fries\b", pick("cheesy", "fries")),
         (r"\b(plain |regular |just )?fries\b", pick_plain_fries()),
+        (r"\b10\s*(?:pc|piece)[- ]*(?:chicken\s*)?nuggets\b", pick("10pc", "mcnuggets")),
         (r"\bnuggets\b", pick("mcnuggets")),
         (r"\bmcveggie\b", pick("mcveggie")),
         (r"\bbig mac\b", pick_exact("big mac")),
@@ -288,8 +289,8 @@ def _build_alias_patterns(menu_names: list[str]) -> list[tuple[re.Pattern[str], 
         (r"\bhash browns?\b", pick_exact("hash brown")),
         (r"\bhotcakes\b", pick_exact("hotcakes")),
         (r"\bapple (slices|pie)\b", pick_exact("apple")),
-        (r"\bcoke\b", pick_exact("coca-cola")),
         (r"\bdiet coke\b", pick_exact("diet coke")),
+        (r"(?<!diet\s)\bcoke\b", pick_exact("coca-cola")),
         (r"\bdr\.?\s*pepper\b", pick_exact("dr pepper")),
         (r"\bfanta\b", pick_exact("fanta")),
         (r"\bsweet tea\b", pick_exact("sweet tea")),
@@ -320,8 +321,84 @@ _UNAVAILABLE_CUES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bcan'?t (offer|do)\b", re.I),
     re.compile(r"\bcan'?t do that\b", re.I),
     re.compile(r"\bcan'?t recommend\b", re.I),
+    re.compile(r"\bcan'?t confirm\b", re.I),
+    re.compile(r"\bcannot confirm\b", re.I),
     re.compile(r"\b(?:has|contains)\s+added\s+sugar\b", re.I),
 )
+
+_ORDER_READBACK_RE = re.compile(
+    r"\b(does that sound right|is that correct|is that right)\b",
+    re.I,
+)
+
+
+def _mentioned_menu_items(text: str, menu_names: list[str]) -> set[str]:
+    """Return menu rows mentioned in text, including natural aliases."""
+    raw = text or ""
+    lower_norm = _normalize_item_text(raw)
+    mentioned: set[str] = set()
+    for name in menu_names:
+        name_norm = _normalize_item_text(name)
+        if len(name_norm) < 4:
+            continue
+        patt = r"\b" + r"\W+".join(re.escape(tok) for tok in name_norm.split()) + r"\b"
+        if re.search(patt, lower_norm, re.I):
+            mentioned.add(name)
+    for rx, target_name in _build_alias_patterns(menu_names):
+        if rx.search(raw) or rx.search(lower_norm):
+            mentioned.add(target_name)
+    if re.search(r"\bnuggets?\b", raw, re.I):
+        for name in menu_names:
+            if "nugget" in _normalize_item_text(name):
+                mentioned.add(name)
+    return mentioned
+
+
+def _split_unavailable_scope(text: str) -> list[str]:
+    scopes: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+", text or ""):
+        if not any(rx.search(sentence) for rx in _UNAVAILABLE_CUES):
+            continue
+        scope = re.split(r"\b(?:but|however|though)\b", sentence, maxsplit=1, flags=re.I)[0]
+        scopes.append(scope)
+    return scopes
+
+
+def _extract_swap_removed_items(text: str, menu_names: list[str]) -> set[str]:
+    removed: set[str] = set()
+    for m in re.finditer(
+        r"\b(?:swap|replace|change)\b(?P<old>[^.!?;\n]{0,80}?)\b(?:for|with|to)\b",
+        text or "",
+        re.I,
+    ):
+        removed.update(_mentioned_menu_items(m.group("old"), menu_names))
+    return removed
+
+
+def _swap_addition_text(text: str) -> str:
+    m = re.search(
+        r"\b(?:swap|replace|change)\b[^.!?;\n]{0,80}?\b(?:for|with|to)\b(?P<new>[^.!?;\n]+)",
+        text or "",
+        re.I,
+    )
+    return m.group("new") if m else text
+
+
+def _item_mention_position(text: str, item_name: str, menu_names: list[str]) -> int:
+    raw = text or ""
+    lower_norm = _normalize_item_text(raw)
+    item_norm = _normalize_item_text(item_name)
+    positions: list[int] = []
+    direct = lower_norm.find(item_norm)
+    if direct >= 0:
+        positions.append(direct)
+    for rx, target_name in _build_alias_patterns(menu_names):
+        if target_name != item_name:
+            continue
+        m = rx.search(raw) or rx.search(lower_norm)
+        if m:
+            positions.append(m.start())
+    return min(positions) if positions else 10**9
 
 
 def _extract_unavailable_items(
@@ -339,6 +416,9 @@ def _extract_unavailable_items(
         return set()
 
     unavailable: set[str] = set()
+    for scope in _split_unavailable_scope(text):
+        unavailable.update(_mentioned_menu_items(scope, menu_names))
+
     for name in menu_names:
         name_norm = _normalize_item_text(name)
         if len(name_norm) < 4:
@@ -349,13 +429,15 @@ def _extract_unavailable_items(
             rf"|\b(?:i|we)\s+(?:am|are)\s+not\s+seeing\b[^.!?;\n]{{0,30}}{name_pat}"
             rf"|\bi['’]?m\s+not\s+seeing\b[^.!?;\n]{{0,30}}{name_pat}"
             rf"|\bnot\s+available\b[^.!?;\n]{{0,30}}{name_pat}"
-            rf"|\bcan['’]?t\s+(?:offer|recommend|do)\b[^.!?;\n]{{0,30}}{name_pat}",
+            rf"|\bcan['’]?t\s+(?:offer|recommend|do|confirm)\b[^.!?;\n]{{0,30}}{name_pat}"
+            rf"|\bcannot\s+confirm\b[^.!?;\n]{{0,30}}{name_pat}",
             re.I,
         )
         after_item = re.compile(
             rf"{name_pat}[^.!?;\n]{{0,24}}"
             rf"(?:isn['’]?t\s+listed|not\s+available|not\s+in\s+(?:our\s+)?menu"
-            rf"|(?:i|we)\s+can['’]?t\s+(?:offer|recommend|do)(?:\s+that)?"
+            rf"|(?:i|we)\s+can['’]?t\s+(?:offer|recommend|do|confirm)(?:\s+that)?"
+            rf"|cannot\s+confirm"
             rf"|(?:has|contains)\s+added\s+sugar[^.!?;\n]{{0,40}}\binstead\b)",
             re.I,
         )
@@ -942,13 +1024,25 @@ class DialogPipeline:
                 profile, order_state, energy_by_name, allergen_map, restriction_map,
             )
 
+            if _ORDER_READBACK_RE.search(cashier_msg):
+                self._replace_order_from_text(
+                    cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+                )
+                self._enforce_restriction_safety(
+                    profile, order_state, energy_by_name, allergen_map, restriction_map,
+                )
+
             cashier_signaled = _cashier_signals_end(cashier_msg)
             if cashier_signaled:
                 # Финальная реплика кассира обычно содержит итоговый состав заказа;
                 # это безопаснее, чем парсить любые промежуточные предложения.
-                self._update_order(
+                replaced = self._replace_order_from_text(
                     cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
                 )
+                if not replaced:
+                    self._update_order(
+                        cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+                    )
                 self._enforce_restriction_safety(
                     profile,
                     order_state,
@@ -1366,6 +1460,54 @@ class DialogPipeline:
     # ── Внутренние методы ─────────────────────────────────────────────
 
     @staticmethod
+    def _replace_order_from_text(
+        text: str,
+        menu_names: list[str],
+        order_state: dict[str, Any],
+        energy_by_name: dict[str, float],
+        allergen_map: dict[str, list[str]],
+    ) -> bool:
+        persons = order_state["persons"]
+        replacements: dict[int, list[tuple[str, int]]] = {}
+        for seg in _split_order_segments(text):
+            parsed = parse_order_from_text(seg, menu_names)
+            if not parsed:
+                continue
+            parsed = sorted(
+                parsed,
+                key=lambda item: _item_mention_position(seg, item[0], menu_names),
+            )
+            for idx in _resolve_target_indices(seg, persons):
+                if idx < len(persons):
+                    replacements[idx] = parsed
+        if not replacements:
+            return False
+
+        for idx, parsed in replacements.items():
+            person = persons[idx]
+            merged: dict[str, int] = {}
+            for name, qty in parsed:
+                merged[name] = max(merged.get(name, 0), int(qty or 1))
+            person["items"] = [
+                {"name": name, "quantity": qty}
+                for name, qty in merged.items()
+            ]
+
+        for p in persons:
+            p["total_energy"] = round(
+                sum(
+                    energy_by_name.get(it["name"], 0) * it["quantity"]
+                    for it in p["items"]
+                ),
+                2,
+            )
+            all_ag: set[str] = set()
+            for it in p["items"]:
+                all_ag.update(allergen_map.get(it["name"], []))
+            p["allergens"] = sorted(all_ag)
+        return True
+
+    @staticmethod
     def _update_order(
         text: str,
         menu_names: list[str],
@@ -1380,6 +1522,7 @@ class DialogPipeline:
         persons = order_state["persons"]
         group_size = max(1, len(persons))
         applied = False
+        swap_removed = _extract_swap_removed_items(text, menu_names)
         if structured_orders:
             for row in structured_orders:
                 target_indices = list(row.get("target_indices") or [])
@@ -1391,6 +1534,11 @@ class DialogPipeline:
                     if idx >= len(persons):
                         continue
                     person = persons[idx]
+                    if swap_removed:
+                        person["items"] = [
+                            it for it in person.get("items", [])
+                            if it.get("name") not in swap_removed
+                        ]
                     for name, qty in parsed:
                         qty = int(qty or 1)
                         if distribute_to_many:
@@ -1420,7 +1568,7 @@ class DialogPipeline:
                 )
             segments = _split_order_segments(text)
             for seg in segments:
-                parsed = parse_order_from_text(seg, menu_names)
+                parsed = parse_order_from_text(_swap_addition_text(seg), menu_names)
                 if not parsed:
                     continue
                 target_indices = _resolve_target_indices(seg, persons)
@@ -1432,6 +1580,11 @@ class DialogPipeline:
                     if idx >= len(persons):
                         continue
                     person = persons[idx]
+                    if swap_removed:
+                        person["items"] = [
+                            it for it in person.get("items", [])
+                            if it.get("name") not in swap_removed
+                        ]
                     # Replacement intent: "I'll take X instead."
                     # Keep sides/drinks, but swap out previously collected mains.
                     if has_instead_cue:
