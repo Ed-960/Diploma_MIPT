@@ -97,7 +97,6 @@ class HumanDriveThroughSession:
         self._cashier_signaled = False
         self._n_client_messages = 0
         self._cot_leak_count = 0
-        self._order_parser_events = []
         self._order_parser_events: list[dict[str, Any]] = []
 
     def _collect_order_parser_events(
@@ -365,13 +364,14 @@ class HumanDriveThroughSession:
             llm_trace=llm_trace,
             trace_meta={"event_scope": "order_parser", "turn": self._n_client_messages},
         )
-        h._enforce_restriction_safety(
-            self._profile,
-            self._order_state,
-            self._energy_by_name,
-            self._allergen_map,
-            self._restriction_map,
-        )
+        if not self.realistic_cashier:
+            h._enforce_restriction_safety(
+                self._profile,
+                self._order_state,
+                self._energy_by_name,
+                self._allergen_map,
+                self._restriction_map,
+            )
         h._remove_unavailable_from_order(
             cashier_msg,
             self._menu_names,
@@ -379,13 +379,14 @@ class HumanDriveThroughSession:
             self._energy_by_name,
             self._allergen_map,
         )
-        h._enforce_restriction_safety(
-            self._profile,
-            self._order_state,
-            self._energy_by_name,
-            self._allergen_map,
-            self._restriction_map,
-        )
+        if not self.realistic_cashier:
+            h._enforce_restriction_safety(
+                self._profile,
+                self._order_state,
+                self._energy_by_name,
+                self._allergen_map,
+                self._restriction_map,
+            )
         self._collect_order_parser_events(llm_trace)
 
         self._cashier_signaled = _cashier_signals_end(cashier_msg)
@@ -397,13 +398,14 @@ class HumanDriveThroughSession:
                 self._energy_by_name,
                 self._allergen_map,
             )
-            h._enforce_restriction_safety(
-                self._profile,
-                self._order_state,
-                self._energy_by_name,
-                self._allergen_map,
-                self._restriction_map,
-            )
+            if not self.realistic_cashier:
+                h._enforce_restriction_safety(
+                    self._profile,
+                    self._order_state,
+                    self._energy_by_name,
+                    self._allergen_map,
+                    self._restriction_map,
+                )
             if _is_yes_only(client_msg):
                 self._order_state["order_complete"] = True
                 flags = validate_dialog(

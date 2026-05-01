@@ -555,8 +555,8 @@ def _rewrite_rag_structured_json(
     trace_verbose: bool = False,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """
-    Один вызов mini-LLM: JSON с intent, search_query, excluded_allergens,
-    excluded_lexical, max/min kcal.
+    Один вызов mini-LLM: JSON с intent, search_query, excluded_lexical,
+    max/min kcal.
     Успех: (spec, None). Иначе (None, error_message).
     """
     t0 = time.perf_counter()
@@ -819,7 +819,7 @@ class CashierAgent:
             return meal_details
         tune_reply = (
             self._deterministic_calorie_tuning_reply(profile, order_state, client_text)
-            if intent == "calorie_tune"
+            if intent == "calorie_tune" and not self._realistic_cashier
             else None
         )
         if tune_reply:
@@ -828,7 +828,11 @@ class CashierAgent:
                 {
                     "event": "deterministic_calorie_tuning_reply",
                     **(rag_meta or {}),
-                    "target_kcal": profile.get("calApprValue"),
+                    **(
+                        {"target_kcal": profile.get("calApprValue")}
+                        if not self._realistic_cashier
+                        else {}
+                    ),
                 },
             )
             return tune_reply
@@ -1182,7 +1186,6 @@ class CashierAgent:
                     "rag_json_spec": {
                         "intent": rj.get("intent"),
                         "compare_metrics": rj.get("compare_metrics", []),
-                        "excluded_allergens": rj.get("excluded_allergens", []),
                         "excluded_lexical": rj.get("excluded_lexical", []),
                         "max_kcal": rj.get("max_kcal"),
                         "min_kcal": rj.get("min_kcal"),
@@ -1224,16 +1227,15 @@ class CashierAgent:
             if self._realistic_cashier
             else get_group_allergen_blacklist(profile)
         )
+        blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
         if rag_json_spec is not None:
-            u = set(base) | set(rag_json_spec.get("excluded_allergens", []) or [])
-            blacklist = sorted(u)
             cmeta = {
-                "utterance_allergen_exclusions": [],
-                "rag_json_excluded": list(rag_json_spec.get("excluded_allergens", [])),
+                **cmeta,
+                "rag_json_excluded_ignored": list(
+                    rag_json_spec.get("excluded_allergens", []) or []
+                ),
                 "rag_json_lexical": list(rag_json_spec.get("excluded_lexical", []) or []),
             }
-        else:
-            blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
         max_e = rag_json_spec.get("max_kcal") if rag_json_spec else None
         min_e = rag_json_spec.get("min_kcal") if rag_json_spec else None
         lex_e = (
@@ -1360,16 +1362,15 @@ class CashierAgent:
             if self._realistic_cashier
             else get_group_allergen_blacklist(profile)
         )
+        blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
         if rag_json_spec is not None:
-            u = set(base) | set(rag_json_spec.get("excluded_allergens", []) or [])
-            blacklist = sorted(u)
             cmeta = {
-                "utterance_allergen_exclusions": [],
-                "rag_json_excluded": list(rag_json_spec.get("excluded_allergens", [])),
+                **cmeta,
+                "rag_json_excluded_ignored": list(
+                    rag_json_spec.get("excluded_allergens", []) or []
+                ),
                 "rag_json_lexical": list(rag_json_spec.get("excluded_lexical", []) or []),
             }
-        else:
-            blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
         max_e = rag_json_spec.get("max_kcal") if rag_json_spec else None
         min_e = rag_json_spec.get("min_kcal") if rag_json_spec else None
         lex_e = (
@@ -1419,7 +1420,11 @@ class CashierAgent:
         allow_calories: bool,
     ) -> str:
         """Собирает системный промпт: базовый + опциональные блоки RAG и заказа."""
-        base = get_cashier_system_prompt(profile, realistic=self._realistic_cashier)
+        prompt_profile = None if self._realistic_cashier else profile
+        base = get_cashier_system_prompt(
+            prompt_profile,
+            realistic=self._realistic_cashier,
+        )
         extras: list[str] = []
         if rag_context:
             context_payload = (
@@ -1431,10 +1436,15 @@ class CashierAgent:
                 "nutrition):\n"
                 f"{context_payload}"
             )
-        if any(p.get("items") for p in order_state.get("persons", [])):
+        visible_order_state = (
+            _cashier_visible_order_state(order_state)
+            if self._realistic_cashier
+            else order_state
+        )
+        if any(p.get("items") for p in visible_order_state.get("persons", [])):
             extras.append(
                 "Current order state:\n"
-                + json.dumps(order_state, ensure_ascii=False)
+                + json.dumps(visible_order_state, ensure_ascii=False)
             )
         if not extras:
             return base
@@ -1448,6 +1458,36 @@ def _last_client_text(history: list[HistoryEntry]) -> str:
         if entry["speaker"] == "client":
             return entry["text"]
     return ""
+
+
+def _cashier_visible_order_state(order_state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Redact hidden profile-derived people/restrictions before prompting cashier.
+
+    In realistic mode, the cashier may remember items already spoken in the
+    conversation, but must not see empty companions or dietary flags seeded from
+    the synthetic profile.
+    """
+    visible_persons: list[dict[str, Any]] = []
+    for person in order_state.get("persons", []) or []:
+        items = list(person.get("items") or [])
+        if not items:
+            continue
+        redacted: dict[str, Any] = {
+            "role": person.get("role"),
+            "label": person.get("label"),
+            "items": items,
+        }
+        if person.get("total_energy") is not None:
+            redacted["total_energy"] = person.get("total_energy")
+        if person.get("allergens"):
+            redacted["allergens"] = list(person.get("allergens") or [])
+        visible_persons.append(redacted)
+
+    return {
+        "persons": visible_persons,
+        "order_complete": bool(order_state.get("order_complete", False)),
+    }
 
 
 def _render_rows(

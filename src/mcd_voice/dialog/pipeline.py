@@ -318,12 +318,6 @@ _UNAVAILABLE_CUES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bi'm\s+not\s+seeing\b", re.I),
     re.compile(r"\bnot (currently )?in (our )?menu\b", re.I),
     re.compile(r"\bnot available\b", re.I),
-    re.compile(r"\bcan'?t (offer|do)\b", re.I),
-    re.compile(r"\bcan'?t do that\b", re.I),
-    re.compile(r"\bcan'?t recommend\b", re.I),
-    re.compile(r"\bcan'?t confirm\b", re.I),
-    re.compile(r"\bcannot confirm\b", re.I),
-    re.compile(r"\b(?:has|contains)\s+added\s+sugar\b", re.I),
 )
 
 _ORDER_READBACK_RE = re.compile(
@@ -401,6 +395,104 @@ def _item_mention_position(text: str, item_name: str, menu_names: list[str]) -> 
     return min(positions) if positions else 10**9
 
 
+def _order_items_by_person(order_state: dict[str, Any]) -> dict[str, dict[str, int]]:
+    """
+    Normalized snapshot of order_state for mutation tracing.
+    Format: {label: {item_name: quantity}}.
+    """
+    snapshot: dict[str, dict[str, int]] = {}
+    for idx, person in enumerate(order_state.get("persons", []) or []):
+        label = str(person.get("label") or f"person_{idx}")
+        rows: dict[str, int] = {}
+        for item in person.get("items", []) or []:
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            qty = int(item.get("quantity") or 1)
+            rows[name] = max(rows.get(name, 0), qty)
+        snapshot[label] = rows
+    return snapshot
+
+
+def _append_order_mutation(
+    trace: list[dict[str, Any]] | None,
+    *,
+    source: str,
+    turn: int | None,
+    before: dict[str, dict[str, int]],
+    after: dict[str, dict[str, int]],
+) -> None:
+    """Append structured diff of order mutations."""
+    if trace is None or before == after:
+        return
+
+    changes: list[dict[str, Any]] = []
+    for label in sorted(set(before) | set(after)):
+        b = before.get(label, {})
+        a = after.get(label, {})
+        if b == a:
+            continue
+        added: list[dict[str, Any]] = []
+        removed: list[dict[str, Any]] = []
+        updated: list[dict[str, Any]] = []
+        for name in sorted(set(b) | set(a)):
+            qb = int(b.get(name, 0))
+            qa = int(a.get(name, 0))
+            if qb == qa:
+                continue
+            if qb == 0:
+                added.append({"name": name, "quantity": qa})
+            elif qa == 0:
+                removed.append({"name": name, "quantity": qb})
+            else:
+                updated.append({"name": name, "from": qb, "to": qa})
+        changes.append(
+            {"label": label, "added": added, "removed": removed, "updated": updated}
+        )
+
+    trace.append(
+        {
+            "event": "order_state_mutation",
+            "source": source,
+            "turn": turn,
+            "changes": changes,
+        }
+    )
+
+
+def _order_has_items(order_state: dict[str, Any]) -> bool:
+    return any(bool(p.get("items")) for p in (order_state.get("persons") or []))
+
+
+def _allow_cashier_order_sync(client_msg: str, order_state: dict[str, Any]) -> bool:
+    """
+    Cashier text should not rewrite user intent by default.
+    Allow cashier-based sync only as bootstrap:
+    - no parsed items yet
+    - client just gave explicit confirmation/closure.
+    """
+    # Explicit confirmation/finalization phrases should always allow syncing.
+    if _is_yes_only(client_msg) or _client_confirms_end(client_msg):
+        return True
+
+    # When client explicitly updates order ("I'll take...", "make that ..."),
+    # cashier readback is the most reliable source of the final structured state.
+    t = _normalize_item_text(client_msg)
+    explicit_update = bool(
+        re.search(
+            r"\b(i(?:\s*'|\s+)?ll\s+take|i\s+will\s+take|can\s+i\s+get|"
+            r"make\s+that|that\s+works|instead|swap|replace|change\s+to)\b",
+            t,
+            re.I,
+        )
+    )
+    if explicit_update:
+        return True
+
+    # Bootstrap path: before any parsed items exist we can trust readback.
+    return not _order_has_items(order_state)
+
+
 def _extract_unavailable_items(
     text: str,
     menu_names: list[str],
@@ -428,17 +520,13 @@ def _extract_unavailable_items(
             rf"\b(?:i|we)\s+don['’]?t\s+have\b[^.!?;\n]{{0,30}}{name_pat}"
             rf"|\b(?:i|we)\s+(?:am|are)\s+not\s+seeing\b[^.!?;\n]{{0,30}}{name_pat}"
             rf"|\bi['’]?m\s+not\s+seeing\b[^.!?;\n]{{0,30}}{name_pat}"
-            rf"|\bnot\s+available\b[^.!?;\n]{{0,30}}{name_pat}"
-            rf"|\bcan['’]?t\s+(?:offer|recommend|do|confirm)\b[^.!?;\n]{{0,30}}{name_pat}"
-            rf"|\bcannot\s+confirm\b[^.!?;\n]{{0,30}}{name_pat}",
+            rf"|\bnot\s+available\b[^.!?;\n]{{0,30}}{name_pat}",
             re.I,
         )
         after_item = re.compile(
             rf"{name_pat}[^.!?;\n]{{0,24}}"
             rf"(?:isn['’]?t\s+listed|not\s+available|not\s+in\s+(?:our\s+)?menu"
-            rf"|(?:i|we)\s+can['’]?t\s+(?:offer|recommend|do|confirm)(?:\s+that)?"
-            rf"|cannot\s+confirm"
-            rf"|(?:has|contains)\s+added\s+sugar[^.!?;\n]{{0,40}}\binstead\b)",
+            rf")",
             re.I,
         )
         if before_item.search(raw) or after_item.search(raw):
@@ -726,9 +814,22 @@ def _map_item_name_to_menu(name: str, menu_lookup: dict[str, str]) -> str | None
         return None
     if k in menu_lookup:
         return menu_lookup[k]
-    # soft contains fallback for minor punctuation/spacing differences
+
+    # Conservative fallback: allow only near-exact multi-token variations.
+    # Single generic words ("burger", "fries", "cola") are too ambiguous and
+    # can silently map to wrong menu rows, which then pollutes final_order.
+    k_tokens = [t for t in k.split() if t]
+    if len(k_tokens) < 2:
+        return None
+    k_set = set(k_tokens)
     for nk, original in menu_lookup.items():
-        if k in nk or nk in k:
+        nk_tokens = [t for t in nk.split() if t]
+        if len(nk_tokens) < 2:
+            continue
+        nk_set = set(nk_tokens)
+        if k_set == nk_set:
+            return original
+        if len(k_set & nk_set) >= 2 and (k_set <= nk_set or nk_set <= k_set):
             return original
     return None
 
@@ -814,6 +915,16 @@ class DialogPipeline:
         self._order_json_client = None
         self._order_json_disabled_reason: str | None = None
 
+    def _runtime_restriction_safety_enabled(self) -> bool:
+        """
+        Runtime auto-pruning by profile restrictions.
+
+        In realistic mode the cashier should only react to what was actually said
+        in the dialog. Hidden profile restrictions remain for post-hoc validation,
+        but should not silently mutate the live order_state mid-dialog.
+        """
+        return not self._realistic_cashier
+
     def run(
         self,
         profile: dict[str, Any] | None = None,
@@ -855,6 +966,7 @@ class DialogPipeline:
         cot_leak_count = 0
         stall_detected = False
         loop_detected = False
+        order_mutation_trace: list[dict[str, Any]] = []
 
         self._emit_progress(
             "greeting_start",
@@ -1001,6 +1113,7 @@ class DialogPipeline:
                 llm_trace=llm_trace,
                 trace_meta={"event_scope": "order_parser", "turn": turn},
             )
+            before = _order_items_by_person(order_state)
             self._update_order(
                 client_msg,
                 menu_names,
@@ -1011,31 +1124,89 @@ class DialogPipeline:
                 llm_trace=llm_trace,
                 trace_meta={"event_scope": "order_parser", "turn": turn},
             )
-            self._enforce_restriction_safety(
-                profile, order_state, energy_by_name, allergen_map, restriction_map,
+            after = _order_items_by_person(order_state)
+            _append_order_mutation(
+                order_mutation_trace,
+                source="client_update_order",
+                turn=turn,
+                before=before,
+                after=after,
             )
+            before = after
+            if self._runtime_restriction_safety_enabled():
+                self._enforce_restriction_safety(
+                    profile, order_state, energy_by_name, allergen_map, restriction_map,
+                )
+                after = _order_items_by_person(order_state)
+                _append_order_mutation(
+                    order_mutation_trace,
+                    source="safety_filter_after_client_update",
+                    turn=turn,
+                    before=before,
+                    after=after,
+                )
+                before = after
 
             # Если кассир явно сообщил, что некоторые позиции недоступны/не подходят,
             # убираем эти позиции из уже накопленного заказа.
             self._remove_unavailable_from_order(
                 cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
             )
-            self._enforce_restriction_safety(
-                profile, order_state, energy_by_name, allergen_map, restriction_map,
+            after = _order_items_by_person(order_state)
+            _append_order_mutation(
+                order_mutation_trace,
+                source="cashier_unavailable_cleanup",
+                turn=turn,
+                before=before,
+                after=after,
             )
-
-            if _ORDER_READBACK_RE.search(cashier_msg):
-                self._replace_order_from_text(
-                    cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
-                )
+            before = after
+            if self._runtime_restriction_safety_enabled():
                 self._enforce_restriction_safety(
                     profile, order_state, energy_by_name, allergen_map, restriction_map,
                 )
+                after = _order_items_by_person(order_state)
+                _append_order_mutation(
+                    order_mutation_trace,
+                    source="safety_filter_after_unavailable_cleanup",
+                    turn=turn,
+                    before=before,
+                    after=after,
+                )
+                before = after
+
+            if _ORDER_READBACK_RE.search(cashier_msg) and _allow_cashier_order_sync(client_msg, order_state):
+                self._replace_order_from_text(
+                    cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+                )
+                after = _order_items_by_person(order_state)
+                _append_order_mutation(
+                    order_mutation_trace,
+                    source="cashier_readback_sync",
+                    turn=turn,
+                    before=before,
+                    after=after,
+                )
+                before = after
+                if self._runtime_restriction_safety_enabled():
+                    self._enforce_restriction_safety(
+                        profile, order_state, energy_by_name, allergen_map, restriction_map,
+                    )
+                    after = _order_items_by_person(order_state)
+                    _append_order_mutation(
+                        order_mutation_trace,
+                        source="safety_filter_after_cashier_readback_sync",
+                        turn=turn,
+                        before=before,
+                        after=after,
+                    )
+                    before = after
 
             cashier_signaled = _cashier_signals_end(cashier_msg)
-            if cashier_signaled:
+            if cashier_signaled and _allow_cashier_order_sync(client_msg, order_state):
                 # Финальная реплика кассира обычно содержит итоговый состав заказа;
                 # это безопаснее, чем парсить любые промежуточные предложения.
+                before = _order_items_by_person(order_state)
                 replaced = self._replace_order_from_text(
                     cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
                 )
@@ -1043,13 +1214,31 @@ class DialogPipeline:
                     self._update_order(
                         cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
                     )
-                self._enforce_restriction_safety(
-                    profile,
-                    order_state,
-                    energy_by_name,
-                    allergen_map,
-                    restriction_map,
+                after = _order_items_by_person(order_state)
+                _append_order_mutation(
+                    order_mutation_trace,
+                    source="cashier_final_sync",
+                    turn=turn,
+                    before=before,
+                    after=after,
                 )
+                before = after
+                if self._runtime_restriction_safety_enabled():
+                    self._enforce_restriction_safety(
+                        profile,
+                        order_state,
+                        energy_by_name,
+                        allergen_map,
+                        restriction_map,
+                    )
+                    after = _order_items_by_person(order_state)
+                    _append_order_mutation(
+                        order_mutation_trace,
+                        source="safety_filter_after_cashier_final_sync",
+                        turn=turn,
+                        before=before,
+                        after=after,
+                    )
                 # Защита от бесконечного хвоста "Yes." -> "Order confirmed."
                 # Если клиент уже дал краткое подтверждение, завершаем сразу.
                 if _is_yes_only(client_msg):
@@ -1101,6 +1290,8 @@ class DialogPipeline:
                     "order_parser_summary",
                     summary=order_parser_stats,
                 )
+        if order_mutation_trace:
+            flags = {**flags, "order_mutation_trace": order_mutation_trace}
         return history, profile, order_state, flags
 
     def _build_allergen_map(self) -> dict[str, list[str]]:

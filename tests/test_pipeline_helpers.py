@@ -13,9 +13,11 @@ import pytest
 
 from mcd_voice.dialog.pipeline import (
     DialogPipeline,
+    _allow_cashier_order_sync,
     _detect_target_person,
     _has_cashier_hard_repeat,
     _is_looping_tail,
+    _map_item_name_to_menu,
     _resolve_person_index,
     build_initial_order_state,
     localize_errors,
@@ -339,6 +341,35 @@ def test_replace_order_from_readback_drops_stale_items(family_profile):
         {"name": "Our World Famous Fries", "quantity": 1},
         {"name": "Diet Coke", "quantity": 1},
     ]
+
+
+def test_allow_cashier_order_sync_with_explicit_client_update(family_profile):
+    os = build_initial_order_state(family_profile)
+    os["persons"][0]["items"] = [{"name": "Big Mac", "quantity": 1}]
+    assert _allow_cashier_order_sync("Yeah, I'll take McChicken and fries.", os) is True
+
+
+def test_allow_cashier_order_sync_blocked_for_generic_reply_with_existing_items(
+    family_profile,
+):
+    os = build_initial_order_state(family_profile)
+    os["persons"][0]["items"] = [{"name": "Big Mac", "quantity": 1}]
+    assert _allow_cashier_order_sync("Thanks!", os) is False
+
+
+def test_map_item_name_to_menu_rejects_ambiguous_single_word() -> None:
+    lookup = {
+        "butter chicken grilled burger": "Butter Chicken Grilled Burger",
+        "butter paneer grilled burger": "Butter Paneer Grilled Burger",
+    }
+    assert _map_item_name_to_menu("burger", lookup) is None
+
+
+def test_map_item_name_to_menu_allows_near_exact_multi_token() -> None:
+    lookup = {
+        "our world famous fries": "Our World Famous Fries",
+    }
+    assert _map_item_name_to_menu("world famous fries", lookup) == "Our World Famous Fries"
 
 
 # ── validate_dialog ──────────────────────────────────────────────────

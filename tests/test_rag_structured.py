@@ -15,8 +15,8 @@ from mcd_voice.menu.rag_structured import (
 def test_rag_json_system_is_non_empty() -> None:
     p = get_rag_json_system_prompt()
     assert "search_query" in p
-    assert "excluded_allergens" in p
-    assert "Milk" in p or "milk" in p.lower()
+    assert "excluded_lexical" in p
+    assert "Hard allergen exclusions are handled by deterministic safety code" in p
     assert len(chroma_excludable_allergen_vocabulary()) >= 1
 
 

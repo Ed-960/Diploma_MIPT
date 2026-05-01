@@ -1,11 +1,9 @@
 """
-Структурированный ответ mini-LLM: JSON (search_query + чем отфильтровать Chroma ``where``).
+Структурированный ответ mini-LLM для RAG: intent, search_query,
+лексические исключения и числовые ограничения.
 
-`$not_contains` сопоставляет подстроки в сохранённых `metadata['allergens']`.
-Список разрешённых канонов берётся напрямую из Chroma metadata
-(`chroma_excludable_allergen_vocabulary`) — без чтения `mcd.json` в runtime.
-
-**Алиасы** (dairy → Milk): разговорное слово **редко** **совпадает** **с** **строкой** **в** **данных**;** **без** **нормализации** **молочное** **блюдо** **могло** **бы** **остаться** **в** **топ-****k** **(****$not_contains** **«**dairy**»** **не** **тронет** **документ** **с** **только** **«**Milk**»****).**
+Жёсткие allergen safety-фильтры не доверяются mini-LLM и строятся отдельно
+детерминированным парсером реплик в ``rag_constraints.py``.
 """
 
 from __future__ import annotations
@@ -75,7 +73,8 @@ _ALLERGEN_ALIASES: dict[str, str] = {
     "sulphite": "Sulphites",
 }
 
-# Шаблон: {allowed} подставляется из меню
+# Mini-LLM отвечает только за intent/query/nutrient hints; safety-фильтры
+# аллергенов строятся детерминированно в rag_constraints.py.
 _RAG_JSON_TEMPLATE = """You are a menu RAG pre-processor. Read the customer message and output a SINGLE JSON object only (no markdown, no commentary).
 
 Schema:
@@ -83,13 +82,10 @@ Schema:
   "intent": "one of: lookup | alternatives | details | calorie_tune | compare",
   "search_query": "string, 3–12 words, English, positive phrasing for semantic search over menu (food type, category, what they want). If they must avoid an ingredient, still describe what they can have (e.g. grilled chicken, sides, plant-based) — do not only repeat the avoided word.",
   "compare_metrics": [{{"field":"protein","goal":"max"}}],
-  "excluded_allergens": [ "Milk" ],
   "excluded_lexical": [ "beef" ],
   "max_kcal": null,
   "min_kcal": null
 }}
-
-(You may use the alias key "allergies" with the same meaning as "excluded_allergens" — list of ingredients/allergen types the customer must NOT receive; we exclude matching menu rows in vector search.)
 
 Rules:
 - "intent":
@@ -102,9 +98,8 @@ Rules:
   - field: one of energy, protein, total_fat, sat_fat, trans_fat, chol, carbs, total_sugar, added_sugar, sodium
   - goal: max or min
   - examples: most protein -> {{"field":"protein","goal":"max"}}, least fat -> {{"field":"total_fat","goal":"min"}}
-- "excluded_allergens" (or "allergies"): use ONLY these exact strings as they appear in the menu (subset of): {allowed}
-- "excluded_lexical": 0–12 short English tokens or 2-word phrases the customer must NOT get, matched against menu item name/description/ingredients/tag (e.g. beef, bacon, pickle, onion, mayo, coffee). Use for avoided foods or ingredients that are NOT covered by excluded_allergens. Empty [] if none. Lowercase words; no sentences.
-- If the customer is vegan or fully plant-based, you may list Milk, Egg, Fish as excluded (when they appear in the list above).
+- Hard allergen exclusions are handled by deterministic safety code, not by this JSON.
+- "excluded_lexical": 0–12 short English tokens or 2-word phrases the customer must NOT get, matched against menu item name/description/ingredients/tag (e.g. beef, bacon, pickle, onion, mayo, coffee). Use only for avoided foods or ingredients that are not allergen tags. Empty [] if none. Lowercase words; no sentences.
 - "max_kcal" / "min_kcal": numbers (kcal) or null. Use max_kcal for "under X calories", "light", "not more than X kcal". Use min_kcal for "at least X calories", "filling", "hearty". If unclear, null.
 - If there is no food/diet intent, set search_query to: general menu items
 - Output valid JSON only, one object.
@@ -112,9 +107,8 @@ Rules:
 
 
 def get_rag_json_system_prompt() -> str:
-    """Системный промпт с актуальным списком токенов из Chroma metadata."""
-    allowed = ", ".join(sorted(chroma_excludable_allergen_vocabulary()))
-    return _RAG_JSON_TEMPLATE.format(allowed=allowed)
+    """Системный промпт для rewrite-модели без доступа к safety-фильтрам."""
+    return _RAG_JSON_TEMPLATE
 
 
 def _strip_code_fence(raw: str) -> str:

@@ -146,6 +146,12 @@ def get_cashier_system_prompt(
         "- If a requested item conflicts with the customer's dietary restriction, NEVER say "
         "'we don't have it' or 'it's not in the menu'. Say it exists but is not suitable for "
         "their dietary needs, then offer suitable alternatives.",
+        "- Treat allergen/vegan restrictions as safety constraints. Treat nutrient preferences "
+        "like no sugar, low sugar, low fat, light, or low calorie as recommendations/warnings: "
+        "you may say an item is not the best fit and suggest a better option, but do not claim "
+        "you cannot serve or cannot place the order solely because of a nutrient preference.",
+        "- Do not infer extra restrictions. For example, no sugar does not mean no milk, no gluten, "
+        "or vegan unless the customer explicitly says so.",
         "- If they ask for MORE options in the SAME category (e.g. other coffees), list several "
         "different items from the context slice; never imply your short list is the full menu.",
         "- If context includes an 'Items excluded by dietary constraints' block, treat those "

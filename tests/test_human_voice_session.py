@@ -81,3 +81,40 @@ def test_human_session_step_updates_order_without_live_llm(
     _profile, _history, order_state, flags = snap
     assert flags["total_items"] == 1
     assert order_state["persons"][0]["items"][0]["name"] == "Big Mac®"
+
+
+def test_human_session_realistic_does_not_auto_prune_hidden_profile_restrictions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ORDER_JSON_REWRITE", "0")
+    monkeypatch.setattr(
+        "mcd_voice.dialog.catalog.MenuCatalog.load_runtime_index",
+        lambda _self: (
+            ["Milkshake"],
+            {"Milkshake": 300.0},
+            {"Milkshake": ["Milk"]},
+            {"Milkshake": {"noMilk": True}},
+        ),
+    )
+
+    class FakeCashierAgent:
+        def __init__(self, **_kwargs):
+            pass
+
+        def generate_response(self, profile, history, order_state, **_kwargs):
+            if not history:
+                return "Hi, what can I get for you?"
+            return "Got it, a milkshake."
+
+    monkeypatch.setattr(
+        "mcd_voice.dialog.human_voice_session.CashierAgent",
+        FakeCashierAgent,
+    )
+    s = HumanDriveThroughSession(max_turns=2, realistic_cashier=True)
+    s.start(profile={**neutral_drive_through_profile(), "noMilk": True})
+    out = s.step("Can I get a milkshake?")
+
+    # Runtime order_state is not silently pruned by hidden profile restrictions.
+    assert out["validation"]["total_items"] == 1
+    # Validation still reports the restriction violation for analytics/audit.
+    assert "noMilk" in out["validation"]["restriction_violation"]
