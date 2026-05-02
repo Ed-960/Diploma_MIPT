@@ -14,27 +14,32 @@ import argparse
 from pathlib import Path
 
 # Порядок секций — как в allProject_forAI_Test.txt (scripts → src → tests → корень).
+# При добавлении модулей/скриптов дополняйте этот список (скрипт падает, если файла нет).
 FILE_ORDER: tuple[str, ...] = (
     "scripts/_bootstrap.py",
     "scripts/agents_demo.py",
+    "scripts/apply_llm_mode.py",
+    "scripts/audit_history_llm_judge.py",
     "scripts/compare_rag.py",
     "scripts/dialog_demo.py",
+    "scripts/export_all_project_for_ai.py",
+    "scripts/export_architecture_diagram_pdfs.py",
     "scripts/export_diploma_docx.py",
     "scripts/generate_dataset.py",
     "scripts/generate_profiles.py",
     "scripts/load_chroma.py",
+    "scripts/merge_dialog_histories.py",
     "scripts/menu_search_demo.py",
     "scripts/profile_demo.py",
     "scripts/test_menu_search.py",
     "scripts/run_experiment.sh",
     "scripts/visualize_profile_graph.py",
     "scripts/visualize_menu_graph.py",
-    "scripts/apply_llm_mode.py",
     "scripts/voice_browser_server.py",
     "scripts/static/voice_browser_demo.html",
-    "scripts/export_all_project_for_ai.py",
     "src/mcd_voice/__init__.py",
     "src/mcd_voice/config.py",
+    "src/mcd_voice/text_normalization.py",
     "src/mcd_voice/dialog/__init__.py",
     "src/mcd_voice/dialog/allergens.py",
     "src/mcd_voice/dialog/catalog.py",
@@ -45,6 +50,12 @@ FILE_ORDER: tuple[str, ...] = (
     "src/mcd_voice/llm/__init__.py",
     "src/mcd_voice/llm/agent.py",
     "src/mcd_voice/llm/prompts.py",
+    "src/mcd_voice/llm/turn_plan.py",
+    "src/mcd_voice/llm/turn_orchestrator.py",
+    "src/mcd_voice/llm/retrieval.py",
+    "src/mcd_voice/llm/grounding.py",
+    "src/mcd_voice/llm/response_composer.py",
+    "src/mcd_voice/llm/output_policy.py",
     "src/mcd_voice/menu/__init__.py",
     "src/mcd_voice/menu/chroma.py",
     "src/mcd_voice/menu/dataset.py",
@@ -52,6 +63,9 @@ FILE_ORDER: tuple[str, ...] = (
     "src/mcd_voice/menu/search.py",
     "src/mcd_voice/menu/search_checks.py",
     "src/mcd_voice/menu/graph_rag.py",
+    "src/mcd_voice/menu/rag_structured.py",
+    "src/mcd_voice/menu/rag_constraints.py",
+    "src/mcd_voice/menu/rag_lexical.py",
     "src/mcd_voice/profile/__init__.py",
     "src/mcd_voice/profile/decision_graph.py",
     "src/mcd_voice/profile/generator.py",
@@ -61,9 +75,14 @@ FILE_ORDER: tuple[str, ...] = (
     "tests/test_profile_generator.py",
     "tests/test_profile_decision_graph.py",
     "tests/test_rag_trace.py",
+    "tests/test_rag_structured.py",
+    "tests/test_rag_constraints.py",
+    "tests/test_rag_lexical.py",
+    "tests/test_coffee_variety_intent.py",
     "tests/test_realistic_cashier.py",
     "tests/test_save_dialog.py",
     "tests/test_search.py",
+    "tests/test_openrouter_provider_ignore.py",
     "pyproject.toml",
     "mcd.json",
     "PROJECT_CONTEXT.md",
@@ -73,7 +92,8 @@ FILE_ORDER: tuple[str, ...] = (
     "Makefile",
     "start.md",
     "requirements.txt",
-    "doploma.txt",
+    "requirements-dev.txt",
+    "diploma.txt",
 )
 
 SEP = "=" * 88
@@ -92,7 +112,7 @@ def build_concat(root: Path) -> str:
         f"# Root: {root.resolve()}",
         "# Python: "
         f"{py_count} files (src/mcd_voice, scripts, tests) + pyproject.toml + mcd.json + "
-        "docs/README/Makefile/start/requirements + doploma.txt + shell helper",
+        "docs/README/Makefile/start/requirements + diploma.txt + shell helper",
         "",
     ]
 

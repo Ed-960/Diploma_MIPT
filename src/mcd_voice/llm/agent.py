@@ -47,9 +47,23 @@ from mcd_voice.text_normalization import normalize_item_text as _normalize_item_
 # ── Константы ─────────────────────────────────────────────────────────────────
 
 DEFAULT_MODEL = "gpt-4o"
-# Full-catalog retrieval: mcd.json contains exactly 42 menu positions.
-# We intentionally retrieve all rows, then filter by distance/allergens.
-RAG_CATALOG_TOP_K = 42
+_RAG_CATALOG_TOP_K_FALLBACK = 42
+
+
+def _load_menu_catalog_top_k() -> int:
+    """Use the current mcd.json size for broad retrieval without touching Chroma."""
+    try:
+        rows = json.loads(MCD_JSON_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _RAG_CATALOG_TOP_K_FALLBACK
+    if not isinstance(rows, list):
+        return _RAG_CATALOG_TOP_K_FALLBACK
+    return max(_RAG_CATALOG_TOP_K_FALLBACK, len(rows))
+
+
+# Full-catalog retrieval: fetch at least as many rows as the current menu file.
+# We intentionally retrieve broadly, then filter by distance/allergens.
+RAG_CATALOG_TOP_K = _load_menu_catalog_top_k()
 # Experimental narrow setup for A/B checks (not used by default).
 RAG_EXPERIMENT_TOP_K = 5
 # Backward-compatible alias used across scripts/tests.
@@ -90,6 +104,11 @@ def _use_lexical_exclusions() -> bool:
     """
     v = (os.environ.get("RAG_USE_LEXICAL_EXCLUDE") or "0").strip().lower()
     return v in ("1", "true", "yes", "on")
+
+
+def _use_turn_orchestrator() -> bool:
+    v = (os.environ.get("LLM_TURN_ORCHESTRATOR") or "0").strip().lower()
+    return v not in ("0", "false", "no", "off")
 
 def _was_name_already_discussed(name: str, history: list[HistoryEntry]) -> bool:
     n = _normalize_item_text(name)
@@ -245,6 +264,22 @@ _ITEM_FOLLOWUP_CUE_RE = re.compile(
     r"contains?|include|has|have|with|without|"
     r"ingredients?|allergens?|made\s+(?:of|with)|"
     r"only\s+if|is\s+it|does\s+it"
+    r")\b",
+    re.I,
+)
+_NUTRITION_CUE_RE = re.compile(
+    r"\b("
+    r"nutrition(?:al)?|macros?|"
+    r"protein|carbs?|carbohydrates?|fat|fats|saturated\s+fat|trans\s+fat|"
+    r"sodium|cholesterol|sugar|added\s+sugar|total\s+sugar|"
+    r"grams?\b|mg\b"
+    r")\b",
+    re.I,
+)
+_NUTRITION_FOLLOWUP_CUE_RE = re.compile(
+    r"\b("
+    r"like\s+(?:this|that|these|those)|"
+    r"same|those|them|both(?:\s+of\s+them)?"
     r")\b",
     re.I,
 )
@@ -584,6 +619,246 @@ def _should_skip_rag(client_text: str, search_query: str) -> bool:
     return False
 
 
+_RECOMMENDATION_INTENT_RE = re.compile(
+    r"\b(recommend|suggest|suggestion|what\s+should\s+i\s+(?:get|have|order)|"
+    r"what\s+(?:do|would)\s+you\s+recommend|(?:some|any)thing\s+to\s+(?:eat|drink)|"
+    r"sth\s+to\s+(?:eat|drink|it))\b",
+    re.I,
+)
+_MENU_BROWSE_INTENT_RE = re.compile(
+    r"\b("
+    r"what\s+(?:kind|kinds|type|types)\s+of|what\s+do\s+you\s+have|"
+    r"what(?:'s| is)\s+on\s+the\s+menu|show\s+me|list|options?|"
+    r"anything\s+to\s+(?:eat|drink)|(?:some|any)thing\s+to\s+(?:eat|drink)|"
+    r"that'?s\s+all\s+you\s+have|is\s+that\s+all|what\s+else|"
+    r"anything\s+else|any\s+other|more\s+(?:options?|choices?)"
+    r")\b",
+    re.I,
+)
+_CONFIRM_ORDER_CUE_RE = re.compile(
+    r"\b("
+    r"yes|yeah|yep|"
+    r"i(?:\s+would)?\s+like|"
+    r"i'?ll\s+have|"
+    r"i\s+want|"
+    r"can\s+i\s+have|"
+    r"add|"
+    r"take"
+    r")\b",
+    re.I,
+)
+_CLAUSE_SPLIT_RE = re.compile(
+    r"(?:[.!?;]+|\b(?:and then|and also|also|plus|and)\b)",
+    re.I,
+)
+_FOOD_INTENT_RE = re.compile(
+    r"\b(eat|food|meal|burger|sandwich|wrap|nuggets?|fries|salad|side|snack)\b",
+    re.I,
+)
+_DRINK_INTENT_RE = re.compile(
+    r"\b(drink|beverage|coffee|tea|coke|cola|sprite|water|juice|frappe|smoothie)\b",
+    re.I,
+)
+_COFFEE_INTENT_RE = re.compile(r"\b(coffee|espresso|frappe|macchiato|mocha)\b", re.I)
+_GENERIC_RECOMMENDATION_QUERIES = {
+    "general menu items",
+    "recommended menu items",
+    "recommended menu options",
+    "menu recommendations",
+    "menu recommendation",
+}
+
+
+def _recent_client_texts(history: list[HistoryEntry], *, limit: int = 6) -> list[str]:
+    out: list[str] = []
+    for entry in reversed(history or []):
+        if entry.get("speaker") != "client":
+            continue
+        text = str(entry.get("text") or "").strip()
+        if text:
+            out.append(text)
+        if len(out) >= limit:
+            break
+    return list(reversed(out))
+
+
+def _recommendation_search_query(
+    client_text: str,
+    history: list[HistoryEntry],
+) -> str | None:
+    """Turn vague browse/recommendation/follow-up requests into category-rich vector queries."""
+    current = client_text or ""
+    clauses = _split_intent_clauses(current)
+    browse_clauses = [
+        c for c in clauses
+        if (_RECOMMENDATION_INTENT_RE.search(c) or _MENU_BROWSE_INTENT_RE.search(c))
+    ]
+    current_focus = " ".join(browse_clauses) if browse_clauses else current
+    recent = " ".join(_recent_client_texts(history, limit=4))
+    haystack = f"{recent} {current_focus}".strip()
+    if not (
+        _RECOMMENDATION_INTENT_RE.search(haystack)
+        or _MENU_BROWSE_INTENT_RE.search(haystack)
+    ):
+        return None
+
+    current_has_food = bool(_FOOD_INTENT_RE.search(current_focus))
+    history_has_food = bool(_FOOD_INTENT_RE.search(haystack))
+    has_drink = bool(_DRINK_INTENT_RE.search(haystack))
+    has_coffee = bool(_COFFEE_INTENT_RE.search(haystack))
+
+    if current_has_food or (history_has_food and has_coffee):
+        return "main food items burgers chicken sandwiches wraps fries sides"
+    if has_coffee and not current_has_food:
+        return "coffee drinks hot cold espresso frappe"
+    if has_drink and not history_has_food:
+        return "drinks beverages coffee tea soda water juice"
+    if history_has_food:
+        return "main food items burgers chicken sandwiches wraps sides"
+    return "popular menu items burgers chicken sandwiches sides drinks dessert"
+
+
+def _is_menu_browse_request(
+    client_text: str,
+    history: list[HistoryEntry],
+    rag_spec: dict[str, Any] | None,
+) -> bool:
+    current = client_text or ""
+    if _MENU_BROWSE_INTENT_RE.search(current):
+        return True
+    if _RECOMMENDATION_INTENT_RE.search(current):
+        return True
+    # Do not drag prior "more options" intent into a fresh confirmation/order turn.
+    if _CONFIRM_ORDER_CUE_RE.search(current):
+        return False
+    if _rag_intent(rag_spec) == "alternatives":
+        return True
+    return False
+
+
+def _is_confirm_plus_browse_utterance(
+    client_text: str,
+    rag_spec: dict[str, Any] | None,
+) -> bool:
+    """True when one utterance confirms an item and asks a browse/recommend follow-up."""
+    text = (client_text or "").strip()
+    if not text:
+        return False
+    requested = _rag_json_list(rag_spec, "requested_items")
+    if not requested:
+        return False
+    clauses = _split_intent_clauses(text)
+    has_browse_clause = any(_is_menu_browse_request(c, [], rag_spec) for c in clauses)
+    if not has_browse_clause:
+        return False
+    has_confirm_clause = False
+    for c in clauses:
+        if not _CONFIRM_ORDER_CUE_RE.search(c):
+            continue
+        if any(_matches_menu_name_in_text(item, c) for item in requested):
+            has_confirm_clause = True
+            break
+    if not has_confirm_clause:
+        # Fallback: model extracted requested_items and we have a global confirm cue.
+        has_confirm_clause = bool(_CONFIRM_ORDER_CUE_RE.search(text))
+    return has_confirm_clause
+
+
+def _split_intent_clauses(text: str) -> list[str]:
+    raw = [part.strip() for part in _CLAUSE_SPLIT_RE.split(text or "") if part.strip()]
+    return raw or ([text.strip()] if (text or "").strip() else [])
+
+
+def _derive_secondary_search_queries(
+    client_text: str,
+    history: list[HistoryEntry],
+    primary_query: str,
+    rag_spec: dict[str, Any] | None,
+) -> list[str]:
+    """Split compound utterances and derive one extra RAG query per clause."""
+    clauses = _split_intent_clauses(client_text)
+    if len(clauses) <= 1:
+        return []
+    out: list[str] = []
+    seen: set[str] = {str(primary_query or "").strip().lower()}
+    for clause in clauses:
+        c = clause.strip()
+        if not c:
+            continue
+        cq = _recommendation_search_query(c, history)
+        if cq is None:
+            cq = _normalize_rewrite_output(c)
+            if _should_skip_rag(c, cq):
+                continue
+        low = cq.strip().lower()
+        if not low or low in seen:
+            continue
+        seen.add(low)
+        out.append(cq)
+    return out
+
+
+def _format_menu_names(names: Sequence[str], *, limit: int = 8) -> str:
+    picked = [name for name in names if str(name).strip()][:limit]
+    if not picked:
+        return ""
+    if len(picked) == 1:
+        return picked[0]
+    if len(picked) == 2:
+        return f"{picked[0]} and {picked[1]}"
+    return f"{', '.join(picked[:-1])}, and {picked[-1]}"
+
+
+def _format_requested_item_ack(rag_spec: dict[str, Any] | None) -> str:
+    requested = _rag_json_list(rag_spec, "requested_items")
+    if not requested:
+        return ""
+    rendered = _format_menu_names(requested, limit=2)
+    if not rendered:
+        return ""
+    return f"Got it, {rendered}. "
+
+
+def _filter_menu_names_for_rag_spec(
+    names: Sequence[str],
+    rag_spec: dict[str, Any] | None,
+) -> list[str]:
+    """Apply lightweight deterministic post-filters implied by rag_spec."""
+    out = [str(name).strip() for name in names if str(name).strip()]
+    if not out:
+        return []
+    spec = rag_spec or {}
+    search_query = _normalize_item_text(str(spec.get("search_query") or ""))
+    excluded_raw = _rag_json_list(spec, "excluded_lexical")
+    excluded_tokens = {
+        tok
+        for phrase in excluded_raw
+        for tok in _normalize_item_text(phrase).split()
+        if tok
+    }
+
+    # If user explicitly asked for burgers, keep burger-like options first.
+    if re.search(r"\b(?:ham)?burgers?\b", search_query):
+        burgers_only = [
+            name
+            for name in out
+            if re.search(r"\b(?:ham)?burger\b", _normalize_item_text(name))
+        ]
+        if burgers_only:
+            out = burgers_only
+
+    if excluded_tokens:
+        without_excluded = []
+        for name in out:
+            nn = _normalize_item_text(name)
+            if any(re.search(rf"\b{re.escape(tok)}\b", nn) for tok in excluded_tokens):
+                continue
+            without_excluded.append(name)
+        if without_excluded:
+            out = without_excluded
+    return out
+
+
 def _is_service_meta_question(text: str) -> bool:
     """True when the customer is questioning the cashier's wording, not ordering."""
     t = (text or "").strip()
@@ -602,6 +877,249 @@ def _wants_menu_item_details(text: str) -> bool:
     if _is_service_meta_question(t):
         return False
     return bool(_ITEM_DETAILS_CUE_RE.search(t))
+
+
+def _wants_full_nutrition_context(
+    client_text: str,
+    rag_spec: dict[str, Any] | None,
+) -> bool:
+    if any(isinstance(m, dict) for m in (rag_spec or {}).get("compare_metrics", [])):
+        return True
+    if _NUTRITION_CUE_RE.search(client_text or ""):
+        return True
+    restrictions = {str(x).strip().lower() for x in _rag_json_list(rag_spec, "restrictions")}
+    if "sugar" in restrictions:
+        return True
+    return False
+
+
+def _effective_rag_top_k(base_top_k: int, *, include_full_nutrition: bool) -> int:
+    """Always search across the full menu catalog (no top-k slice)."""
+    _ = include_full_nutrition
+    return max(base_top_k, RAG_CATALOG_TOP_K)
+
+
+@lru_cache(maxsize=1)
+def _load_menu_rows_for_nutrition() -> tuple[dict[str, Any], ...]:
+    try:
+        rows = json.loads(MCD_JSON_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+    if not isinstance(rows, list):
+        return ()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if isinstance(row, dict):
+            out.append(row)
+    return tuple(out)
+
+
+def _extract_numeric_range(text: str) -> tuple[float, float] | None:
+    t = (text or "").lower()
+    m = re.search(
+        r"(\d+(?:\.\d+)?)\s*(?:-|to|–)\s*(\d+(?:\.\d+)?)\s*(?:g|gram|grams|mg|kcal)?",
+        t,
+    )
+    if not m:
+        return None
+    lo = float(m.group(1))
+    hi = float(m.group(2))
+    if hi < lo:
+        lo, hi = hi, lo
+    return (lo, hi)
+
+
+def _detect_requested_nutrient_field(text: str) -> str | None:
+    t = (text or "").lower()
+    pairs = [
+        (r"\bprotein\b", "protein"),
+        (r"\badded sugar\b", "added_sugar"),
+        (r"\btotal sugar\b", "total_sugar"),
+        (r"\bsugar\b", "total_sugar"),
+        (r"\bcarbs?\b|\bcarbohydrates?\b", "carbs"),
+        (r"\bsodium\b", "sodium"),
+        (r"\bcholesterol\b|\bchol\b", "chol"),
+        (r"\bsaturated fat\b|\bsat fat\b", "sat_fat"),
+        (r"\btrans fat\b", "trans_fat"),
+        (r"\bfats?\b", "total_fat"),
+        (r"\bcalories?\b|\bkcal\b|\benergy\b", "energy"),
+    ]
+    for patt, field in pairs:
+        if re.search(patt, t):
+            return field
+    return None
+
+
+def _is_burger_like_name(name: str) -> bool:
+    n = _normalize_item_text(name)
+    return bool(re.search(r"\b(?:ham)?burger\b", n))
+
+
+def _is_coffee_like_name(name: str) -> bool:
+    n = _normalize_item_text(name)
+    return bool(re.search(r"\bcoffee\b|\bespresso\b|\bfrappe\b", n))
+
+
+def _scope_label_and_matcher(text: str) -> tuple[str, Any]:
+    t = (text or "").lower()
+    rules: list[tuple[str, re.Pattern[str], Any]] = [
+        ("burgers", re.compile(r"\b(?:ham)?burgers?\b", re.I), _is_burger_like_name),
+        ("coffee drinks", re.compile(r"\bcoffee|espresso|frappe|latte|macchiato|mocha\b", re.I), _is_coffee_like_name),
+        ("fries", re.compile(r"\bfries|hash\s*browns?\b", re.I), lambda n: bool(re.search(r"\bfries\b|\bhash\s*browns?\b", _normalize_item_text(n)))),
+        ("wraps", re.compile(r"\bwraps?\b", re.I), lambda n: bool(re.search(r"\bwraps?\b", _normalize_item_text(n)))),
+        ("sandwiches", re.compile(r"\bsandwich(?:es)?\b", re.I), lambda n: bool(re.search(r"\bsandwich(?:es)?\b", _normalize_item_text(n)))),
+        ("nuggets", re.compile(r"\bnuggets?\b", re.I), lambda n: bool(re.search(r"\bnuggets?\b", _normalize_item_text(n)))),
+    ]
+    for label, cue_re, matcher in rules:
+        if cue_re.search(t):
+            return label, matcher
+    return "menu items", lambda _n: True
+
+
+def _is_more_options_request(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(more|other|another|options?|choices?|alternatives?)\b",
+            text or "",
+            re.I,
+        )
+    )
+
+
+def _recent_client_nutrition_constraint(
+    history: Sequence[HistoryEntry] | None,
+) -> tuple[str, tuple[float, float]] | None:
+    for entry in reversed(history or []):
+        if entry.get("speaker") != "client":
+            continue
+        prev_text = str(entry.get("text") or "").strip()
+        if not prev_text:
+            continue
+        field = _detect_requested_nutrient_field(prev_text)
+        value_range = _extract_numeric_range(prev_text)
+        if field and value_range:
+            return field, value_range
+    return None
+
+
+def _deterministic_full_catalog_nutrition_reply(
+    client_text: str,
+    history: Sequence[HistoryEntry] | None = None,
+) -> str | None:
+    text = (client_text or "").strip()
+    if not text:
+        return None
+    t = text.lower()
+    wants_more_options = _is_more_options_request(t)
+    followup_like_previous = bool(_NUTRITION_FOLLOWUP_CUE_RE.search(text))
+    has_nutrition_cue = bool(_NUTRITION_CUE_RE.search(text))
+    # Support follow-ups like "more options like this?" by inheriting the last
+    # explicit nutrition constraint from recent client turns.
+    if not has_nutrition_cue and not (wants_more_options and followup_like_previous):
+        return None
+    rows = _load_menu_rows_for_nutrition()
+    if not rows:
+        return None
+
+    parts: list[str] = []
+    nutrient_field = _detect_requested_nutrient_field(text)
+    value_range = _extract_numeric_range(text)
+    if (not nutrient_field or not value_range) and wants_more_options and followup_like_previous:
+        prev_constraint = _recent_client_nutrition_constraint(history)
+        if prev_constraint:
+            prev_field, prev_range = prev_constraint
+            nutrient_field = nutrient_field or prev_field
+            value_range = value_range or prev_range
+    history_text = " ".join(
+        str(entry.get("text") or "")
+        for entry in (history or [])[-8:]
+        if entry.get("speaker") == "client"
+    ).lower()
+    scope_label, scope_matcher = _scope_label_and_matcher(f"{t} {history_text}")
+
+    if nutrient_field and value_range:
+        lo, hi = value_range
+        candidates: list[tuple[str, float]] = []
+        for row in rows:
+            name = str(row.get("name") or "").strip()
+            if not name or not scope_matcher(name):
+                continue
+            try:
+                val = float(row.get(nutrient_field) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            candidates.append((name, val))
+        # If scope inference is too narrow, fallback to full catalog.
+        if not candidates:
+            for row in rows:
+                name = str(row.get("name") or "").strip()
+                if not name:
+                    continue
+                try:
+                    val = float(row.get(nutrient_field) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                candidates.append((name, val))
+            scope_label = "menu items"
+        if candidates:
+            mid = (lo + hi) / 2.0
+            in_range = [(n, v) for (n, v) in candidates if lo <= v <= hi]
+            if in_range:
+                in_range.sort(key=lambda nv: abs(nv[1] - mid))
+                if wants_more_options:
+                    options = [f"{name} (~{val:.2f} g)" for name, val in in_range[:5]]
+                    rendered = _format_menu_names(options, limit=5)
+                    parts.append(
+                        f"Sure — options around {lo:.0f}-{hi:.0f} g {nutrient_field.replace('_', ' ')} "
+                        f"for {scope_label} are {rendered}."
+                    )
+                else:
+                    best_name, best_val = in_range[0]
+                    parts.append(
+                        f"Yes, {best_name} is about {best_val:.2f} g {nutrient_field.replace('_', ' ')}."
+                    )
+            else:
+                nearest_name, nearest_val = min(candidates, key=lambda nv: abs(nv[1] - mid))
+                parts.append(
+                    f"I don't see {scope_label} in the {lo:.0f}-{hi:.0f} g range. "
+                    f"The closest is {nearest_name} at about {nearest_val:.2f} g {nutrient_field.replace('_', ' ')}."
+                )
+
+    if "coffee" in t and re.search(r"\bno sugar\b|\bsugar[- ]?free\b|\bwithout sugar\b", t):
+        coffees: list[tuple[str, float, float]] = []
+        for row in rows:
+            name = str(row.get("name") or "").strip()
+            if not name or not _is_coffee_like_name(name):
+                continue
+            try:
+                total_sugar = float(row.get("total_sugar") or 0.0)
+                added_sugar = float(row.get("added_sugar") or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if total_sugar <= 0.5 and added_sugar <= 0.5:
+                coffees.append((name, total_sugar, added_sugar))
+        if coffees:
+            unique_names: list[str] = []
+            seen: set[str] = set()
+            for name, _ts, _as in coffees:
+                low = name.lower()
+                if low in seen:
+                    continue
+                seen.add(low)
+                unique_names.append(name)
+            rendered = _format_menu_names(unique_names, limit=3)
+            if rendered:
+                parts.append(
+                    f"For no-sugar coffee, {rendered} fit (about 0 g sugar)."
+                )
+
+    if not parts:
+        return None
+    if wants_more_options:
+        parts.append("Which one would you like?")
+    else:
+        parts.append("Would you like me to add those to your order?")
+    return " ".join(parts)
 
 
 def _sanitize_cashier_response(text: str, *, allow_calories: bool = True) -> str:
@@ -811,10 +1329,26 @@ def _call_llm(
             if xb is not None:
                 create_kwargs["extra_body"] = xb
             resp = client.chat.completions.create(**create_kwargs)
-            content = resp.choices[0].message.content
+            choices = getattr(resp, "choices", None) or []
+            if not choices:
+                raise RuntimeError("Malformed LLM response: no choices returned.")
+            first = choices[0]
+            msg = getattr(first, "message", None)
+            content = getattr(msg, "content", None)
+            if isinstance(content, list):
+                parts = [
+                    str(getattr(part, "text", "") or "")
+                    for part in content
+                    if getattr(part, "text", None)
+                ]
+                content = " ".join(p for p in parts if p).strip()
+            elif content is None:
+                content = ""
+            else:
+                content = str(content).strip()
             if not content:
-                raise RuntimeError("Пустой ответ от модели.")
-            return content.strip()
+                raise RuntimeError("Malformed LLM response: empty content.")
+            return content
         except APITimeoutError as exc:
             timeout_err = exc
             if attempt < 2:
@@ -1072,6 +1606,19 @@ class CashierAgent:
         rag_meta: dict[str, Any] | None = None,
         llm_trace: list[dict[str, Any]] | None = None,
     ) -> str:
+        if _use_turn_orchestrator():
+            from mcd_voice.llm.turn_orchestrator import run_cashier_turn
+
+            return run_cashier_turn(
+                agent=self,
+                profile=profile,
+                history=history,
+                order_state=order_state,
+                query=query,
+                rag_trace=rag_trace,
+                rag_meta=rag_meta,
+                llm_trace=llm_trace,
+            )
         client_text = query or _last_client_text(history)
         rag_context, rag_spec = self._resolve_rag_context(
             client_text,
@@ -1092,6 +1639,7 @@ class CashierAgent:
             or (rag_spec or {}).get("max_kcal") is not None
             or (rag_spec or {}).get("min_kcal") is not None
         )
+        allow_full_nutrition = _wants_full_nutrition_context(client_text, rag_spec)
         macro_reply = (
             self._deterministic_compare_reply(profile, client_text, rag_spec)
             if intent == "compare"
@@ -1139,11 +1687,37 @@ class CashierAgent:
                 },
             )
             return tune_reply
+        nutrition_reply = _deterministic_full_catalog_nutrition_reply(client_text, history)
+        if nutrition_reply:
+            _trace(
+                llm_trace,
+                {
+                    "event": "deterministic_full_catalog_nutrition_reply",
+                    **(rag_meta or {}),
+                },
+            )
+            return nutrition_reply
+        menu_browse_reply = self._deterministic_menu_browse_reply(
+            client_text,
+            history,
+            rag_context,
+            rag_spec,
+        )
+        if menu_browse_reply:
+            _trace(
+                llm_trace,
+                {
+                    "event": "deterministic_menu_browse_reply",
+                    **(rag_meta or {}),
+                },
+            )
+            return menu_browse_reply
         system = self._build_system(
             profile,
             order_state,
             rag_context,
             allow_calories=allow_calories,
+            allow_full_nutrition=allow_full_nutrition,
             finalize_requested=bool((rag_spec or {}).get("finalize")),
             override_restriction=bool((rag_spec or {}).get("override_restriction")),
         )
@@ -1152,6 +1726,21 @@ class CashierAgent:
             t0 = time.perf_counter()
             response = _call_llm(self._client, self.model, system, messages)
             dt_ms = (time.perf_counter() - t0) * 1000.0
+        except RuntimeError as exc:
+            # Provider can occasionally return a malformed/empty payload.
+            # Keep the voice session alive with a natural retry prompt.
+            _trace(
+                llm_trace,
+                _llm_error_payload(
+                    agent="cashier",
+                    model=self.model,
+                    messages=messages,
+                    system=system,
+                    error=str(exc),
+                    verbose=self._trace_verbose,
+                ),
+            )
+            return "Sorry, I didn't catch that clearly. Could you repeat your order?"
         except Exception as exc:
             _trace(
                 llm_trace,
@@ -1179,6 +1768,34 @@ class CashierAgent:
             ),
         )
         return response
+
+    def _deterministic_menu_browse_reply(
+        self,
+        client_text: str,
+        history: list[HistoryEntry],
+        rag_context: str,
+        rag_spec: dict[str, Any] | None,
+    ) -> str | None:
+        if not _is_menu_browse_request(client_text, history, rag_spec):
+            return None
+        names = _extract_names_from_rag_context(rag_context)
+        names = _filter_menu_names_for_rag_spec(names, rag_spec)
+        if not names:
+            return None
+        rendered = _format_menu_names(names, limit=8)
+        if not rendered:
+            return None
+        ack = _format_requested_item_ack(rag_spec)
+        if _RECOMMENDATION_INTENT_RE.search(client_text or ""):
+            first = names[0]
+            rest = _format_menu_names(names[1:], limit=4)
+            if rest:
+                return (
+                    f"{ack}I'd suggest {first}. Other options are {rest}. "
+                    "Which one would you like?"
+                )
+            return f"{ack}I'd suggest {first}. Would you like that?"
+        return f"{ack}We have {rendered}. Which one would you like?"
 
     def _deterministic_meal_details_reply(self, client_text: str, rag_context: str) -> str | None:
         if not (client_text or "").strip():
@@ -1403,10 +2020,21 @@ class CashierAgent:
         Нет keyword-фильтрации: запрос всегда идёт в Chroma.
         Если семантическое расстояние слишком большое — контекст пустой
         (модель не засоряется нерелевантным меню).
-        Если клиент ещё не говорил (приветствие) — используется fallback-запрос.
+        Если клиент ещё не говорил (приветствие) — контекст меню не подставляется.
         """
         base_trace = {**(rag_meta or {}), "client_query": client_text[:800]}
         rag_text = (client_text or "").strip()
+
+        if not rag_text:
+            _trace(
+                rag_trace,
+                {
+                    **base_trace,
+                    "event": "rag_skipped_no_client_query",
+                    "retrieval_mode": "none" if self._full_menu_context else self.rag_mode,
+                },
+            )
+            return ("", None)
 
         if self._full_menu_context:
             context = _full_mcd_json_context()
@@ -1435,70 +2063,84 @@ class CashierAgent:
             )
             return ("", None)
 
-        if client_text:
-            rag_json_spec: dict[str, Any] | None = None
-            if _use_rag_json_rewrite():
-                jspec, _jerr = _rewrite_rag_structured_json(
-                    rag_text,
-                    self._client,
-                    self._rewrite_model,
-                    llm_trace=llm_trace,
-                    trace_meta=rag_meta,
-                    trace_verbose=self._trace_verbose,
+        rag_json_spec: dict[str, Any] | None = None
+        if _use_rag_json_rewrite():
+            jspec, _jerr = _rewrite_rag_structured_json(
+                rag_text,
+                self._client,
+                self._rewrite_model,
+                llm_trace=llm_trace,
+                trace_meta=rag_meta,
+                trace_verbose=self._trace_verbose,
+            )
+            if jspec is not None:
+                rag_json_spec = dict(jspec)
+                requested = _rag_json_list(rag_json_spec, "requested_items")
+                rag_json_spec["override_restriction"] = _detect_restriction_override(
+                    client_text,
+                    history,
+                    requested,
+                    explicit_override=bool(rag_json_spec.get("override_restriction")),
                 )
-                if jspec is not None:
-                    rag_json_spec = dict(jspec)
-                    requested = _rag_json_list(rag_json_spec, "requested_items")
-                    rag_json_spec["override_restriction"] = _detect_restriction_override(
-                        client_text,
-                        history,
-                        requested,
-                        explicit_override=bool(rag_json_spec.get("override_restriction")),
-                    )
+        if rag_json_spec is not None:
+            search_query = str(rag_json_spec.get("search_query", "")).strip()
+            if not search_query:
+                rag_json_spec = None
+        if rag_json_spec is None:
+            search_query = _normalize_rewrite_output(rag_text)
+        rec_query = _recommendation_search_query(client_text, history)
+        if rec_query and (
+            search_query.strip().lower() in _GENERIC_RECOMMENDATION_QUERIES
+            or _is_menu_browse_request(client_text, [], rag_json_spec)
+        ):
+            search_query = rec_query
             if rag_json_spec is not None:
-                search_query = str(rag_json_spec.get("search_query", "")).strip()
-                if not search_query:
-                    rag_json_spec = None
-            if rag_json_spec is None:
-                search_query = _normalize_rewrite_output(rag_text)
-            is_fallback = False
-            if _should_skip_rag(client_text, search_query):
-                _trace(
-                    rag_trace,
-                    {
-                        **base_trace,
-                        "event": "rag_skipped_non_food",
-                        "search_query": search_query,
-                        "rewrite_model": self._rewrite_model,
-                        "retrieval_mode": self.rag_mode,
-                    },
-                )
-                return ("", rag_json_spec)
-        else:
+                rag_json_spec["search_query"] = search_query
+        is_fallback = False
+        if _should_skip_rag(client_text, search_query):
             _trace(
                 rag_trace,
                 {
                     **base_trace,
-                    "event": "rag_skipped_no_client_query",
+                    "event": "rag_skipped_non_food",
+                    "search_query": search_query,
+                    "rewrite_model": self._rewrite_model,
                     "retrieval_mode": self.rag_mode,
                 },
             )
-            return ("", None)
+            return ("", rag_json_spec)
 
-        ctexts: tuple[str, ...] = (
-            (str(rag_text), str(search_query))
-            if (client_text and not is_fallback)
-            else (str(search_query),)
-        )
+        retrieval_spec = dict(rag_json_spec) if isinstance(rag_json_spec, dict) else None
+        retrieval_texts: list[str]
+        if client_text and not is_fallback:
+            retrieval_texts = [
+                str(rag_text),
+                str(search_query),
+                *_recent_client_texts(history),
+            ]
+        else:
+            retrieval_texts = [str(search_query)]
+        ctexts = tuple(dict.fromkeys(retrieval_texts))
         rj = locals().get("rag_json_spec")
         prefer_novel = _rag_intent(rj) == "alternatives"
+        include_full_nutrition = _wants_full_nutrition_context(
+            client_text,
+            retrieval_spec,
+        )
         context, info = self._do_rag(
             search_query,
             profile,
+            search_queries=_derive_secondary_search_queries(
+                client_text,
+                history,
+                search_query,
+                retrieval_spec if client_text and not is_fallback else None,
+            ),
             rag_constraint_texts=ctexts,
-            rag_json_spec=rj if client_text and not is_fallback else None,
+            rag_json_spec=retrieval_spec if client_text and not is_fallback else None,
             history=history,
             prefer_novel=prefer_novel,
+            include_full_nutrition=include_full_nutrition,
             rag_trace=rag_trace,
         )
         _trace(rag_trace, {
@@ -1508,6 +2150,7 @@ class CashierAgent:
             "rewrite_model": self._rewrite_model,
             **({"fallback": True} if is_fallback else {}),
             "retrieval_mode": self.rag_mode,
+            "full_nutrition_context": bool(include_full_nutrition),
             **(
                 {
                     "rag_json_spec": {
@@ -1535,10 +2178,12 @@ class CashierAgent:
         text: str,
         profile: dict[str, Any],
         *,
+        search_queries: Sequence[str] = (),
         rag_constraint_texts: Sequence[str] = (),
         rag_json_spec: dict[str, Any] | None = None,
         history: list[HistoryEntry] | None = None,
         prefer_novel: bool = False,
+        include_full_nutrition: bool = False,
         rag_trace: list[dict[str, Any]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
@@ -1551,6 +2196,7 @@ class CashierAgent:
                 profile,
                 rag_constraint_texts=rag_constraint_texts,
                 rag_json_spec=rag_json_spec,
+                include_full_nutrition=include_full_nutrition,
             )
 
         base: list[str] = (
@@ -1591,24 +2237,55 @@ class CashierAgent:
             if (rag_json_spec and _use_lexical_exclusions())
             else []
         )
-        chroma_buf: list[dict[str, Any]] = []
-        rows = search_menu(
-            text,
-            allergens_blacklist=search_blacklist or None,
-            top_k=self.rag_top_k,
-            max_energy=float(max_e) if max_e is not None else None,
-            min_energy=float(min_e) if min_e is not None else None,
-            excluded_lexical=lex_e or None,
-            chroma_trace=chroma_buf if rag_trace is not None else None,
+        effective_top_k = _effective_rag_top_k(
+            self.rag_top_k,
+            include_full_nutrition=include_full_nutrition,
         )
+        query_batch: list[str] = []
+        for q in [text, *search_queries]:
+            qq = str(q or "").strip()
+            if not qq:
+                continue
+            if qq not in query_batch:
+                query_batch.append(qq)
+        if not query_batch:
+            query_batch = [str(text or "").strip() or "general menu items"]
+        chroma_buf: list[dict[str, Any]] = []
+        rows_all: list[dict[str, Any]] = []
+        for i, q in enumerate(query_batch):
+            rows_i = search_menu(
+                q,
+                allergens_blacklist=search_blacklist or None,
+                top_k=effective_top_k,
+                max_energy=float(max_e) if max_e is not None else None,
+                min_energy=float(min_e) if min_e is not None else None,
+                excluded_lexical=lex_e or None,
+                chroma_trace=chroma_buf if (rag_trace is not None and i == 0) else None,
+            )
+            rows_all.extend(rows_i)
+        rows_all.sort(key=lambda r: float(r.get("distance") or 9.0))
+        dedup_rows: list[dict[str, Any]] = []
+        seen_row_keys: set[tuple[str, str, float, str]] = set()
+        for r in rows_all:
+            key = (
+                str(r.get("name") or ""),
+                str(r.get("serving_size") or ""),
+                float(r.get("energy") or 0.0),
+                str(r.get("ingredients") or ""),
+            )
+            if key in seen_row_keys:
+                continue
+            seen_row_keys.add(key)
+            dedup_rows.append(r)
+        rows = dedup_rows
         excluded_by_constraints = (
             []
             if override_restriction
             else _collect_allergen_excluded_candidates(
-                query=text,
+                query=query_batch[0],
                 shown_rows=rows,
                 blacklist=blacklist,
-                top_k=self.rag_top_k,
+                top_k=effective_top_k,
                 max_energy=float(max_e) if max_e is not None else None,
                 min_energy=float(min_e) if min_e is not None else None,
                 excluded_lexical=lex_e or None,
@@ -1642,11 +2319,12 @@ class CashierAgent:
             "retrieval_mode": RAG_MODE_VECTOR,
             "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
             "metric": "cosine_distance",
-            "top_k": self.rag_top_k,
+            "top_k": effective_top_k,
             "distance_threshold": self.distance_threshold,
             "soft_distance_max": soft_max,
             "allergen_blacklist_tokens": list(search_blacklist),
             "prefer_novel": bool(prefer_novel),
+            "query_batch": list(query_batch),
             **cmeta,
             "candidates": [
                 {"name": r["name"], "distance": r["distance"], "energy": r["energy"]}
@@ -1686,6 +2364,7 @@ class CashierAgent:
                 rows,
                 max_dist=self.distance_threshold,
                 max_lines=self.rag_max_prompt_lines,
+                include_full_nutrition=include_full_nutrition,
             )
             if self.rag_max_prompt_lines is not None:
                 info["rag_prompt_line_cap"] = self.rag_max_prompt_lines
@@ -1703,6 +2382,7 @@ class CashierAgent:
                 rows,
                 max_dist=soft_max,
                 max_lines=self.rag_max_prompt_lines,
+                include_full_nutrition=include_full_nutrition,
             )
             if lines:
                 if self.rag_max_prompt_lines is not None:
@@ -1731,6 +2411,7 @@ class CashierAgent:
         *,
         rag_constraint_texts: Sequence[str] = (),
         rag_json_spec: dict[str, Any] | None = None,
+        include_full_nutrition: bool = False,
     ) -> tuple[str, dict[str, Any]]:
         base: list[str] = (
             []
@@ -1770,16 +2451,20 @@ class CashierAgent:
             if rag_json_spec
             else []
         )
+        effective_top_k = _effective_rag_top_k(
+            self.rag_top_k,
+            include_full_nutrition=include_full_nutrition,
+        )
         rows, graph_info = search_menu_graph(
             text,
             allergens_blacklist=search_blacklist or None,
-            top_k=self.rag_top_k,
+            top_k=effective_top_k,
             max_energy=float(max_e) if max_e is not None else None,
             min_energy=float(min_e) if min_e is not None else None,
             excluded_lexical=lex_e or None,
         )
         info: dict[str, Any] = {
-            "top_k": self.rag_top_k,
+            "top_k": effective_top_k,
             "allergen_blacklist_tokens": list(search_blacklist),
             **cmeta,
             "candidates": [
@@ -1796,6 +2481,7 @@ class CashierAgent:
             rows,
             max_dist=1.0,
             max_lines=self.rag_max_prompt_lines,
+            include_full_nutrition=include_full_nutrition,
         )
         if self.rag_max_prompt_lines is not None:
             info["rag_prompt_line_cap"] = self.rag_max_prompt_lines
@@ -1810,6 +2496,7 @@ class CashierAgent:
         rag_context: str,
         *,
         allow_calories: bool,
+        allow_full_nutrition: bool = False,
         finalize_requested: bool = False,
         override_restriction: bool = False,
     ) -> str:
@@ -1823,7 +2510,7 @@ class CashierAgent:
         if rag_context:
             context_payload = (
                 rag_context
-                if (self._full_menu_context or allow_calories)
+                if (self._full_menu_context or allow_calories or allow_full_nutrition)
                 else _hide_kcal_in_rag_context(rag_context)
             )
             if self._full_menu_context:
@@ -1833,12 +2520,20 @@ class CashierAgent:
                     f"{context_payload}"
                 )
             else:
-                extras.append(
-                    "Menu data slice for this turn (each line: product name, kcal estimate, "
-                    "allergen tags, approximate added/total sugar, and ingredients when listed — "
-                    "not full nutrition):\n"
-                    f"{context_payload}"
-                )
+                if allow_full_nutrition:
+                    extras.append(
+                        "Menu data slice for this turn (each line includes product name plus "
+                        "nutrition fields available in data: kcal, protein, fats, carbs, sugars, "
+                        "sodium, allergens, and ingredients when listed):\n"
+                        f"{context_payload}"
+                    )
+                else:
+                    extras.append(
+                        "Menu data slice for this turn (each line: product name, kcal estimate, "
+                        "allergen tags, approximate added/total sugar, and ingredients when listed — "
+                        "not full nutrition):\n"
+                        f"{context_payload}"
+                    )
         visible_order_state = (
             _cashier_visible_order_state(order_state)
             if self._realistic_cashier
@@ -1920,6 +2615,7 @@ def _render_rows(
     *,
     max_dist: float,
     max_lines: int | None = None,
+    include_full_nutrition: bool = False,
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """
     Форматирует строки меню для промпта и список использованных хитов.
@@ -1935,6 +2631,8 @@ def _render_rows(
     name_energies: dict[str, list[float]] = {}
     name_added_sugar: dict[str, list[float]] = {}
     name_total_sugar: dict[str, list[float]] = {}
+    metric_fields = ("protein", "total_fat", "sat_fat", "trans_fat", "chol", "carbs", "sodium")
+    name_metrics: dict[str, dict[str, list[float]]] = {}
     order: list[str] = []  # сохраняем порядок первого вхождения
     for r in rows:
         if r["distance"] > max_dist:
@@ -1945,12 +2643,16 @@ def _render_rows(
             name_energies[name] = []
             name_added_sugar[name] = []
             name_total_sugar[name] = []
+            name_metrics[name] = {field: [] for field in metric_fields}
             order.append(name)
         name_energies[name].append(float(r["energy"]))
         if r.get("added_sugar") is not None:
             name_added_sugar[name].append(float(r["added_sugar"]))
         if r.get("total_sugar") is not None:
             name_total_sugar[name].append(float(r["total_sugar"]))
+        for field in metric_fields:
+            if r.get(field) is not None:
+                name_metrics[name][field].append(float(r.get(field)))
 
     lines: list[str] = []
     used: list[dict[str, Any]] = []
@@ -1986,6 +2688,38 @@ def _render_rows(
             sugar_parts.append("total sugar: unknown")
         ingredients = str(r.get("ingredients") or "").strip()
         ingredient_part = f"; ingredients: {ingredients}" if ingredients else ""
+        if include_full_nutrition:
+            nutrition_parts: list[str] = []
+            labels = {
+                "protein": "protein",
+                "total_fat": "fat",
+                "sat_fat": "sat fat",
+                "trans_fat": "trans fat",
+                "chol": "cholesterol",
+                "carbs": "carbs",
+                "sodium": "sodium",
+            }
+            units = {
+                "protein": "g",
+                "total_fat": "g",
+                "sat_fat": "g",
+                "trans_fat": "g",
+                "chol": "mg",
+                "carbs": "g",
+                "sodium": "mg",
+            }
+            for field in metric_fields:
+                vals = name_metrics[name][field]
+                if not vals:
+                    continue
+                if len(vals) > 1:
+                    lo = round(min(vals), 1)
+                    hi = round(max(vals), 1)
+                    nutrition_parts.append(f"{labels[field]}: ~{lo}–{hi} {units[field]}")
+                else:
+                    nutrition_parts.append(f"{labels[field]}: ~{round(vals[0], 1)} {units[field]}")
+            if nutrition_parts:
+                ingredient_part = f"; {'; '.join(nutrition_parts)}{ingredient_part}"
         lines.append(
             f"- {name} ({energy_str} kcal, allergens: {allergens}; "
             f"{'; '.join(sugar_parts)}{ingredient_part})"

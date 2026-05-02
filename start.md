@@ -104,6 +104,9 @@ python scripts/merge_dialog_histories.py --dialogs_dir dialogs_rag --out dialogs
 python scripts/audit_history_llm_judge.py --dialogs_dir dialogs_rag --out dialogs_rag/history_judge.jsonl
 python scripts/audit_history_llm_judge.py --dialogs_dir dialogs_rag --limit 5 --dry_run
 
+//
+//
+
 make dataset-rag-from-profiles-api \
  NUM=40 \
  PROFILES_FILE=profiles_1000.json \
@@ -115,6 +118,9 @@ make dataset-rag-from-profiles-api \
  SEED=42 \
  2>&1 | tee generate_dataset.log
 
+make voice-browser-api VOICE_FLAGS="--trace-all"
+
+//
 //
 
 # Added voice commands:
@@ -131,6 +137,9 @@ make voice-browser-norag-ollama
 
 make dataset-norag-from-profiles-api NUM=40 PROFILES_FILE=profiles_1000.json OUT_NORAG=dialogs_norag PRINT_TRACE=1 TRACE_VERBOSE=1 WORKERS=8
 make dataset-norag-from-profiles-ollama NUM=40 PROFILES_FILE=profiles_1000.json OUT_NORAG=dialogs_norag PRINT_TRACE=1 TRACE_VERBOSE=1 WORKERS=8
+
+//
+//
 
 # Graph-RAG из профилей (аналог vector, выход по умолчанию OUT_GRAPH_RAG=dialogs_graph_rag):
 

@@ -12,9 +12,15 @@ from __future__ import annotations
 import pytest
 
 from mcd_voice.dialog.pipeline import (
+    _build_order_json_payload,
+    _new_dialog_memory,
+    _update_dialog_memory_from_client,
+    _update_dialog_memory_from_cashier,
+    _update_dialog_memory_from_order_state,
     DialogPipeline,
     _allow_cashier_order_sync,
     _detect_target_person,
+    _expand_client_reference_items,
     _has_cashier_hard_repeat,
     _is_looping_tail,
     _map_item_name_to_menu,
@@ -144,6 +150,26 @@ class TestParseOrderFromText:
             ["Coca-Cola", "Diet Coke"],
         )
         assert result == [("Diet Coke", 1)]
+
+    def test_order_json_rejects_unmentioned_suggestions(self, monkeypatch):
+        pipeline = DialogPipeline()
+        pipeline._order_json_client = object()
+        monkeypatch.setattr(
+            "mcd_voice.dialog.pipeline._call_llm",
+            lambda *a, **k: (
+                '{"orders":[{"target":"self","items":['
+                '{"name":"Apple Slices","quantity":1},'
+                '{"name":"Apple Pie","quantity":1}]}]}'
+            ),
+        )
+
+        result = pipeline._parse_structured_orders(
+            "yes I would like and what do you suggest to eat",
+            ["Apple Slices", "Apple Pie", "Iced Coffee"],
+            [{"role": "self", "label": "customer"}],
+        )
+
+        assert result == []
 
 
 # ── _detect_target_person ─────────────────────────────────────────────
@@ -386,6 +412,132 @@ def test_allow_cashier_order_sync_blocked_for_generic_reply_with_existing_items(
     os = build_initial_order_state(family_profile)
     os["persons"][0]["items"] = [{"name": "Big Mac", "quantity": 1}]
     assert _allow_cashier_order_sync("Thanks!", os) is False
+
+
+def test_expand_client_reference_items_resolves_both_of_them_to_recent_options() -> None:
+    menu_names = [
+        "Dosa Masala Burger",
+        "Veg Surprise Burger",
+        "Black Coffee",
+        "Premium Roast Coffee",
+    ]
+    history = [
+        {
+            "speaker": "cashier",
+            "text": "Sure — options around 5-6 g protein are Dosa Masala Burger (~5.66 g) "
+            "and Veg Surprise Burger (~5.71 g). Which one would you like?",
+        }
+    ]
+    resolved = _expand_client_reference_items(
+        "I'd like both of them and of course the coffee",
+        history,
+        menu_names,
+    )
+    assert "Dosa Masala Burger" in resolved
+    assert "Veg Surprise Burger" in resolved
+
+
+def test_expand_client_reference_items_keeps_text_when_no_recent_options() -> None:
+    menu_names = ["Dosa Masala Burger", "Veg Surprise Burger"]
+    resolved = _expand_client_reference_items(
+        "I'd like both of them",
+        [{"speaker": "cashier", "text": "Welcome!"}],
+        menu_names,
+    )
+    assert resolved == "I'd like both of them"
+
+
+def test_build_order_json_payload_includes_recent_context_for_references() -> None:
+    persons = [{"role": "self", "label": "customer"}]
+    menu_names = ["Dosa Masala Burger", "Veg Surprise Burger", "Black Coffee"]
+    history = [
+        {"speaker": "cashier", "text": "Options are Dosa Masala Burger and Veg Surprise Burger. Which one?"},
+        {"speaker": "client", "text": "good, more options like this"},
+    ]
+    payload = _build_order_json_payload(
+        "I'd like both of them",
+        persons,
+        menu_names,
+        history,
+    )
+    assert payload["recent_cashier_options"] == ["Dosa Masala Burger", "Veg Surprise Burger"]
+    assert payload["recent_client_messages"][-1] == "good, more options like this"
+    assert payload["recent_confirmed_items"] == []
+    assert payload["active_constraints"] == {}
+
+
+def test_dialog_memory_tracks_last_offered_options() -> None:
+    mem = _new_dialog_memory()
+    menu_names = ["Dosa Masala Burger", "Veg Surprise Burger", "Black Coffee"]
+    _update_dialog_memory_from_cashier(
+        mem,
+        "Sure — options are Dosa Masala Burger and Veg Surprise Burger. Which one would you like?",
+        menu_names,
+    )
+    assert mem["last_offered_options"][:2] == ["Dosa Masala Burger", "Veg Surprise Burger"]
+
+
+def test_expand_client_reference_prefers_dialog_memory_options() -> None:
+    menu_names = ["Dosa Masala Burger", "Veg Surprise Burger", "Black Coffee"]
+    history = [{"speaker": "cashier", "text": "Welcome!"}]
+    resolved = _expand_client_reference_items(
+        "I'd like both of them",
+        history,
+        menu_names,
+        dialog_memory={"last_offered_options": ["Dosa Masala Burger", "Veg Surprise Burger"]},
+    )
+    assert "Dosa Masala Burger" in resolved
+    assert "Veg Surprise Burger" in resolved
+
+
+def test_expand_client_reference_falls_back_to_confirmed_items() -> None:
+    menu_names = ["Dosa Masala Burger", "Veg Surprise Burger", "Black Coffee"]
+    resolved = _expand_client_reference_items(
+        "I'd like both of them",
+        [{"speaker": "cashier", "text": "Welcome!"}],
+        menu_names,
+        dialog_memory={"last_offered_options": [], "last_confirmed_items": ["Dosa Masala Burger", "Veg Surprise Burger"]},
+    )
+    assert "Dosa Masala Burger" in resolved
+    assert "Veg Surprise Burger" in resolved
+
+
+def test_dialog_memory_tracks_confirmed_items_from_order_state(family_profile) -> None:
+    mem = _new_dialog_memory()
+    os = build_initial_order_state(family_profile)
+    os["persons"][0]["items"] = [{"name": "Big Mac", "quantity": 1}]
+    os["persons"][1]["items"] = [{"name": "Apple Juice", "quantity": 1}]
+    _update_dialog_memory_from_order_state(mem, os)
+    assert mem["last_confirmed_items"] == ["Apple Juice", "Big Mac"]
+
+
+def test_dialog_memory_tracks_active_constraints_from_client_text() -> None:
+    mem = _new_dialog_memory()
+    _update_dialog_memory_from_client(
+        mem,
+        "Can I have a burger with around 5-6 g protein and coffee with no sugar and no milk?",
+    )
+    assert mem["active_constraints"]["no_sugar"] is True
+    assert mem["active_constraints"]["no_milk"] is True
+    assert mem["active_constraints"]["nutrient_range"] == {
+        "field": "protein",
+        "min": 5.0,
+        "max": 6.0,
+    }
+
+
+def test_build_order_json_payload_accepts_memory_slots() -> None:
+    payload = _build_order_json_payload(
+        "same as before",
+        [{"role": "self", "label": "customer"}],
+        ["Big Mac"],
+        [],
+        recent_cashier_options=["Big Mac"],
+        recent_confirmed_items=["Big Mac"],
+        active_constraints={"no_sugar": True},
+    )
+    assert payload["recent_confirmed_items"] == ["Big Mac"]
+    assert payload["active_constraints"] == {"no_sugar": True}
 
 
 def test_map_item_name_to_menu_rejects_ambiguous_single_word() -> None:

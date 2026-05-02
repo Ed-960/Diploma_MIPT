@@ -17,6 +17,11 @@ from mcd_voice.dialog.pipeline import (
     _cashier_signals_end,
     _client_confirms_end,
     _client_says_farewell,
+    _new_dialog_memory,
+    _update_dialog_memory_from_client,
+    _update_dialog_memory_from_order_state,
+    _update_dialog_memory_from_cashier,
+    _expand_client_reference_items,
     _has_cashier_hard_repeat,
     _is_cot_leak,
     _is_looping_tail,
@@ -100,6 +105,7 @@ class HumanDriveThroughSession:
         self._n_client_messages = 0
         self._cot_leak_count = 0
         self._order_parser_events: list[dict[str, Any]] = []
+        self._dialog_memory: dict[str, Any] | None = None
 
     def _collect_order_parser_events(
         self,
@@ -192,6 +198,7 @@ class HumanDriveThroughSession:
         self._restriction_map = restriction_map
         self._order_state = build_initial_order_state(prof)
         self._history = []
+        self._dialog_memory = _new_dialog_memory()
         cashier_kwargs: dict[str, Any] = {
             "model": self.model,
             "trace_verbose": self.trace_verbose,
@@ -218,6 +225,7 @@ class HumanDriveThroughSession:
         )
         self._emit_trace(label="greeting", rag_trace=rag_trace, llm_trace=llm_trace)
         self._history.append({"speaker": "cashier", "text": greeting})
+        _update_dialog_memory_from_cashier(self._dialog_memory, greeting, menu_names)
         flags = validate_dialog(
             prof,
             self._order_state,
@@ -243,10 +251,12 @@ class HumanDriveThroughSession:
         assert self._allergen_map is not None
         assert self._restriction_map is not None
         assert self._cashier is not None
+        assert self._dialog_memory is not None
 
         client_msg = (client_text or "").strip()
         if not client_msg:
             raise ValueError("Empty client message.")
+        _update_dialog_memory_from_client(self._dialog_memory, client_msg)
 
         if self._n_client_messages >= self.max_turns:
             return self._attach_order_parser_summary({
@@ -289,6 +299,14 @@ class HumanDriveThroughSession:
             "rag_trace": rag_trace,
             "rag_meta": {"call": "turn", "turn": self._n_client_messages},
         }
+        resolved_client_msg = _expand_client_reference_items(
+            client_msg,
+            self._history,
+            self._menu_names,
+            dialog_memory=self._dialog_memory,
+        )
+        if resolved_client_msg and resolved_client_msg != client_msg:
+            cashier_kwargs["query"] = resolved_client_msg
         if llm_trace is not None:
             cashier_kwargs["llm_trace"] = llm_trace
         cashier = self._cashier
@@ -306,6 +324,7 @@ class HumanDriveThroughSession:
         if _is_cot_leak(cashier_msg):
             self._cot_leak_count += 1
         self._history.append({"speaker": "cashier", "text": cashier_msg})
+        _update_dialog_memory_from_cashier(self._dialog_memory, cashier_msg, self._menu_names)
 
         if _is_stalled(self._history):
             self._order_state["order_complete"] = True
@@ -354,14 +373,16 @@ class HumanDriveThroughSession:
 
         h = self._helper
         structured_orders = h._parse_structured_orders(
-            client_msg,
+            resolved_client_msg,
             self._menu_names,
             self._order_state.get("persons", []),
+            history=self._history,
+            dialog_memory=self._dialog_memory,
             llm_trace=llm_trace,
             trace_meta={"event_scope": "order_parser", "turn": self._n_client_messages},
         )
         h._update_order(
-            client_msg,
+            resolved_client_msg,
             self._menu_names,
             self._order_state,
             self._energy_by_name,
@@ -370,6 +391,7 @@ class HumanDriveThroughSession:
             llm_trace=llm_trace,
             trace_meta={"event_scope": "order_parser", "turn": self._n_client_messages},
         )
+        _update_dialog_memory_from_order_state(self._dialog_memory, self._order_state)
         if not self.realistic_cashier:
             h._enforce_restriction_safety(
                 self._profile,
@@ -385,6 +407,7 @@ class HumanDriveThroughSession:
             self._energy_by_name,
             self._allergen_map,
         )
+        _update_dialog_memory_from_order_state(self._dialog_memory, self._order_state)
         if not self.realistic_cashier:
             h._enforce_restriction_safety(
                 self._profile,
@@ -404,6 +427,7 @@ class HumanDriveThroughSession:
                 self._energy_by_name,
                 self._allergen_map,
             )
+            _update_dialog_memory_from_order_state(self._dialog_memory, self._order_state)
             if not self.realistic_cashier:
                 h._enforce_restriction_safety(
                     self._profile,

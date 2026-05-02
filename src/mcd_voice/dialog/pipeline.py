@@ -348,6 +348,139 @@ def _mentioned_menu_items(text: str, menu_names: list[str]) -> set[str]:
     return mentioned
 
 
+_REFERENCE_CUE_RE = re.compile(
+    r"\b("
+    r"both(?:\s+of\s+them)?|them|those|"
+    r"like\s+(?:this|that|these|those)|"
+    r"same\s+(?:as|kind|type)"
+    r")\b",
+    re.I,
+)
+_OPTIONS_CASHIER_CUE_RE = re.compile(
+    r"\b(which one would you like|options?|alternatives?|other options?|more options?)\b",
+    re.I,
+)
+
+
+def _recent_cashier_option_names(
+    history: list[dict[str, str]],
+    menu_names: list[str],
+) -> list[str]:
+    """Extract most recent explicitly listed options from cashier turns."""
+    for entry in reversed(history or []):
+        if entry.get("speaker") != "cashier":
+            continue
+        text = str(entry.get("text") or "")
+        if not text or not _OPTIONS_CASHIER_CUE_RE.search(text):
+            continue
+        names = list(_mentioned_menu_items(text, menu_names))
+        if not names:
+            continue
+        names.sort(key=lambda n: _item_mention_position(text, n, menu_names))
+        return names
+    return []
+
+
+def _new_dialog_memory() -> dict[str, Any]:
+    return {
+        "last_offered_options": [],
+        "last_confirmed_items": [],
+        "active_constraints": {},
+    }
+
+
+def _update_dialog_memory_from_cashier(
+    memory: dict[str, Any],
+    cashier_text: str,
+    menu_names: list[str],
+) -> None:
+    names = list(_mentioned_menu_items(cashier_text, menu_names))
+    if not names:
+        return
+    names.sort(key=lambda n: _item_mention_position(cashier_text, n, menu_names))
+    # Store a compact set of most recent concrete options mentioned by cashier.
+    memory["last_offered_options"] = names[:6]
+
+
+def _update_dialog_memory_from_order_state(
+    memory: dict[str, Any],
+    order_state: dict[str, Any],
+) -> None:
+    names = sorted(_current_order_item_names(order_state))
+    memory["last_confirmed_items"] = names
+
+
+def _extract_constraints_from_client_text(text: str) -> dict[str, Any]:
+    t = (text or "").lower()
+    out: dict[str, Any] = {}
+    if re.search(r"\b(no sugar|sugar[- ]?free|without sugar)\b", t):
+        out["no_sugar"] = True
+    if re.search(r"\b(no milk|dairy[- ]?free|without milk)\b", t):
+        out["no_milk"] = True
+    nutr = None
+    for patt, fld in (
+        (r"\bprotein\b", "protein"),
+        (r"\bcarbs?\b|\bcarbohydrates?\b", "carbs"),
+        (r"\bfats?\b", "total_fat"),
+        (r"\bsodium\b", "sodium"),
+        (r"\bsugar\b", "total_sugar"),
+    ):
+        if re.search(patt, t):
+            nutr = fld
+            break
+    rng = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|to|–)\s*(\d+(?:\.\d+)?)\s*g\b", t)
+    if nutr and rng:
+        lo = float(rng.group(1))
+        hi = float(rng.group(2))
+        if hi < lo:
+            lo, hi = hi, lo
+        out["nutrient_range"] = {"field": nutr, "min": lo, "max": hi}
+    return out
+
+
+def _update_dialog_memory_from_client(memory: dict[str, Any], client_text: str) -> None:
+    parsed = _extract_constraints_from_client_text(client_text)
+    if not parsed:
+        return
+    cur = dict(memory.get("active_constraints") or {})
+    cur.update(parsed)
+    memory["active_constraints"] = cur
+
+
+def _expand_client_reference_items(
+    client_text: str,
+    history: list[dict[str, str]],
+    menu_names: list[str],
+    *,
+    dialog_memory: dict[str, Any] | None = None,
+) -> str:
+    """
+    Resolve pronoun-like references ("both of them", "like this") to recent cashier options.
+    This preserves dialog context for both response generation and order parsing.
+    """
+    text = (client_text or "").strip()
+    if not text or not _REFERENCE_CUE_RE.search(text):
+        return text
+    if _mentioned_menu_items(text, menu_names):
+        return text
+    mem_names = list((dialog_memory or {}).get("last_offered_options") or [])
+    confirmed = list((dialog_memory or {}).get("last_confirmed_items") or [])
+    names = (
+        [n for n in mem_names if n in menu_names]
+        or [n for n in confirmed if n in menu_names]
+        or _recent_cashier_option_names(history, menu_names)
+    )
+    if not names:
+        return text
+    if re.search(r"\bboth(?:\s+of\s+them)?\b", text, re.I) and len(names) >= 2:
+        picked = names[:2]
+    else:
+        picked = names[: min(3, len(names))]
+    if not picked:
+        return text
+    return f"{text} ({', '.join(picked)})"
+
+
 def _split_unavailable_scope(text: str) -> list[str]:
     scopes: list[str] = []
     for sentence in re.split(r"(?<=[.!?])\s+", text or ""):
@@ -797,6 +930,12 @@ Schema:
 
 Rules:
 - Use exact menu item names from MENU_NAMES list only.
+- You receive RECENT_CLIENT_MESSAGES, RECENT_CASHIER_MESSAGES, RECENT_CASHIER_OPTIONS,
+  RECENT_CONFIRMED_ITEMS and ACTIVE_CONSTRAINTS.
+  Use them to resolve references like "it", "them", "those", "both", "same", "like this".
+- If the utterance says "both of them", map to two most recent items from RECENT_CASHIER_OPTIONS.
+- If RECENT_CASHIER_OPTIONS is empty, use RECENT_CONFIRMED_ITEMS for "it/them/both" references.
+- If the utterance says "more options like this", do not add new items unless explicitly ordered.
 - target:
   - self for customer
   - spouse for spouse
@@ -807,6 +946,51 @@ Rules:
 - quantity must be integer >= 1.
 - Output valid JSON only.
 """
+
+
+def _build_order_json_payload(
+    utterance: str,
+    persons: list[dict[str, Any]],
+    menu_names: list[str],
+    history: list[dict[str, str]] | None = None,
+    recent_cashier_options: list[str] | None = None,
+    recent_confirmed_items: list[str] | None = None,
+    active_constraints: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    persons_desc = []
+    for i, p in enumerate(persons):
+        persons_desc.append(
+            {
+                "index": i,
+                "label": p.get("label"),
+                "role": p.get("role"),
+                "age": p.get("age"),
+            }
+        )
+    recent_client = [
+        str(e.get("text") or "")
+        for e in (history or [])[-10:]
+        if e.get("speaker") == "client" and str(e.get("text") or "").strip()
+    ][-3:]
+    recent_cashier = [
+        str(e.get("text") or "")
+        for e in (history or [])[-10:]
+        if e.get("speaker") == "cashier" and str(e.get("text") or "").strip()
+    ][-3:]
+    recent_options = (
+        list(recent_cashier_options or [])
+        or _recent_cashier_option_names(history or [], menu_names)
+    )
+    return {
+        "utterance": utterance,
+        "persons": persons_desc,
+        "menu_names": menu_names,
+        "recent_client_messages": recent_client,
+        "recent_cashier_messages": recent_cashier,
+        "recent_cashier_options": recent_options,
+        "recent_confirmed_items": list(recent_confirmed_items or []),
+        "active_constraints": dict(active_constraints or {}),
+    }
 
 
 def _normalize_menu_lookup(menu_names: list[str]) -> dict[str, str]:
@@ -965,6 +1149,7 @@ class DialogPipeline:
 
         history: list[dict[str, str]] = []
         order_state = build_initial_order_state(profile)
+        dialog_memory = _new_dialog_memory()
         rag_trace: list[dict[str, Any]] | None = (
             [] if self._collect_rag_trace else None
         )
@@ -990,6 +1175,7 @@ class DialogPipeline:
             cashier_kwargs["llm_trace"] = llm_trace
         greeting = cashier.generate_response(profile, history, order_state, **cashier_kwargs)
         history.append({"speaker": "cashier", "text": greeting})
+        _update_dialog_memory_from_cashier(dialog_memory, greeting, menu_names)
         self._emit_progress(
             "greeting_done",
             history_len=len(history),
@@ -1021,6 +1207,7 @@ class DialogPipeline:
             client_msg = client.generate_response(profile, history, **client_kwargs)
             if _is_cot_leak(client_msg):
                 cot_leak_count += 1
+            _update_dialog_memory_from_client(dialog_memory, client_msg)
             history.append({"speaker": "client", "text": client_msg})
             self._emit_progress(
                 "client_done",
@@ -1060,6 +1247,18 @@ class DialogPipeline:
             }
             if llm_trace is not None and _accepts_kwarg(cashier.generate_response, "llm_trace"):
                 cashier_kwargs["llm_trace"] = llm_trace
+            resolved_client_msg = _expand_client_reference_items(
+                client_msg,
+                history,
+                menu_names,
+                dialog_memory=dialog_memory,
+            )
+            if (
+                resolved_client_msg
+                and resolved_client_msg != client_msg
+                and _accepts_kwarg(cashier.generate_response, "query")
+            ):
+                cashier_kwargs["query"] = resolved_client_msg
             cashier_msg = cashier.generate_response(
                 profile,
                 history,
@@ -1069,6 +1268,7 @@ class DialogPipeline:
             if _is_cot_leak(cashier_msg):
                 cot_leak_count += 1
             history.append({"speaker": "cashier", "text": cashier_msg})
+            _update_dialog_memory_from_cashier(dialog_memory, cashier_msg, menu_names)
             self._emit_progress(
                 "cashier_done",
                 turn=turn,
@@ -1117,15 +1317,17 @@ class DialogPipeline:
             # Обновляем заказ только по реплике клиента: так не добавляем
             # предложения кассира, которые клиент не подтверждал.
             structured_orders = self._parse_structured_orders(
-                client_msg,
+                resolved_client_msg,
                 menu_names,
                 order_state.get("persons", []),
+                history=history,
+                dialog_memory=dialog_memory,
                 llm_trace=llm_trace,
                 trace_meta={"event_scope": "order_parser", "turn": turn},
             )
             before = _order_items_by_person(order_state)
             self._update_order(
-                client_msg,
+                resolved_client_msg,
                 menu_names,
                 order_state,
                 energy_by_name,
@@ -1134,6 +1336,7 @@ class DialogPipeline:
                 llm_trace=llm_trace,
                 trace_meta={"event_scope": "order_parser", "turn": turn},
             )
+            _update_dialog_memory_from_order_state(dialog_memory, order_state)
             after = _order_items_by_person(order_state)
             _append_order_mutation(
                 order_mutation_trace,
@@ -1162,6 +1365,7 @@ class DialogPipeline:
             self._remove_unavailable_from_order(
                 cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
             )
+            _update_dialog_memory_from_order_state(dialog_memory, order_state)
             after = _order_items_by_person(order_state)
             _append_order_mutation(
                 order_mutation_trace,
@@ -1187,7 +1391,7 @@ class DialogPipeline:
 
             if _ORDER_READBACK_RE.search(cashier_msg) and _allow_cashier_order_sync(client_msg, order_state):
                 allowed_sync_names = _current_order_item_names(order_state) | _mentioned_menu_items(
-                    client_msg,
+                    resolved_client_msg,
                     menu_names,
                 )
                 self._replace_order_from_text(
@@ -1198,6 +1402,7 @@ class DialogPipeline:
                     allergen_map,
                     allowed_names=allowed_sync_names,
                 )
+                _update_dialog_memory_from_order_state(dialog_memory, order_state)
                 after = _order_items_by_person(order_state)
                 _append_order_mutation(
                     order_mutation_trace,
@@ -1227,7 +1432,7 @@ class DialogPipeline:
                 # это безопаснее, чем парсить любые промежуточные предложения.
                 before = _order_items_by_person(order_state)
                 allowed_sync_names = _current_order_item_names(order_state) | _mentioned_menu_items(
-                    client_msg,
+                    resolved_client_msg,
                     menu_names,
                 )
                 replaced = self._replace_order_from_text(
@@ -1238,6 +1443,7 @@ class DialogPipeline:
                     allergen_map,
                     allowed_names=allowed_sync_names,
                 )
+                _update_dialog_memory_from_order_state(dialog_memory, order_state)
                 after = _order_items_by_person(order_state)
                 _append_order_mutation(
                     order_mutation_trace,
@@ -1476,6 +1682,8 @@ class DialogPipeline:
         menu_names: list[str],
         persons: list[dict[str, Any]],
         *,
+        history: list[dict[str, str]] | None = None,
+        dialog_memory: dict[str, Any] | None = None,
         llm_trace: list[dict[str, Any]] | None = None,
         trace_meta: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
@@ -1522,21 +1730,15 @@ class DialogPipeline:
                         }
                     )
                 return []
-        persons_desc = []
-        for i, p in enumerate(persons):
-            persons_desc.append(
-                {
-                    "index": i,
-                    "label": p.get("label"),
-                    "role": p.get("role"),
-                    "age": p.get("age"),
-                }
-            )
-        user_payload = {
-            "utterance": text,
-            "persons": persons_desc,
-            "menu_names": menu_names,
-        }
+        user_payload = _build_order_json_payload(
+            text,
+            persons,
+            menu_names,
+            history,
+            recent_cashier_options=list((dialog_memory or {}).get("last_offered_options") or []),
+            recent_confirmed_items=list((dialog_memory or {}).get("last_confirmed_items") or []),
+            active_constraints=dict((dialog_memory or {}).get("active_constraints") or {}),
+        )
         t0 = time.perf_counter()
         try:
             raw = _call_llm(
@@ -1594,6 +1796,8 @@ class DialogPipeline:
                     continue
                 mapped = _map_item_name_to_menu(str(it.get("name") or ""), menu_lookup)
                 if not mapped:
+                    continue
+                if _item_mention_position(text, mapped, menu_names) >= 10**9:
                     continue
                 try:
                     qty = int(it.get("quantity") or 1)

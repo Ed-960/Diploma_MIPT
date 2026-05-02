@@ -146,6 +146,37 @@ def test_full_menu_context_non_rag_skips_retrieval(
     assert '"name": "Black Coffee"' in system
 
 
+def test_full_menu_context_skips_menu_on_greeting(
+    monkeypatch, minimal_profile: dict,
+) -> None:
+    """Non-RAG voice greeting should not let the LLM mistake menu rows for an order."""
+    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "Welcome.")
+    agent = CashierAgent(
+        rag_top_k=0,
+        full_menu_context=True,
+        realistic_cashier=True,
+        trace_verbose=True,
+    )
+    trace: list[dict] = []
+    llm_trace: list[dict] = []
+
+    agent.generate_response(
+        minimal_profile,
+        history=[],
+        order_state={"persons": []},
+        rag_trace=trace,
+        llm_trace=llm_trace,
+        rag_meta={"call": "greeting"},
+    )
+
+    assert len(trace) == 1
+    assert trace[0]["event"] == "rag_skipped_no_client_query"
+    assert trace[0]["retrieval_mode"] == "none"
+    system = [e for e in llm_trace if e.get("event") == "llm_call"][0]["system"]
+    assert "Full mcd.json menu context" not in system
+    assert '"name": "Black Coffee"' not in system
+
+
 def test_rag_skips_greeting_when_no_client_text(
     monkeypatch, minimal_profile: dict,
 ) -> None:
@@ -229,6 +260,34 @@ def test_render_rows_respects_max_lines() -> None:
 
     lines_all, _ = _render_rows(rows, max_dist=1.0, max_lines=None)
     assert len(lines_all) == 30
+
+
+def test_render_rows_can_include_full_nutrition_fields() -> None:
+    rows = [
+        {
+            "name": "Hamburger",
+            "distance": 0.2,
+            "allergens": ["Cereal containing gluten"],
+            "energy": 250.0,
+            "added_sugar": 4.0,
+            "total_sugar": 6.0,
+            "protein": 12.0,
+            "total_fat": 9.0,
+            "sat_fat": 3.5,
+            "trans_fat": 0.2,
+            "chol": 30.0,
+            "carbs": 30.0,
+            "sodium": 520.0,
+            "ingredients": "beef patty, bun",
+        }
+    ]
+    lines, _ = _render_rows(rows, max_dist=1.0, include_full_nutrition=True)
+
+    assert len(lines) == 1
+    assert "protein: ~12.0 g" in lines[0]
+    assert "fat: ~9.0 g" in lines[0]
+    assert "carbs: ~30.0 g" in lines[0]
+    assert "sodium: ~520.0 mg" in lines[0]
 
 
 def test_menu_graph_to_mermaid_exports_structure() -> None:
