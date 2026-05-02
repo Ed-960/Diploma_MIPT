@@ -146,6 +146,7 @@ def _run_one_dialog(
     trace_verbose: bool,
     print_lock: threading.Lock,
     realistic_cashier: bool,
+    full_menu_context: bool,
     retry_on_loop: int,
 ) -> None:
     # Создаём агентов внутри воркера: меньше shared-state, стабильнее при параллели.
@@ -156,6 +157,7 @@ def _run_one_dialog(
         rag_mode=rag_mode,
         trace_verbose=trace_verbose,
         realistic_cashier=realistic_cashier,
+        full_menu_context=full_menu_context,
     )
     progress = _make_dialog_progress_printer(
         idx + 1,
@@ -216,7 +218,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--no_rag", action="store_true",
-        help="Отключить RAG у кассира (для сравнения с RAG-версией).",
+        help="Non-RAG baseline: не использовать vector/graph DB, а отправлять полный mcd.json в LLM на каждом ходе.",
     )
     parser.add_argument(
         "--rag_mode",
@@ -367,7 +369,7 @@ def main() -> None:
         print(
             f"    metrics: provider={rt.get('provider')} base_url={rt.get('base_url')!r} "
             f"dialog_model={rt.get('model')!r} rewrite_model={rw!r} "
-            f"rag_top_k={rag_top_k} rag_mode={rag_mode}",
+            f"rag_top_k={rag_top_k} rag_mode={rag_mode} full_menu_context={args.no_rag}",
             flush=True,
         )
     print()
@@ -414,6 +416,7 @@ def main() -> None:
                 trace_verbose=args.trace_verbose,
                 print_lock=print_lock,
                 realistic_cashier=args.realistic_cashier,
+                full_menu_context=args.no_rag,
                 retry_on_loop=max(0, args.retry_on_loop),
             ): (i, start_id + i)
             for i in range(num)

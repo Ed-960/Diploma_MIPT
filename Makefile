@@ -58,6 +58,7 @@ _LLM_OLLAMA := $(PY) scripts/apply_llm_mode.py ollama $(PY)
 	demo-dialog-trace-api demo-dialog-trace-ollama \
 	demo-agents demo-agents-api demo-agents-ollama demo-menu-search \
 	voice-browser voice-browser-api voice-browser-ollama \
+	voice-browser-norag-api voice-browser-norag-ollama \
 	dataset-rag dataset-rag-api dataset-rag-ollama \
 	dataset-rag-vector dataset-rag-vector-api dataset-rag-vector-ollama \
 	dataset-rag-graph dataset-rag-graph-api dataset-rag-graph-ollama \
@@ -68,6 +69,7 @@ _LLM_OLLAMA := $(PY) scripts/apply_llm_mode.py ollama $(PY)
 	dataset-trace-50 dataset-trace-50-api dataset-trace-50-ollama \
 	dataset-trace-100 dataset-trace-100-api dataset-trace-100-ollama \
 	profiles-gen dataset-rag-from-profiles dataset-rag-from-profiles-api dataset-rag-from-profiles-ollama \
+	dataset-norag-from-profiles dataset-norag-from-profiles-api dataset-norag-from-profiles-ollama \
 	dataset-rag-graph-from-profiles dataset-rag-graph-from-profiles-api dataset-rag-graph-from-profiles-ollama \
 	visualize-menu-graph visualize-menu-graph-open \
 	visualize-menu-graph-full visualize-menu-graph-full-open \
@@ -95,8 +97,11 @@ help:
 	@echo "  make demo-menu-search"
 	@echo "  make voice-browser-api    # микрофон браузера + LLM, облако (см. .env LLM_*)"
 	@echo "  make voice-browser-ollama # то же, локальный Ollama"
+	@echo "  make voice-browser-norag-api    # Non-RAG: полный mcd.json в LLM каждый ход, trace-all"
+	@echo "  make voice-browser-norag-ollama # то же через Ollama"
 	@echo "  make voice-browser        # alias на voice-browser-api"
 	@echo "    + логи: make voice-browser-api VOICE_FLAGS='--trace-all'"
+	@echo "    + Non-RAG: make voice-browser-api VOICE_FLAGS='--no-rag --trace-all'"
 	@echo "    + умеренно: VOICE_FLAGS='--print-trace --trace-verbose'"
 	@echo "  (make demo-dialog-* — только консольный текст, без микрофона.)"
 	@echo ""
@@ -104,7 +109,7 @@ help:
 	@echo "  make dataset-rag         NUM=$(NUM) OUT_RAG=$(OUT_RAG) TURNS=$(TURNS)   # alias vector"
 	@echo "  make dataset-rag-vector  NUM=$(NUM) OUT_RAG=$(OUT_RAG) TURNS=$(TURNS)"
 	@echo "  make dataset-rag-graph   NUM=$(NUM) OUT_GRAPH_RAG=$(OUT_GRAPH_RAG) TURNS=$(TURNS)"
-	@echo "  make dataset-norag       NUM=$(NUM) OUT_NORAG=$(OUT_NORAG) TURNS=$(TURNS)"
+	@echo "  make dataset-norag       NUM=$(NUM) OUT_NORAG=$(OUT_NORAG) TURNS=$(TURNS)   # Non-RAG: полный mcd.json каждый ход"
 	@echo "  make dataset-trace       1 диалог: rag+llm в JSON + print_trace в консоль"
 	@echo "  make dataset-trace-10    10 диалогов -> $(OUT_TRACE)_10"
 	@echo "  make dataset-trace-20    20 -> $(OUT_TRACE)_20"
@@ -113,6 +118,7 @@ help:
 	@echo "  make profiles-gen        NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) SEED=42"
 	@echo "  make dataset-rag-from-profiles NUM=$(NUM) PROFILES_FILE=$(PROFILES_FILE) PRINT_TRACE=1 TRACE_VERBOSE=1   # vector RAG"
 	@echo "  make dataset-rag-graph-from-profiles NUM=$(NUM) OUT_GRAPH_RAG=$(OUT_GRAPH_RAG) ...   # graph RAG (как выше)"
+	@echo "  make dataset-norag-from-profiles NUM=$(NUM) OUT_NORAG=$(OUT_NORAG) ...   # Non-RAG full mcd.json"
 	@echo "  make dataset-rag-from-profiles ... SHUFFLE_PROFILES=1 SEED=42   # профили из файла — случайная выборка"
 	@echo "  make dataset-rag-from-profiles ... CLIENT_VARIATION=high|normal|off   # вариативность клиента (по умолчанию high)"
 	@echo "  make dataset-rag ... REALISTIC_CASHIER=1   # реалистичный кассир (без скрытого профиля)"
@@ -194,6 +200,12 @@ voice-browser-api:
 
 voice-browser-ollama:
 	$(_LLM_OLLAMA) scripts/voice_browser_server.py $(VOICE_FLAGS)
+
+voice-browser-norag-api:
+	$(_LLM_API) scripts/voice_browser_server.py --no-rag --trace-all $(VOICE_FLAGS)
+
+voice-browser-norag-ollama:
+	$(_LLM_OLLAMA) scripts/voice_browser_server.py --no-rag --trace-all $(VOICE_FLAGS)
 
 voice-browser: voice-browser-api
 
@@ -298,6 +310,15 @@ dataset-rag-graph-from-profiles-api:
 
 dataset-rag-graph-from-profiles-ollama:
 	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_GRAPH_RAG) --rag_mode graph --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
+
+dataset-norag-from-profiles:
+	$(PY) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
+
+dataset-norag-from-profiles-api:
+	$(_LLM_API) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
+
+dataset-norag-from-profiles-ollama:
+	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
 
 visualize-menu-graph:
 	$(PY) scripts/visualize_menu_graph.py

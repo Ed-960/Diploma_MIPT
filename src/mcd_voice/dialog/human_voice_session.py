@@ -71,6 +71,7 @@ class HumanDriveThroughSession:
         trace_verbose: bool = False,
         print_trace: bool = False,
         trace_all: bool = False,
+        full_menu_context: bool = False,
     ) -> None:
         self.max_turns = max_turns
         self.model = _resolve_model(model)
@@ -78,6 +79,7 @@ class HumanDriveThroughSession:
         self.trace_verbose = trace_verbose
         self.print_trace = bool(print_trace or trace_all)
         self.trace_all = bool(trace_all)
+        self.full_menu_context = bool(full_menu_context)
         self._catalog = MenuCatalog()
         self._helper = DialogPipeline(
             max_turns=max_turns,
@@ -190,11 +192,15 @@ class HumanDriveThroughSession:
         self._restriction_map = restriction_map
         self._order_state = build_initial_order_state(prof)
         self._history = []
-        self._cashier = CashierAgent(
-            model=self.model,
-            trace_verbose=self.trace_verbose,
-            realistic_cashier=self.realistic_cashier,
-        )
+        cashier_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "trace_verbose": self.trace_verbose,
+            "realistic_cashier": self.realistic_cashier,
+            "full_menu_context": self.full_menu_context,
+        }
+        if self.full_menu_context:
+            cashier_kwargs["rag_top_k"] = 0
+        self._cashier = CashierAgent(**cashier_kwargs)
         cashier = self._cashier
         assert cashier is not None
         assert self._history is not None

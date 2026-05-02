@@ -211,6 +211,7 @@ class VoiceBrowserHandler(BaseHTTPRequestHandler):
                 trace_verbose=cfg.trace_verbose,
                 print_trace=cfg.print_trace or cfg.trace_all,
                 trace_all=cfg.trace_all,
+                full_menu_context=cfg.no_rag,
             )
             try:
                 start_payload = session.start()
@@ -340,6 +341,11 @@ def main() -> None:
         action="store_true",
         help="Maximum terminal logs: request payloads, traces, order snapshots.",
     )
+    parser.add_argument(
+        "--no-rag",
+        action="store_true",
+        help="Non-RAG mode: skip vector/graph DB and send full mcd.json to the LLM every turn.",
+    )
     parser.add_argument("--verbose-http", action="store_true", help="Log each HTTP request.")
     parser.add_argument(
         "--no-prewarm",
@@ -363,6 +369,8 @@ def main() -> None:
     if args.trace_all:
         args.print_trace = True
         args.trace_verbose = True
+    if args.no_rag:
+        args.no_prewarm = True
     if not args.no_prewarm:
         _prewarm_menu_rag()
     httpd = ThreadingHTTPServer((args.host, args.port), VoiceBrowserHandler)
@@ -375,6 +383,11 @@ def main() -> None:
         )
     print(
         f"Tracing: print_trace={args.print_trace} trace_verbose={args.trace_verbose} trace_all={args.trace_all}",
+        flush=True,
+    )
+    print(
+        "Menu mode: "
+        + ("Non-RAG full mcd.json per LLM turn" if args.no_rag else "RAG retrieval"),
         flush=True,
     )
     try:

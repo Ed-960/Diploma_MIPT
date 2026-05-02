@@ -30,10 +30,12 @@ import os
 import re
 import time
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any
 
 from openai import APITimeoutError, OpenAI, OpenAIError
 
+from mcd_voice.config import MCD_JSON_PATH
 from mcd_voice.llm.prompts import get_cashier_system_prompt, get_client_system_prompt
 from mcd_voice.menu.graph_rag import search_menu_graph
 from mcd_voice.menu.rag_constraints import merge_rag_allergen_blacklist
@@ -1029,6 +1031,7 @@ class CashierAgent:
         trace_verbose: bool = False,
         realistic_cashier: bool = True,
         rag_max_prompt_lines: int | None = None,
+        full_menu_context: bool = False,
     ) -> None:
         self.model = _resolve_model(model)
         # Always query broad vector slice by default; very small top_k leads
@@ -1050,6 +1053,7 @@ class CashierAgent:
         self._client = _build_openai_client(timeout)
         self._trace_verbose = trace_verbose
         self._realistic_cashier = realistic_cashier
+        self._full_menu_context = bool(full_menu_context)
         # Mini-LLM для query rewriting: используем REWRITE_MODEL из .env.
         # Параметр rewrite_model оставлен для обратной совместимости, но не применяется.
         _ = rewrite_model
@@ -1403,6 +1407,21 @@ class CashierAgent:
         """
         base_trace = {**(rag_meta or {}), "client_query": client_text[:800]}
         rag_text = (client_text or "").strip()
+
+        if self._full_menu_context:
+            context = _full_mcd_json_context()
+            _trace(
+                rag_trace,
+                {
+                    **base_trace,
+                    "event": "full_menu_context",
+                    "retrieval_mode": "none",
+                    "source": str(MCD_JSON_PATH),
+                    "menu_chars": len(context),
+                    "context_preview": _preview(context),
+                },
+            )
+            return (context, None)
 
         if self.rag_top_k <= 0:
             _trace(
@@ -1803,14 +1822,23 @@ class CashierAgent:
         extras: list[str] = []
         if rag_context:
             context_payload = (
-                rag_context if allow_calories else _hide_kcal_in_rag_context(rag_context)
+                rag_context
+                if (self._full_menu_context or allow_calories)
+                else _hide_kcal_in_rag_context(rag_context)
             )
-            extras.append(
-                "Menu data slice for this turn (each line: product name, kcal estimate, "
-                "allergen tags, approximate added/total sugar, and ingredients when listed — "
-                "not full nutrition):\n"
-                f"{context_payload}"
-            )
+            if self._full_menu_context:
+                extras.append(
+                    "Full mcd.json menu context for this turn. Use this JSON as the complete "
+                    "menu source; do not use retrieval, vector DB assumptions, or invented items:\n"
+                    f"{context_payload}"
+                )
+            else:
+                extras.append(
+                    "Menu data slice for this turn (each line: product name, kcal estimate, "
+                    "allergen tags, approximate added/total sugar, and ingredients when listed — "
+                    "not full nutrition):\n"
+                    f"{context_payload}"
+                )
         visible_order_state = (
             _cashier_visible_order_state(order_state)
             if self._realistic_cashier
@@ -1843,6 +1871,12 @@ class CashierAgent:
 
 
 # ── Приватные helpers ─────────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def _full_mcd_json_context() -> str:
+    """Raw menu JSON for Non-RAG runs: no retrieval, same menu every LLM turn."""
+    return MCD_JSON_PATH.read_text(encoding="utf-8")
+
 
 def _last_client_text(history: list[HistoryEntry]) -> str:
     for entry in reversed(history):

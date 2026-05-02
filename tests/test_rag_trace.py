@@ -108,6 +108,44 @@ def test_rag_disabled_when_top_k_zero(
     assert trace[0]["event"] == "rag_disabled"
 
 
+def test_full_menu_context_non_rag_skips_retrieval(
+    monkeypatch, minimal_profile: dict,
+) -> None:
+    """Non-RAG baseline sends mcd.json to the cashier without vector/graph retrieval."""
+    monkeypatch.setattr(
+        "mcd_voice.llm.agent.search_menu",
+        lambda *_a, **_k: pytest.fail("vector search should not run"),
+    )
+    monkeypatch.setattr(
+        "mcd_voice.llm.agent.search_menu_graph",
+        lambda *_a, **_k: pytest.fail("graph search should not run"),
+    )
+    monkeypatch.setattr("mcd_voice.llm.agent._call_llm", lambda *a, **k: "ok")
+    agent = CashierAgent(
+        rag_top_k=0,
+        full_menu_context=True,
+        realistic_cashier=True,
+        trace_verbose=True,
+    )
+    trace: list[dict] = []
+    llm_trace: list[dict] = []
+
+    agent.generate_response(
+        minimal_profile,
+        [{"speaker": "client", "text": "What burgers do you have?"}],
+        {"persons": []},
+        rag_trace=trace,
+        llm_trace=llm_trace,
+    )
+
+    assert len(trace) == 1
+    assert trace[0]["event"] == "full_menu_context"
+    assert trace[0]["retrieval_mode"] == "none"
+    system = [e for e in llm_trace if e.get("event") == "llm_call"][0]["system"]
+    assert "Full mcd.json menu context" in system
+    assert '"name": "Black Coffee"' in system
+
+
 def test_rag_skips_greeting_when_no_client_text(
     monkeypatch, minimal_profile: dict,
 ) -> None:
