@@ -1,9 +1,9 @@
 """
 Структурированный ответ mini-LLM для RAG: intent, search_query,
-лексические исключения и числовые ограничения.
+лексические исключения, числовые ограничения и intent-hints.
 
-Жёсткие allergen safety-фильтры не доверяются mini-LLM и строятся отдельно
-детерминированным парсером реплик в ``rag_constraints.py``.
+Жёсткие allergen safety-фильтры не доверяются mini-LLM как единственному
+источнику и строятся/нормализуются отдельно в ``rag_constraints.py``.
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ _ALLERGEN_ALIASES: dict[str, str] = {
 
 # Mini-LLM отвечает только за intent/query/nutrient hints; safety-фильтры
 # аллергенов строятся детерминированно в rag_constraints.py.
-_RAG_JSON_TEMPLATE = """You are a menu RAG pre-processor. Read the customer message and output a SINGLE JSON object only (no markdown, no commentary).
+_RAG_JSON_TEMPLATE = """You are a menu RAG pre-processor and intent extractor. Read the customer message and output a SINGLE JSON object only (no markdown, no commentary).
 
 Schema:
 {{
@@ -84,7 +84,11 @@ Schema:
   "compare_metrics": [{{"field":"protein","goal":"max"}}],
   "excluded_lexical": [ "beef" ],
   "max_kcal": null,
-  "min_kcal": null
+  "min_kcal": null,
+  "restrictions": [],
+  "requested_items": [],
+  "override_restriction": false,
+  "finalize": false
 }}
 
 Rules:
@@ -99,6 +103,14 @@ Rules:
   - goal: max or min
   - examples: most protein -> {{"field":"protein","goal":"max"}}, least fat -> {{"field":"total_fat","goal":"min"}}
 - Hard allergen exclusions are handled by deterministic safety code, not by this JSON.
+- "restrictions": 0–10 canonical labels detected from the message: dairy, sugar, gluten, egg, nut, fish, soy, sulphites, beef, vegan.
+  Examples: lactose intolerant / no dairy -> dairy; no sugar / diabetic -> sugar; gluten-free -> gluten; egg allergy -> egg; nut allergy -> nut; vegan / plant-based -> vegan.
+  Do not infer extra restrictions: no dairy is not no sugar; no sugar is not Diet Coke; vegan implies vegan only (safety code expands it).
+- "requested_items": menu item names or common item phrases explicitly requested by the customer, normalized when obvious.
+  Examples: nuggets -> Chicken McNuggets; fries -> Our World Famous Fries; Coke -> Coca-Cola; Diet Coke -> Diet Coke.
+- "override_restriction": true when the customer clearly insists on a requested item despite a prior warning or says phrases like "I'll take it anyway", "that's fine", "I still want it", "just add it".
+  If there is no insist/override language, use false.
+- "finalize": true only when the message is a pure closure/confirmation such as "that's all", "nothing else", "all set", "thanks", "done" and has no new food/drink request.
 - "excluded_lexical": 0–12 short English tokens or 2-word phrases the customer must NOT get, matched against menu item name/description/ingredients/tag (e.g. beef, bacon, pickle, onion, mayo, coffee). Use only for avoided foods or ingredients that are not allergen tags. Empty [] if none. Lowercase words; no sentences.
 - "max_kcal" / "min_kcal": numbers (kcal) or null. Use max_kcal for "under X calories", "light", "not more than X kcal". Use min_kcal for "at least X calories", "filling", "hearty". If unclear, null.
 - If there is no food/diet intent, set search_query to: general menu items
@@ -172,6 +184,10 @@ class RagJsonSpec(TypedDict, total=False):
     excluded_lexical: list[str]
     max_kcal: float | None
     min_kcal: float | None
+    restrictions: list[str]
+    requested_items: list[str]
+    override_restriction: bool
+    finalize: bool
 
 
 _COMPARE_FIELD_ALIASES: dict[str, str] = {
@@ -208,6 +224,96 @@ _COMPARE_FIELDS_ALLOWED: frozenset[str] = frozenset(
         "sodium",
     }
 )
+
+_RESTRICTION_ALIASES: dict[str, str] = {
+    "dairy": "dairy",
+    "milk": "dairy",
+    "lactose": "dairy",
+    "nomilk": "dairy",
+    "no_milk": "dairy",
+    "no-milk": "dairy",
+    "sugar": "sugar",
+    "nosugar": "sugar",
+    "no_sugar": "sugar",
+    "no-sugar": "sugar",
+    "diabetic": "sugar",
+    "diabetes": "sugar",
+    "gluten": "gluten",
+    "wheat": "gluten",
+    "nogluten": "gluten",
+    "no_gluten": "gluten",
+    "no-gluten": "gluten",
+    "egg": "egg",
+    "eggs": "egg",
+    "noeggs": "egg",
+    "no_eggs": "egg",
+    "no-eggs": "egg",
+    "nut": "nut",
+    "nuts": "nut",
+    "peanut": "nut",
+    "peanuts": "nut",
+    "nonuts": "nut",
+    "no_nuts": "nut",
+    "no-nuts": "nut",
+    "fish": "fish",
+    "nofish": "fish",
+    "no_fish": "fish",
+    "no-fish": "fish",
+    "soy": "soy",
+    "soya": "soy",
+    "sulphites": "sulphites",
+    "sulfites": "sulphites",
+    "beef": "beef",
+    "nobeef": "beef",
+    "no_beef": "beef",
+    "no-beef": "beef",
+    "vegan": "vegan",
+    "plantbased": "vegan",
+    "plant_based": "vegan",
+    "plant-based": "vegan",
+}
+
+
+def _normalize_restrictions(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raw = [raw]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        key = re.sub(r"[^a-z0-9_-]+", "", str(item or "").strip().lower())
+        if not key:
+            continue
+        canon = _RESTRICTION_ALIASES.get(key)
+        if canon and canon not in seen:
+            seen.add(canon)
+            out.append(canon)
+    return out[:10]
+
+
+def _normalize_requested_items(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raw = [raw]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        value: Any = item
+        if isinstance(item, dict):
+            value = item.get("name") or item.get("item") or item.get("title")
+        s = re.sub(r"\s+", " ", str(value or "").strip())
+        if not s:
+            continue
+        # Keep names compact enough for prompt/trace safety.
+        s = s[:80]
+        key = s.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+    return out[:12]
 
 
 def _normalize_compare_metrics(raw: Any) -> list[dict[str, str]]:
@@ -266,6 +372,14 @@ def parse_rag_json_response(raw: str) -> RagJsonSpec:
     max_k = _f_or_none(data.get("max_kcal", data.get("max_energy", data.get("energy"))))
     min_k = _f_or_none(data.get("min_kcal", data.get("min_energy")))
     compare_metrics = _normalize_compare_metrics(data.get("compare_metrics"))
+    restrictions = _normalize_restrictions(data.get("restrictions"))
+    requested_items = _normalize_requested_items(
+        data.get("requested_items", data.get("items"))
+    )
+    finalize = bool(data.get("finalize", data.get("is_final", False)))
+    override_restriction = bool(
+        data.get("override_restriction", data.get("override_dietary_restriction", False))
+    )
     if max_k is not None and min_k is not None and max_k < min_k:
         min_k, max_k = max_k, min_k
     return {
@@ -276,4 +390,8 @@ def parse_rag_json_response(raw: str) -> RagJsonSpec:
         "excluded_lexical": ex_lex,
         "max_kcal": max_k,
         "min_kcal": min_k,
+        "restrictions": restrictions,
+        "requested_items": requested_items,
+        "override_restriction": override_restriction,
+        "finalize": finalize,
     }

@@ -109,6 +109,81 @@ def _rag_intent(spec: dict[str, Any] | None) -> str:
     return "lookup"
 
 
+def _rag_json_list(spec: dict[str, Any] | None, key: str) -> list[str]:
+    raw = (spec or {}).get(key) or []
+    if not isinstance(raw, list):
+        raw = [raw]
+    out: list[str] = []
+    for item in raw:
+        s = str(item or "").strip()
+        if s:
+            out.append(s)
+    return out
+
+
+_RESTRICTION_OVERRIDE_RE = re.compile(
+    r"\b("
+    r"anyway|still want|i still want|i want it|i want that|that'?s fine|thats fine|"
+    r"it'?s fine|its fine|that'?s okay|thats okay|it'?s okay|its okay|"
+    r"just add|add it|i'?ll take it|ill take it|take it anyway|"
+    r"yes,?\s*(please|that|it)|no,?\s*(i|we)"
+    r")\b",
+    re.I,
+)
+
+_WARNING_CUE_RE = re.compile(
+    r"\b("
+    r"contains?|has|not suitable|dietary|allergen|allergy|warning|"
+    r"milk|dairy|lactose|gluten|egg|nuts?|fish|soya|soy|sulphites?|sulfites?"
+    r")\b",
+    re.I,
+)
+
+_RAG_DUMP_CUE_RE = re.compile(
+    r"\b("
+    r"bite-sized|a classic|crispy|juicy|breaded|topped with|served with|"
+    r"comes with|delicious|refreshing|signature sauce|best fit is"
+    r")\b",
+    re.I,
+)
+_RAG_DUMP_ADD_RE = re.compile(
+    r"\bwould you like to add (?:it|that) to your order\b",
+    re.I,
+)
+
+
+def _cashier_warned_about_requested_item(
+    history: list[HistoryEntry],
+    requested_items: Sequence[str],
+) -> bool:
+    if not requested_items:
+        return False
+    for entry in reversed(history[-10:]):
+        if entry.get("speaker") != "cashier":
+            continue
+        text = entry.get("text") or ""
+        if not _WARNING_CUE_RE.search(text):
+            continue
+        if any(_matches_menu_name_in_text(item, text) for item in requested_items):
+            return True
+    return False
+
+
+def _detect_restriction_override(
+    client_text: str,
+    history: list[HistoryEntry],
+    requested_items: Sequence[str],
+    *,
+    explicit_override: bool = False,
+) -> bool:
+    warned = _cashier_warned_about_requested_item(history, requested_items)
+    if explicit_override and warned:
+        return True
+    if not _RESTRICTION_OVERRIDE_RE.search(client_text or ""):
+        return False
+    return warned
+
+
 _NON_FOOD_CLIENT_UTTERANCE_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(yes|yeah|yep|correct|right|okay|ok)\s*[.!?]*\s*$", re.I),
     re.compile(r"^\s*(okay|ok),?\s*(that'?s|thats)\s+all(?:,?\s*thanks?)?\s*[.!?]*\s*$", re.I),
@@ -201,6 +276,7 @@ def _collect_allergen_excluded_candidates(
     max_energy: float | None,
     min_energy: float | None,
     excluded_lexical: Sequence[str] | None,
+    mentioned_terms: Sequence[str] = (),
 ) -> list[dict[str, Any]]:
     if not blacklist:
         return []
@@ -217,6 +293,7 @@ def _collect_allergen_excluded_candidates(
         return []
 
     shown_names = {str(r.get("name") or "") for r in shown_rows}
+    mention_text = " ".join([query, *[str(x) for x in mentioned_terms]])
     by_name: dict[str, dict[str, Any]] = {}
     for row in unfiltered_rows:
         name = str(row.get("name") or "")
@@ -231,7 +308,7 @@ def _collect_allergen_excluded_candidates(
                 "name": name,
                 "distance": float(row.get("distance") or 0.0),
                 "allergens": hits,
-                "mentioned_in_query": _matches_menu_name_in_text(name, query),
+                "mentioned_in_query": _matches_menu_name_in_text(name, mention_text),
             }
             continue
         existing["distance"] = min(existing["distance"], float(row.get("distance") or 0.0))
@@ -240,7 +317,7 @@ def _collect_allergen_excluded_candidates(
             if h not in merged:
                 merged.append(h)
         existing["allergens"] = merged
-        existing["mentioned_in_query"] = bool(existing["mentioned_in_query"]) or _matches_menu_name_in_text(name, query)
+        existing["mentioned_in_query"] = bool(existing["mentioned_in_query"]) or _matches_menu_name_in_text(name, mention_text)
 
     out = sorted(
         by_name.values(),
@@ -259,7 +336,7 @@ def _render_excluded_constraints_block(
     if not excluded_rows:
         return ""
     lines = [
-        "Items excluded by dietary constraints this turn (they may exist on menu but are not suitable):",
+        "Items requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):",
     ]
     for row in excluded_rows:
         name = str(row.get("name") or "").strip()
@@ -344,6 +421,23 @@ def _sanitize_cashier_response(text: str, *, allow_calories: bool = True) -> str
             cleaned = re.sub(re.escape(src), dst, cleaned, flags=re.I)
             low = cleaned.lower()
     cleaned = re.sub(r"\bfoodwould\b", "food would", cleaned, flags=re.I)
+
+    # Remove RAG catalog dump fragments while keeping normal warning/confirm sentences.
+    parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", cleaned) if p.strip()]
+    if len(parts) > 1:
+        filtered: list[str] = []
+        for sent in parts:
+            lower = sent.lower()
+            if _RAG_DUMP_ADD_RE.search(lower):
+                continue
+            if ":" in sent and len(sent) > 70 and not _WARNING_CUE_RE.search(lower):
+                continue
+            if _RAG_DUMP_CUE_RE.search(lower) and not _WARNING_CUE_RE.search(lower):
+                continue
+            filtered.append(sent)
+        if filtered:
+            cleaned = " ".join(filtered)
+
     if not allow_calories:
         # Remove unsolicited calories from free-form cashier output.
         cleaned = re.sub(r"\(\s*~?\s*\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?\s*kcal\s*\)", "", cleaned, flags=re.I)
@@ -841,6 +935,8 @@ class CashierAgent:
             order_state,
             rag_context,
             allow_calories=allow_calories,
+            finalize_requested=bool((rag_spec or {}).get("finalize")),
+            override_restriction=bool((rag_spec or {}).get("override_restriction")),
         )
         messages = _history_to_messages(history, my_role="cashier")
         try:
@@ -1128,6 +1224,13 @@ class CashierAgent:
                 )
                 if jspec is not None:
                     rag_json_spec = dict(jspec)
+                    requested = _rag_json_list(rag_json_spec, "requested_items")
+                    rag_json_spec["override_restriction"] = _detect_restriction_override(
+                        client_text,
+                        history,
+                        requested,
+                        explicit_override=bool(rag_json_spec.get("override_restriction")),
+                    )
             if rag_json_spec is not None:
                 search_query = str(rag_json_spec.get("search_query", "")).strip()
                 if not search_query:
@@ -1189,6 +1292,10 @@ class CashierAgent:
                         "excluded_lexical": rj.get("excluded_lexical", []),
                         "max_kcal": rj.get("max_kcal"),
                         "min_kcal": rj.get("min_kcal"),
+                        "restrictions": rj.get("restrictions", []),
+                        "requested_items": rj.get("requested_items", []),
+                        "override_restriction": bool(rj.get("override_restriction")),
+                        "finalize": bool(rj.get("finalize")),
                     }
                 }
                 if rj
@@ -1227,7 +1334,15 @@ class CashierAgent:
             if self._realistic_cashier
             else get_group_allergen_blacklist(profile)
         )
-        blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
+        spec_restrictions = _rag_json_list(rag_json_spec, "restrictions")
+        spec_requested_items = _rag_json_list(rag_json_spec, "requested_items")
+        override_restriction = bool((rag_json_spec or {}).get("override_restriction"))
+        blacklist, cmeta = merge_rag_allergen_blacklist(
+            base,
+            rag_constraint_texts,
+            explicit_restrictions=spec_restrictions,
+        )
+        search_blacklist = [] if override_restriction else blacklist
         if rag_json_spec is not None:
             cmeta = {
                 **cmeta,
@@ -1235,6 +1350,15 @@ class CashierAgent:
                     rag_json_spec.get("excluded_allergens", []) or []
                 ),
                 "rag_json_lexical": list(rag_json_spec.get("excluded_lexical", []) or []),
+                "rag_json_restrictions": spec_restrictions,
+                "rag_json_requested_items": spec_requested_items,
+                "rag_json_finalize": bool(rag_json_spec.get("finalize")),
+                "rag_json_override_restriction": override_restriction,
+            }
+        if override_restriction and blacklist:
+            cmeta = {
+                **cmeta,
+                "allergen_blacklist_suppressed_for_override": list(blacklist),
             }
         max_e = rag_json_spec.get("max_kcal") if rag_json_spec else None
         min_e = rag_json_spec.get("min_kcal") if rag_json_spec else None
@@ -1246,21 +1370,26 @@ class CashierAgent:
         chroma_buf: list[dict[str, Any]] = []
         rows = search_menu(
             text,
-            allergens_blacklist=blacklist or None,
+            allergens_blacklist=search_blacklist or None,
             top_k=self.rag_top_k,
             max_energy=float(max_e) if max_e is not None else None,
             min_energy=float(min_e) if min_e is not None else None,
             excluded_lexical=lex_e or None,
             chroma_trace=chroma_buf if rag_trace is not None else None,
         )
-        excluded_by_constraints = _collect_allergen_excluded_candidates(
-            query=text,
-            shown_rows=rows,
-            blacklist=blacklist,
-            top_k=self.rag_top_k,
-            max_energy=float(max_e) if max_e is not None else None,
-            min_energy=float(min_e) if min_e is not None else None,
-            excluded_lexical=lex_e or None,
+        excluded_by_constraints = (
+            []
+            if override_restriction
+            else _collect_allergen_excluded_candidates(
+                query=text,
+                shown_rows=rows,
+                blacklist=blacklist,
+                top_k=self.rag_top_k,
+                max_energy=float(max_e) if max_e is not None else None,
+                min_energy=float(min_e) if min_e is not None else None,
+                excluded_lexical=lex_e or None,
+                mentioned_terms=[*rag_constraint_texts, *spec_requested_items],
+            )
         )
         excluded_block = _render_excluded_constraints_block(excluded_by_constraints)
         if prefer_novel and rows:
@@ -1284,7 +1413,7 @@ class CashierAgent:
             "top_k": self.rag_top_k,
             "distance_threshold": self.distance_threshold,
             "soft_distance_max": soft_max,
-            "allergen_blacklist_tokens": list(blacklist),
+            "allergen_blacklist_tokens": list(search_blacklist),
             "prefer_novel": bool(prefer_novel),
             **cmeta,
             "candidates": [
@@ -1362,7 +1491,15 @@ class CashierAgent:
             if self._realistic_cashier
             else get_group_allergen_blacklist(profile)
         )
-        blacklist, cmeta = merge_rag_allergen_blacklist(base, rag_constraint_texts)
+        spec_restrictions = _rag_json_list(rag_json_spec, "restrictions")
+        spec_requested_items = _rag_json_list(rag_json_spec, "requested_items")
+        override_restriction = bool((rag_json_spec or {}).get("override_restriction"))
+        blacklist, cmeta = merge_rag_allergen_blacklist(
+            base,
+            rag_constraint_texts,
+            explicit_restrictions=spec_restrictions,
+        )
+        search_blacklist = [] if override_restriction else blacklist
         if rag_json_spec is not None:
             cmeta = {
                 **cmeta,
@@ -1370,6 +1507,15 @@ class CashierAgent:
                     rag_json_spec.get("excluded_allergens", []) or []
                 ),
                 "rag_json_lexical": list(rag_json_spec.get("excluded_lexical", []) or []),
+                "rag_json_restrictions": spec_restrictions,
+                "rag_json_requested_items": spec_requested_items,
+                "rag_json_finalize": bool(rag_json_spec.get("finalize")),
+                "rag_json_override_restriction": override_restriction,
+            }
+        if override_restriction and blacklist:
+            cmeta = {
+                **cmeta,
+                "allergen_blacklist_suppressed_for_override": list(blacklist),
             }
         max_e = rag_json_spec.get("max_kcal") if rag_json_spec else None
         min_e = rag_json_spec.get("min_kcal") if rag_json_spec else None
@@ -1380,7 +1526,7 @@ class CashierAgent:
         )
         rows, graph_info = search_menu_graph(
             text,
-            allergens_blacklist=blacklist or None,
+            allergens_blacklist=search_blacklist or None,
             top_k=self.rag_top_k,
             max_energy=float(max_e) if max_e is not None else None,
             min_energy=float(min_e) if min_e is not None else None,
@@ -1388,7 +1534,7 @@ class CashierAgent:
         )
         info: dict[str, Any] = {
             "top_k": self.rag_top_k,
-            "allergen_blacklist_tokens": list(blacklist),
+            "allergen_blacklist_tokens": list(search_blacklist),
             **cmeta,
             "candidates": [
                 {"name": r["name"], "distance": r["distance"], "energy": r["energy"]}
@@ -1418,6 +1564,8 @@ class CashierAgent:
         rag_context: str,
         *,
         allow_calories: bool,
+        finalize_requested: bool = False,
+        override_restriction: bool = False,
     ) -> str:
         """Собирает системный промпт: базовый + опциональные блоки RAG и заказа."""
         prompt_profile = None if self._realistic_cashier else profile
@@ -1445,6 +1593,22 @@ class CashierAgent:
             extras.append(
                 "Current order state:\n"
                 + json.dumps(visible_order_state, ensure_ascii=False)
+            )
+        if finalize_requested and any(
+            p.get("items") for p in visible_order_state.get("persons", [])
+        ):
+            extras.append(
+                "Client finalization signal:\n"
+                "The customer indicated this is all. Give one concise final order "
+                "confirmation/readback using only the current order state. Do not add "
+                "new items or ask another open-ended upsell question."
+            )
+        if override_restriction:
+            extras.append(
+                "Dietary warning override:\n"
+                "The customer indicated they still want the requested item after a "
+                "dietary warning. Serve it without repeating the warning or blocking "
+                "the order."
             )
         if not extras:
             return base

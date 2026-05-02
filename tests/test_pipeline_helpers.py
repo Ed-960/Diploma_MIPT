@@ -343,6 +343,37 @@ def test_replace_order_from_readback_drops_stale_items(family_profile):
     ]
 
 
+def test_replace_order_from_readback_ignores_not_allowed_items(family_profile):
+    os = build_initial_order_state(family_profile)
+    os["persons"][0]["items"] = [
+        {"name": "Big Mac", "quantity": 1},
+        {"name": "Our World Famous Fries", "quantity": 1},
+    ]
+    menu_names = [
+        "Big Mac",
+        "Our World Famous Fries",
+        "Cheesy Fries",
+        "Diet Coke",
+    ]
+    energy = {name: 0.0 for name in menu_names}
+    allergen_map = {name: [] for name in menu_names}
+
+    replaced = DialogPipeline._replace_order_from_text(
+        "So that's Cheesy Fries and a Diet Coke. Does that sound right?",
+        menu_names,
+        os,
+        energy,
+        allergen_map,
+        allowed_names={"Big Mac", "Our World Famous Fries"},
+    )
+
+    assert replaced is False
+    assert os["persons"][0]["items"] == [
+        {"name": "Big Mac", "quantity": 1},
+        {"name": "Our World Famous Fries", "quantity": 1},
+    ]
+
+
 def test_allow_cashier_order_sync_with_explicit_client_update(family_profile):
     os = build_initial_order_state(family_profile)
     os["persons"][0]["items"] = [{"name": "Big Mac", "quantity": 1}]

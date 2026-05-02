@@ -64,3 +64,22 @@ make dataset-rag-from-profiles-api \
   TRACE_VERBOSE=1 \
   WORKERS=8 \
   2>&1 | tee generate_dataset.log
+
+Истории диалогов (как «соединяются»)
+# Склеить все history из dialogs_rag/dialog_*.json → dialogs_rag/merged_histories.json (без API)
+python scripts/merge_dialog_histories.py --dialogs_dir dialogs_rag --out dialogs_rag/merged_histories.json
+
+# то же, читаемый текст: --format txt --out dialogs_rag/merged_histories.txt
+python scripts/audit_history_llm_judge.py --dialogs_dir dialogs_rag --out dialogs_rag/history_judge.jsonl
+python scripts/audit_history_llm_judge.py --dialogs_dir dialogs_rag --limit 5 --dry_run
+
+make dataset-rag-from-profiles-api \
+  NUM=40 \
+  PROFILES_FILE=profiles_1000.json \
+  OUT_RAG=dialogs_rag \
+  PRINT_TRACE=1 \
+  TRACE_VERBOSE=1 \
+  WORKERS=8 \
+  SHUFFLE_PROFILES=1 \
+  SEED=42 \
+  2>&1 | tee generate_dataset.log

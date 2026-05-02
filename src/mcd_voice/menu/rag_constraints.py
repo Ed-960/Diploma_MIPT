@@ -52,6 +52,20 @@ _VEGAN_RE = re.compile(
     r"(?i)(?:\bvegan\b|\bplant[- ]based\b|nothing (?:of )?animal|fully plant)"
 )
 
+_RESTRICTION_TO_CHROMA: dict[str, tuple[str, ...]] = {
+    "dairy": ("Milk",),
+    "gluten": ("Cereal containing gluten",),
+    "egg": ("Egg",),
+    "nut": ("Nuts",),
+    "fish": ("Fish",),
+    "soy": ("Soya",),
+    "sulphites": ("Sulphites",),
+    "vegan": ("Milk", "Egg", "Fish"),
+    # Nutrient/ingredient preferences are handled outside Chroma allergen tags.
+    "sugar": (),
+    "beef": (),
+}
+
 
 def _has_dietary_negation_context(s: str, start: int, end: int) -> bool:
     lo = max(0, start - 95)
@@ -96,14 +110,41 @@ def extract_utterance_chroma_allergen_exclusions(text: str) -> list[str]:
     return sorted(out)
 
 
+def explicit_restrictions_to_chroma_allergen_exclusions(
+    restrictions: Sequence[str],
+) -> list[str]:
+    out: set[str] = set()
+    for raw in restrictions:
+        key = str(raw or "").strip().lower()
+        for token in _RESTRICTION_TO_CHROMA.get(key, ()):
+            if token in _CHROMA_ALLERGEN_SUBSTR:
+                out.add(token)
+    return sorted(out)
+
+
 def merge_rag_allergen_blacklist(
     profile_base: list[str],
     utterance_texts: Sequence[str],
+    *,
+    explicit_restrictions: Sequence[str] = (),
 ) -> tuple[list[str], dict[str, Any]]:
     u: set[str] = set(profile_base)
     u_ex: set[str] = set()
     for t in utterance_texts:
         for x in extract_utterance_chroma_allergen_exclusions(t or ""):
             u_ex.add(x)
+    explicit_ex = set(
+        explicit_restrictions_to_chroma_allergen_exclusions(explicit_restrictions)
+    )
     u |= u_ex
-    return (sorted(u), {"utterance_allergen_exclusions": sorted(u_ex)})
+    u |= explicit_ex
+    return (
+        sorted(u),
+        {
+            "utterance_allergen_exclusions": sorted(u_ex),
+            "explicit_restrictions": sorted(
+                {str(r).strip().lower() for r in explicit_restrictions if str(r).strip()}
+            ),
+            "explicit_allergen_exclusions": sorted(explicit_ex),
+        },
+    )

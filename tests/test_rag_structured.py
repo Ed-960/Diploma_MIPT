@@ -16,6 +16,9 @@ def test_rag_json_system_is_non_empty() -> None:
     p = get_rag_json_system_prompt()
     assert "search_query" in p
     assert "excluded_lexical" in p
+    assert "restrictions" in p
+    assert "requested_items" in p
+    assert "finalize" in p
     assert "Hard allergen exclusions are handled by deterministic safety code" in p
     assert len(chroma_excludable_allergen_vocabulary()) >= 1
 
@@ -139,6 +142,28 @@ def test_compare_metrics_extended_aliases() -> None:
         {"field": "chol", "goal": "min"},
         {"field": "sat_fat", "goal": "min"},
     ]
+
+
+def test_parse_intent_hints() -> None:
+    s = parse_rag_json_response(
+        json.dumps(
+            {
+                "search_query": "chicken nuggets and coke",
+                "restrictions": ["lactose", "no_sugar", "unknown"],
+                "requested_items": [
+                    {"name": "Chicken McNuggets"},
+                    "Coke",
+                    {"item": "fries"},
+                ],
+                "override_restriction": True,
+                "finalize": True,
+            }
+        )
+    )
+    assert s["restrictions"] == ["dairy", "sugar"]
+    assert s["requested_items"] == ["Chicken McNuggets", "Coke", "fries"]
+    assert s["override_restriction"] is True
+    assert s["finalize"] is True
 
 
 def test_parse_rejects_empty_query() -> None:

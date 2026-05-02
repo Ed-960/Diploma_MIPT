@@ -464,6 +464,16 @@ def _order_has_items(order_state: dict[str, Any]) -> bool:
     return any(bool(p.get("items")) for p in (order_state.get("persons") or []))
 
 
+def _current_order_item_names(order_state: dict[str, Any]) -> set[str]:
+    names: set[str] = set()
+    for person in order_state.get("persons", []) or []:
+        for item in person.get("items", []) or []:
+            name = str(item.get("name") or "").strip()
+            if name:
+                names.add(name)
+    return names
+
+
 def _allow_cashier_order_sync(client_msg: str, order_state: dict[str, Any]) -> bool:
     """
     Cashier text should not rewrite user intent by default.
@@ -1176,8 +1186,17 @@ class DialogPipeline:
                 before = after
 
             if _ORDER_READBACK_RE.search(cashier_msg) and _allow_cashier_order_sync(client_msg, order_state):
+                allowed_sync_names = _current_order_item_names(order_state) | _mentioned_menu_items(
+                    client_msg,
+                    menu_names,
+                )
                 self._replace_order_from_text(
-                    cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+                    cashier_msg,
+                    menu_names,
+                    order_state,
+                    energy_by_name,
+                    allergen_map,
+                    allowed_names=allowed_sync_names,
                 )
                 after = _order_items_by_person(order_state)
                 _append_order_mutation(
@@ -1207,13 +1226,18 @@ class DialogPipeline:
                 # Финальная реплика кассира обычно содержит итоговый состав заказа;
                 # это безопаснее, чем парсить любые промежуточные предложения.
                 before = _order_items_by_person(order_state)
-                replaced = self._replace_order_from_text(
-                    cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
+                allowed_sync_names = _current_order_item_names(order_state) | _mentioned_menu_items(
+                    client_msg,
+                    menu_names,
                 )
-                if not replaced:
-                    self._update_order(
-                        cashier_msg, menu_names, order_state, energy_by_name, allergen_map,
-                    )
+                replaced = self._replace_order_from_text(
+                    cashier_msg,
+                    menu_names,
+                    order_state,
+                    energy_by_name,
+                    allergen_map,
+                    allowed_names=allowed_sync_names,
+                )
                 after = _order_items_by_person(order_state)
                 _append_order_mutation(
                     order_mutation_trace,
@@ -1657,11 +1681,18 @@ class DialogPipeline:
         order_state: dict[str, Any],
         energy_by_name: dict[str, float],
         allergen_map: dict[str, list[str]],
+        *,
+        allowed_names: set[str] | None = None,
     ) -> bool:
         persons = order_state["persons"]
         replacements: dict[int, list[tuple[str, int]]] = {}
+        allowed = {name for name in (allowed_names or set()) if name}
         for seg in _split_order_segments(text):
             parsed = parse_order_from_text(seg, menu_names)
+            if not parsed:
+                continue
+            if allowed:
+                parsed = [(name, qty) for name, qty in parsed if name in allowed]
             if not parsed:
                 continue
             parsed = sorted(

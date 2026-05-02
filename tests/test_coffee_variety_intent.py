@@ -5,10 +5,12 @@ from __future__ import annotations
 import pytest
 
 from mcd_voice.llm.agent import (
+    _detect_restriction_override,
     _extract_names_from_rag_context,
     _is_non_food_client_utterance,
     _normalize_rewrite_output,
     _rag_intent,
+    _sanitize_cashier_response,
     _should_skip_rag,
 )
 
@@ -77,3 +79,38 @@ def test_normalize_rewrite_output(raw: str, expected: str) -> None:
 )
 def test_should_skip_rag(client_text: str, search_query: str, expected: bool) -> None:
     assert _should_skip_rag(client_text, search_query) is expected
+
+
+def test_restriction_override_requires_prior_item_warning() -> None:
+    history = [
+        {
+            "speaker": "cashier",
+            "text": "Just so you know, Big Mac contains milk. Would nuggets work?",
+        },
+        {"speaker": "client", "text": "No, I'll take the Big Mac anyway."},
+    ]
+    assert _detect_restriction_override(
+        "No, I'll take the Big Mac anyway.",
+        history,
+        ["Big Mac"],
+    ) is True
+
+
+def test_restriction_override_ignores_unwarned_item() -> None:
+    assert _detect_restriction_override(
+        "I'll take it anyway.",
+        [{"speaker": "cashier", "text": "Sure, anything else?"}],
+        ["Big Mac"],
+    ) is False
+
+
+def test_sanitize_cashier_response_removes_catalog_dump_sentence() -> None:
+    raw = (
+        "Chicken McNuggets: Bite-sized pieces of breaded chicken. "
+        "Would you like to add it to your order? "
+        "Got it, one nuggets and a Coke."
+    )
+    cleaned = _sanitize_cashier_response(raw)
+    assert "Bite-sized pieces" not in cleaned
+    assert "Would you like to add it to your order" not in cleaned
+    assert "Got it" in cleaned

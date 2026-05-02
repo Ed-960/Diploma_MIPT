@@ -2,6 +2,7 @@
 
 from mcd_voice.menu.rag_constraints import (
     extract_utterance_chroma_allergen_exclusions,
+    explicit_restrictions_to_chroma_allergen_exclusions,
     merge_rag_allergen_blacklist,
 )
 
@@ -50,6 +51,25 @@ def test_merge_unions():
     assert "Milk" in u
     assert "Fish" in u
     assert m["utterance_allergen_exclusions"] == ["Milk"]
+
+
+def test_explicit_restrictions_merge_with_utterance():
+    u, m = merge_rag_allergen_blacklist(
+        [],
+        [],
+        explicit_restrictions=["dairy", "gluten", "sugar"],
+    )
+    assert u == ["Cereal containing gluten", "Milk"]
+    assert m["explicit_restrictions"] == ["dairy", "gluten", "sugar"]
+    assert m["explicit_allergen_exclusions"] == ["Cereal containing gluten", "Milk"]
+
+
+def test_vegan_explicit_restriction_expands_animal_allergens():
+    assert explicit_restrictions_to_chroma_allergen_exclusions(["vegan"]) == [
+        "Egg",
+        "Fish",
+        "Milk",
+    ]
 
 
 def test_empty():
