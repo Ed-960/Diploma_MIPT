@@ -7,11 +7,16 @@ import pytest
 from mcd_voice.llm.agent import (
     _detect_restriction_override,
     _extract_names_from_rag_context,
+    _grounded_rows_for_names,
+    _grounding_target_names,
     _is_non_food_client_utterance,
+    _is_service_meta_question,
     _normalize_rewrite_output,
     _rag_intent,
+    _render_grounded_rows,
     _sanitize_cashier_response,
     _should_skip_rag,
+    _wants_menu_item_details,
 )
 
 
@@ -75,10 +80,76 @@ def test_normalize_rewrite_output(raw: str, expected: str) -> None:
         ("I want a burger", "big mac burger", False),
         ("", "", True),
         ("ok", "general menu items", True),
+        ("Why did you ask me that?", "khachapuri", True),
     ],
 )
 def test_should_skip_rag(client_text: str, search_query: str, expected: bool) -> None:
     assert _should_skip_rag(client_text, search_query) is expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Why did you say that?", True),
+        ("So why you asked me about the menu?", True),
+        ("I want a Big Mac", False),
+        ("What's in the nuggets?", False),
+    ],
+)
+def test_service_meta_question(text: str, expected: bool) -> None:
+    assert _is_service_meta_question(text) is expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("What's in a Big Mac?", True),
+        ("Any allergens in the fries?", True),
+        ("Why did you ask that?", False),
+        ("I want nuggets", False),
+    ],
+)
+def test_wants_menu_item_details(text: str, expected: bool) -> None:
+    assert _wants_menu_item_details(text) is expected
+
+
+def test_grounding_targets_use_recent_named_item_for_followup() -> None:
+    rows = [
+        {"name": "Veg Surprise Burger", "distance": 0.59},
+        {"name": "McAloo Tikki Burger", "distance": 0.65},
+    ]
+    history = [
+        {
+            "speaker": "cashier",
+            "text": "Just so you know, the McAloo Tikki Burger contains gluten, milk and soya.",
+        },
+    ]
+
+    assert _grounding_target_names(
+        "yes, but only if it contains potato menu items containing potato",
+        history,
+        rows,
+        [],
+    ) == ["McAloo Tikki Burger"]
+
+
+def test_grounded_rows_render_exact_ingredients_even_above_threshold() -> None:
+    rows = [
+        {
+            "name": "McAloo Tikki Burger",
+            "distance": 0.65,
+            "ingredients": "Regular bun crown, Tom-Mayo sauce, Aloo tikki patty",
+            "description": "A golden fried vegetarian patty prepared with peas and potato.",
+            "allergens": ["Cereal containing gluten", "Milk", "Soya"],
+        },
+    ]
+
+    grounded = _grounded_rows_for_names(rows, ["McAloo Tikki Burger"])
+    rendered = _render_grounded_rows(grounded)
+
+    assert "McAloo Tikki Burger" in rendered
+    assert "Aloo tikki patty" in rendered
+    assert "do not guess" in rendered
 
 
 def test_restriction_override_requires_prior_item_warning() -> None:

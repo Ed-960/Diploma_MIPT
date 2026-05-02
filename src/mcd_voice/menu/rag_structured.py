@@ -98,6 +98,9 @@ Rules:
   * details — customer asks ingredients/details about selected item
   * calorie_tune — customer asks to match/adjust calories target
   * compare — customer asks to compare menu options by nutrients
+- Do NOT use "details" for complaints, meta questions, or challenges to what the cashier
+  said (e.g. "why did you ask", "why you said that", "what do you mean") — use "lookup"
+  and search_query "general menu items".
 - "compare_metrics": optional list for compare intent.
   - field: one of energy, protein, total_fat, sat_fat, trans_fat, chol, carbs, total_sugar, added_sugar, sodium
   - goal: max or min

@@ -205,6 +205,48 @@ _ORDER_INTENT_RE = re.compile(
     re.I,
 )
 
+# Customer challenges *what the cashier said* — not a menu lookup (avoids bogus
+# "details" + deterministic catalog dumps when RAG returns an unrelated first hit).
+_SERVICE_META_QUESTION_RE = re.compile(
+    r"\b("
+    r"why\s+did\s+you\s+(say|ask|tell)|"
+    r"why\s+do\s+you\s+ask|"
+    r"why\s+you\s+ask(ed)?(\s+me)?|"
+    r"so\s+why\s+(did\s+)?you\s+ask|"
+    r"why\s+would\s+you\s+say|"
+    r"what\s+do\s+you\s+mean\s+by"
+    r")\b",
+    re.I,
+)
+
+# Explicit ingredients / nutrition question — safe to use deterministic meal-details reply.
+_ITEM_DETAILS_CUE_RE = re.compile(
+    r"\b("
+    r"what'?s\s+in(\s+the)?|what\s+is\s+in(\s+the)?|"
+    r"ingredients?|"
+    r"allergens?|nutrition(al)?|"
+    r"calories?\s*(in|for)|how\s+many\s+calories|"
+    r"\bkcal\b|"
+    r"describe\s+(the|it|that)?|"
+    r"tell\s+me\s+(more\s+)?about|"
+    r"what'?s\s+inside|"
+    r"made\s+(of|with)|"
+    r"(is|does)\s+it\s+(contain|have)|"
+    r"is\s+it\s+(spicy|vegan|vegetarian|gluten)"
+    r")\b",
+    re.I,
+)
+
+_ITEM_FOLLOWUP_CUE_RE = re.compile(
+    r"\b("
+    r"it|that|this|those|one|"
+    r"contains?|include|has|have|with|without|"
+    r"ingredients?|allergens?|made\s+(?:of|with)|"
+    r"only\s+if|is\s+it|does\s+it"
+    r")\b",
+    re.I,
+)
+
 
 def _is_non_food_client_utterance(text: str) -> bool:
     """True for short confirmation/closure phrases where RAG should be skipped."""
@@ -248,6 +290,151 @@ def _matches_menu_name_in_text(name: str, text: str) -> bool:
     if not n or not t:
         return False
     return n in t
+
+
+def _generic_name_tokens(rows: Sequence[dict[str, Any]]) -> set[str]:
+    """Tokens shared by several menu item names are too broad for item grounding."""
+    names_by_token: dict[str, set[str]] = {}
+    for row in rows:
+        name = _normalize_item_text(str(row.get("name") or ""))
+        if not name:
+            continue
+        unique_tokens = {tok for tok in name.split() if len(tok) >= 4}
+        for tok in unique_tokens:
+            names_by_token.setdefault(tok, set()).add(name)
+    return {tok for tok, names in names_by_token.items() if len(names) > 1}
+
+
+def _row_matches_text(
+    row: dict[str, Any],
+    text: str,
+    *,
+    generic_tokens: set[str] | None = None,
+) -> bool:
+    """Match exact menu names plus distinctive name tokens like Oreo/Tikki."""
+    t = _normalize_item_text(text)
+    if not t:
+        return False
+    name = str(row.get("name") or "")
+    if _matches_menu_name_in_text(name, text):
+        return True
+    generic = generic_tokens or set()
+    tokens = [
+        tok
+        for tok in _normalize_item_text(name).split()
+        if len(tok) >= 4 and tok not in generic
+    ]
+    return any(re.search(rf"\b{re.escape(tok)}\b", t) for tok in tokens)
+
+
+def _looks_like_item_followup(text: str) -> bool:
+    """True for pronoun/attribute follow-ups where recent named items matter."""
+    return bool(_ITEM_FOLLOWUP_CUE_RE.search(text or ""))
+
+
+def _append_unique_names(out: list[str], names: Sequence[str], *, max_names: int) -> None:
+    seen = {_normalize_item_text(x) for x in out}
+    for raw in names:
+        name = str(raw or "").strip()
+        key = _normalize_item_text(name)
+        if not name or not key or key in seen:
+            continue
+        out.append(name)
+        seen.add(key)
+        if len(out) >= max_names:
+            return
+
+
+def _grounding_target_names(
+    client_text: str,
+    history: list[HistoryEntry] | None,
+    rows: Sequence[dict[str, Any]],
+    spec_requested_items: Sequence[str],
+    *,
+    max_names: int = 4,
+) -> list[str]:
+    """
+    Menu rows that must be grounded even if vector distance is above the hard threshold.
+
+    This prevents follow-up answers about already named items from relying on model memory
+    when the item lost the current semantic ranking (e.g. "does it contain potato?").
+    """
+    generic_tokens = _generic_name_tokens(rows)
+    out: list[str] = []
+    _append_unique_names(out, spec_requested_items, max_names=max_names)
+
+    direct = [
+        str(r.get("name") or "")
+        for r in rows
+        if _row_matches_text(r, client_text, generic_tokens=generic_tokens)
+    ]
+    _append_unique_names(out, direct, max_names=max_names)
+
+    if len(out) >= max_names or not _looks_like_item_followup(client_text):
+        return out[:max_names]
+
+    recent_names: list[str] = []
+    for entry in reversed((history or [])[-8:]):
+        text = entry.get("text") or ""
+        for row in rows:
+            name = str(row.get("name") or "")
+            if name and _row_matches_text(row, text, generic_tokens=generic_tokens):
+                recent_names.append(name)
+    _append_unique_names(out, recent_names, max_names=max_names)
+    return out[:max_names]
+
+
+def _grounded_rows_for_names(
+    rows: Sequence[dict[str, Any]],
+    names: Sequence[str],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for target in names:
+        target_norm = _normalize_item_text(target)
+        if not target_norm:
+            continue
+        matches = [
+            r for r in rows
+            if _normalize_item_text(str(r.get("name") or "")) == target_norm
+        ]
+        if not matches:
+            generic_tokens = _generic_name_tokens(rows)
+            matches = [
+                r for r in rows
+                if _row_matches_text(r, target, generic_tokens=generic_tokens)
+            ]
+        if not matches:
+            continue
+        best = min(matches, key=lambda r: float(r.get("distance") or 9.0))
+        name = str(best.get("name") or "").strip()
+        key = _normalize_item_text(name)
+        if not name or key in seen:
+            continue
+        out.append(best)
+        seen.add(key)
+    return out
+
+
+def _render_grounded_rows(rows: Sequence[dict[str, Any]]) -> str:
+    if not rows:
+        return ""
+    lines = [
+        "Grounded menu data for named/follow-up items (use these fields; do not guess):",
+    ]
+    for row in rows:
+        name = str(row.get("name") or "").strip()
+        if not name:
+            continue
+        ingredients = str(row.get("ingredients") or "").strip() or "not listed"
+        description = str(row.get("description") or "").strip() or "not listed"
+        allergens = ", ".join(str(a) for a in (row.get("allergens") or []) if str(a).strip())
+        if not allergens:
+            allergens = "none listed"
+        lines.append(
+            f"* {name}: ingredients: {ingredients}; allergens: {allergens}; description: {description}"
+        )
+    return "\n".join(lines) if len(lines) > 1 else ""
 
 
 def _allergen_hits(
@@ -376,6 +563,8 @@ def _normalize_rewrite_output(text: str) -> str:
 
 def _should_skip_rag(client_text: str, search_query: str) -> bool:
     """Decide whether current turn has no food intent and RAG should be skipped."""
+    if _is_service_meta_question(client_text):
+        return True
     if _is_non_food_client_utterance(client_text):
         return True
     q = (search_query or "").strip().lower()
@@ -393,6 +582,26 @@ def _should_skip_rag(client_text: str, search_query: str) -> bool:
     return False
 
 
+def _is_service_meta_question(text: str) -> bool:
+    """True when the customer is questioning the cashier's wording, not ordering."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _SERVICE_META_QUESTION_RE.search(t):
+        return True
+    return False
+
+
+def _wants_menu_item_details(text: str) -> bool:
+    """True when the customer is asking for ingredients/nutrition, not a meta-remark."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _is_service_meta_question(t):
+        return False
+    return bool(_ITEM_DETAILS_CUE_RE.search(t))
+
+
 def _sanitize_cashier_response(text: str, *, allow_calories: bool = True) -> str:
     """Remove formatting/emoji artifacts forbidden by cashier prompt."""
     cleaned = (text or "").strip()
@@ -406,18 +615,14 @@ def _sanitize_cashier_response(text: str, *, allow_calories: bool = True) -> str
         "",
         cleaned,
     )
-    # Avoid misleading "not in menu" claims when item may exist outside current slice.
+    # Light touch: fix robotic screen-talk only (do not rewrite honest "we don't have"
+    # — RAG "no matching items" turns need plain natural English).
     replacements = {
-        "not currently in our menu": "not in my current options",
-        "not in our menu": "not in my current options",
-        "i don't have": "I can't confirm",
-        "we don't have": "We can't confirm right now",
-        "on the current menu": "in the current options",
+        "on my screen": "on the menu",
     }
     low = cleaned.lower()
     for src, dst in replacements.items():
         if src in low:
-            # case-insensitive single replacement preserving surrounding text.
             cleaned = re.sub(re.escape(src), dst, cleaned, flags=re.I)
             low = cleaned.lower()
     cleaned = re.sub(r"\bfoodwould\b", "food would", cleaned, flags=re.I)
@@ -899,7 +1104,7 @@ class CashierAgent:
             return macro_reply
         meal_details = (
             self._deterministic_meal_details_reply(client_text, rag_context)
-            if intent == "details"
+            if intent == "details" and _wants_menu_item_details(client_text)
             else None
         )
         if meal_details:
@@ -1392,6 +1597,14 @@ class CashierAgent:
             )
         )
         excluded_block = _render_excluded_constraints_block(excluded_by_constraints)
+        grounding_targets = _grounding_target_names(
+            " ".join(str(x) for x in rag_constraint_texts),
+            history,
+            rows,
+            spec_requested_items,
+        )
+        grounded_rows = _grounded_rows_for_names(rows, grounding_targets)
+        grounded_block = _render_grounded_rows(grounded_rows)
         if prefer_novel and rows:
             seen: list[dict[str, Any]] = []
             fresh: list[dict[str, Any]] = []
@@ -1429,6 +1642,14 @@ class CashierAgent:
                 }
                 for r in excluded_by_constraints
             ],
+            "grounding_targets": list(grounding_targets),
+            "grounded_rows": [
+                {
+                    "name": str(r.get("name") or ""),
+                    "distance": float(r.get("distance") or 0.0),
+                }
+                for r in grounded_rows
+            ],
         }
 
         if not rows:
@@ -1454,6 +1675,8 @@ class CashierAgent:
             context = "\n".join(lines)
             if excluded_block:
                 context += "\n\n" + excluded_block
+            if grounded_block:
+                context += "\n\n" + grounded_block
             return context, info
 
         if best <= soft_max:
@@ -1470,12 +1693,16 @@ class CashierAgent:
                 context = _SOFT_PREFIX + "\n".join(lines)
                 if excluded_block:
                     context += "\n\n" + excluded_block
+                if grounded_block:
+                    context += "\n\n" + grounded_block
                 return context, info
 
         info["outcome"] = "above_threshold"
         base_context = "(no matching menu items found — closest match too distant)"
         if excluded_block:
             return base_context + "\n\n" + excluded_block, info
+        if grounded_block:
+            return base_context + "\n\n" + grounded_block, info
         return base_context, info
 
     def _do_graph_rag(
@@ -1580,8 +1807,8 @@ class CashierAgent:
             )
             extras.append(
                 "Menu data slice for this turn (each line: product name, kcal estimate, "
-                "allergen tags, approximate added/total sugar — not full ingredients or full "
-                "nutrition):\n"
+                "allergen tags, approximate added/total sugar, and ingredients when listed — "
+                "not full nutrition):\n"
                 f"{context_payload}"
             )
         visible_order_state = (
@@ -1723,8 +1950,11 @@ def _render_rows(
                 sugar_parts.append(f"total sugar: ~{round(total_vals[0], 1)} g")
         else:
             sugar_parts.append("total sugar: unknown")
+        ingredients = str(r.get("ingredients") or "").strip()
+        ingredient_part = f"; ingredients: {ingredients}" if ingredients else ""
         lines.append(
-            f"- {name} ({energy_str} kcal, allergens: {allergens}; {'; '.join(sugar_parts)})"
+            f"- {name} ({energy_str} kcal, allergens: {allergens}; "
+            f"{'; '.join(sugar_parts)}{ingredient_part})"
         )
         used.append({"name": name, "distance": r["distance"]})
     if max_lines is not None and len(lines) > max_lines:
