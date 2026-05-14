@@ -43,6 +43,12 @@ CLIENT_VARIATION_FLAG = --client_variation $(CLIENT_VARIATION)
 # Выходной файл для make export-ai (один файл со всем кодом для ИИ).
 AI_EXPORT ?= allProject_forAI_Test.txt
 
+# Эксперимент по готовым вопросам (scripts/run_question_experiment.py): no-RAG, короткий диалог + judge.
+OUT_QUESTIONS ?= experiments/no_rag_questions
+MAX_QUESTIONS ?= 0
+MAX_DIALOG_TURNS ?= 4
+JUDGE_MODEL ?=
+
 # Визуал графа меню (scripts/visualize_menu_graph.py): FOCUS, FOCUS_HOPS, FOCUS_STYLE, MENU_GRAPH_MAX_EDGES
 FOCUS ?= Big Mac
 FOCUS_HOPS ?= 1
@@ -58,6 +64,7 @@ _LLM_OLLAMA := $(PY) scripts/apply_llm_mode.py ollama $(PY)
 	demo-dialog-trace-api demo-dialog-trace-ollama \
 	demo-agents demo-agents-api demo-agents-ollama demo-menu-search \
 	voice-browser voice-browser-api voice-browser-ollama \
+	voice-browser-api-graph voice-browser-ollama-graph \
 	voice-browser-norag-api voice-browser-norag-ollama \
 	dataset-rag dataset-rag-api dataset-rag-ollama \
 	dataset-rag-vector dataset-rag-vector-api dataset-rag-vector-ollama \
@@ -71,6 +78,8 @@ _LLM_OLLAMA := $(PY) scripts/apply_llm_mode.py ollama $(PY)
 	profiles-gen dataset-rag-from-profiles dataset-rag-from-profiles-api dataset-rag-from-profiles-ollama \
 	dataset-norag-from-profiles dataset-norag-from-profiles-api dataset-norag-from-profiles-ollama \
 	dataset-rag-graph-from-profiles dataset-rag-graph-from-profiles-api dataset-rag-graph-from-profiles-ollama \
+	question-experiment-norag question-experiment-norag-api question-experiment-norag-ollama \
+	question-experiment-norag-smoke question-experiment-norag-smoke-api question-experiment-norag-smoke-ollama \
 	visualize-menu-graph visualize-menu-graph-open \
 	visualize-menu-graph-full visualize-menu-graph-full-open \
 	visualize-menu-graph-focus visualize-menu-graph-focus-open \
@@ -97,10 +106,13 @@ help:
 	@echo "  make demo-menu-search"
 	@echo "  make voice-browser-api    # микрофон браузера + LLM, облако (см. .env LLM_*)"
 	@echo "  make voice-browser-ollama # то же, локальный Ollama"
+	@echo "  make voice-browser-api-graph    # то же, graph RAG (не vector из .env)"
+	@echo "  make voice-browser-ollama-graph # graph RAG через Ollama"
 	@echo "  make voice-browser-norag-api    # Non-RAG: полный mcd.json в LLM каждый ход, trace-all"
 	@echo "  make voice-browser-norag-ollama # то же через Ollama"
 	@echo "  make voice-browser        # alias на voice-browser-api"
 	@echo "    + логи: make voice-browser-api VOICE_FLAGS='--trace-all'"
+	@echo "    + graph RAG + логи: make voice-browser-api-graph VOICE_FLAGS='--trace-all'"
 	@echo "    + Non-RAG: make voice-browser-api VOICE_FLAGS='--no-rag --trace-all'"
 	@echo "    + умеренно: VOICE_FLAGS='--print-trace --trace-verbose'"
 	@echo "  (make demo-dialog-* — только консольный текст, без микрофона.)"
@@ -137,6 +149,13 @@ help:
 	@echo "  make visualize-profile-graph  # граф семплинга профилей -> docs/profile_decision_graph.mmd"
 	@echo ""
 	@echo "  make compare-rag         RAG_DIR=$(OUT_RAG) NORAG_DIR=$(OUT_NORAG)"
+	@echo ""
+	@echo "Эксперимент по вопросам (no-RAG, полный mcd.json у кассира; OUT_QUESTIONS, MAX_QUESTIONS, MAX_DIALOG_TURNS):"
+	@echo "  make question-experiment-norag         OUT_QUESTIONS=$(OUT_QUESTIONS) MAX_QUESTIONS=$(MAX_QUESTIONS) MAX_DIALOG_TURNS=$(MAX_DIALOG_TURNS)"
+	@echo "  make question-experiment-norag-api / question-experiment-norag-ollama"
+	@echo "  make question-experiment-norag-smoke   # MAX_QUESTIONS=60 -> experiments/no_rag_questions_smoke"
+	@echo "  make question-experiment-norag-smoke-api / question-experiment-norag-smoke-ollama"
+	@echo "  + модели: CASHIER_MODEL=... CLIENT_MODEL=... JUDGE_MODEL=...  + трассы: TRACE_VERBOSE=1"
 	@echo ""
 	@echo "Экспорт кода в один файл (для ИИ / ревью):"
 	@echo "  make export-ai           -> $(AI_EXPORT)  (скрипт scripts/export_all_project_for_ai.py)"
@@ -200,6 +219,12 @@ voice-browser-api:
 
 voice-browser-ollama:
 	$(_LLM_OLLAMA) scripts/voice_browser_server.py $(VOICE_FLAGS)
+
+voice-browser-api-graph:
+	RAG_MODE=graph $(_LLM_API) scripts/voice_browser_server.py $(VOICE_FLAGS)
+
+voice-browser-ollama-graph:
+	RAG_MODE=graph $(_LLM_OLLAMA) scripts/voice_browser_server.py $(VOICE_FLAGS)
 
 voice-browser-norag-api:
 	$(_LLM_API) scripts/voice_browser_server.py --no-rag --trace-all $(VOICE_FLAGS)
@@ -319,6 +344,32 @@ dataset-norag-from-profiles-api:
 
 dataset-norag-from-profiles-ollama:
 	$(_LLM_OLLAMA) scripts/generate_dataset.py --num_dialogs $(NUM) --output_dir $(OUT_NORAG) --no_rag --max_turns $(TURNS) --workers $(WORKERS) --profiles_file $(PROFILES_FILE) $(if $(SHUFFLE_PROFILES),--shuffle_profiles,) $(if $(SEED),--seed $(SEED),) $(REALISTIC_FLAG) $(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) $(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) $(if $(PRINT_TRACE),$(TRACE_FLAGS),) $(CLIENT_VARIATION_FLAG) $(TRACE_VERBOSE_FLAG)
+
+_QUESTION_EXP_ARGS = scripts/run_question_experiment.py --output_dir $(OUT_QUESTIONS) \
+	$(if $(filter-out 0,$(strip $(MAX_QUESTIONS))),--max_questions $(MAX_QUESTIONS),) \
+	--max_dialog_turns $(MAX_DIALOG_TURNS) \
+	$(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) \
+	$(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) \
+	$(if $(JUDGE_MODEL),--judge_model $(JUDGE_MODEL),) \
+	$(TRACE_VERBOSE_FLAG)
+
+question-experiment-norag:
+	$(PY) $(_QUESTION_EXP_ARGS)
+
+question-experiment-norag-api:
+	$(_LLM_API) $(_QUESTION_EXP_ARGS)
+
+question-experiment-norag-ollama:
+	$(_LLM_OLLAMA) $(_QUESTION_EXP_ARGS)
+
+question-experiment-norag-smoke:
+	@$(MAKE) question-experiment-norag MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4 OUT_QUESTIONS=experiments/no_rag_questions_smoke
+
+question-experiment-norag-smoke-api:
+	@$(MAKE) question-experiment-norag-api MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4 OUT_QUESTIONS=experiments/no_rag_questions_smoke
+
+question-experiment-norag-smoke-ollama:
+	@$(MAKE) question-experiment-norag-ollama MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4 OUT_QUESTIONS=experiments/no_rag_questions_smoke
 
 visualize-menu-graph:
 	$(PY) scripts/visualize_menu_graph.py

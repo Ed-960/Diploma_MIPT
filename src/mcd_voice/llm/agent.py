@@ -94,6 +94,40 @@ RAG_MAX_PROMPT_LINES: int | None = _parse_rag_max_prompt_lines()
 RAG_MODE_VECTOR = "vector"
 RAG_MODE_GRAPH = "graph"
 
+
+def resolve_rag_mode_from_env() -> str:
+    """Читает ``RAG_MODE`` из окружения: ``vector`` (по умолчанию) или ``graph``."""
+    raw = (os.environ.get("RAG_MODE") or RAG_MODE_VECTOR).strip().lower()
+    if raw == RAG_MODE_GRAPH:
+        return RAG_MODE_GRAPH
+    return RAG_MODE_VECTOR
+
+
+def merge_graph_retrieval_query(
+    rewrite_query: str,
+    client_utterance: str,
+    secondary_queries: Sequence[str],
+) -> str:
+    """Склеивает сырой текст клиента, переписанный запрос и вторичные запросы для graph-RAG.
+
+    Переписанный mini-LLM запрос (например «dairy-free burger options») часто теряет
+    слова «burger» / «no milk» из реплики; без объединения lexical seeds уводят в
+    нерелевантные узлы графа.
+    """
+    chunks: list[str] = []
+    seen: set[str] = set()
+    for part in (client_utterance, rewrite_query, *secondary_queries):
+        p = str(part or "").strip()
+        if not p:
+            continue
+        key = p.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        chunks.append(p)
+    return "\n".join(chunks)
+
+
 HistoryEntry = dict[str, str]
 
 
@@ -711,8 +745,12 @@ def _recommendation_search_query(
         return "main food items burgers chicken sandwiches wraps fries sides"
     if has_coffee and not current_has_food:
         return "coffee drinks hot cold espresso frappe"
-    if has_drink and not history_has_food:
-        return "drinks beverages coffee tea soda water juice"
+    # Drink suggestions must not be replaced by a "mains" query just because earlier
+    # turns mentioned burgers (haystack history_has_food); that made "suggest drinks"
+    # retrieve burgers from the menu slice.
+    if has_drink and not current_has_food:
+        if not history_has_food or _DRINK_INTENT_RE.search(current_focus):
+            return "drinks beverages coffee tea soda water juice"
     if history_has_food:
         return "main food items burgers chicken sandwiches wraps sides"
     return "popular menu items burgers chicken sandwiches sides drinks dessert"
@@ -1380,11 +1418,55 @@ def _call_llm(
     raise RuntimeError(f"Ошибка OpenAI API: {openai_err}")
 
 
+def _rag_json_user_message(
+    rag_text: str,
+    history: list[HistoryEntry] | None,
+) -> str:
+    """
+    Mini-LLM user payload: optional recent dialog tail + current client line.
+
+    Omits the last history entry when it is the same client line as rag_text
+    to avoid duplicate text.
+    """
+    text = (rag_text or "").strip()
+    if not text:
+        return text
+    entries = list(history or [])
+    if entries and entries[-1].get("speaker") == "client":
+        last_t = str(entries[-1].get("text") or "").strip()
+        if last_t == text:
+            entries = entries[:-1]
+    if not entries:
+        return text
+    lines: list[str] = []
+    for e in entries[-14:]:
+        sp = str(e.get("speaker") or "")
+        msg = str(e.get("text") or "").strip().replace("\n", " ")
+        if not msg:
+            continue
+        label = "Customer" if sp == "client" else "Cashier"
+        if len(msg) > 240:
+            msg = msg[:237] + "..."
+        lines.append(f"{label}: {msg}")
+    if not lines:
+        return text
+    max_tail = 2800
+    while len("\n".join(lines)) + len(text) > max_tail and len(lines) > 1:
+        lines.pop(0)
+    return (
+        "Recent dialog (newest last; context only):\n"
+        + "\n".join(lines)
+        + "\n\nCurrent customer message:\n"
+        + text
+    )
+
+
 def _rewrite_rag_structured_json(
     rag_text: str,
     client: OpenAI,
     model: str,
     *,
+    history: list[HistoryEntry] | None = None,
     llm_trace: list[dict[str, Any]] | None = None,
     trace_meta: dict[str, Any] | None = None,
     trace_verbose: bool = False,
@@ -1395,12 +1477,13 @@ def _rewrite_rag_structured_json(
     Успех: (spec, None). Иначе (None, error_message).
     """
     t0 = time.perf_counter()
+    user_content = _rag_json_user_message(rag_text, history)
     try:
         raw = _call_llm(
             client,
             model,
             get_rag_json_system_prompt(),
-            [{"role": "user", "content": rag_text}],
+            [{"role": "user", "content": user_content}],
             temperature=0.0,
         )
         spec = parse_rag_json_response(raw)
@@ -2069,6 +2152,7 @@ class CashierAgent:
                 rag_text,
                 self._client,
                 self._rewrite_model,
+                history=history,
                 llm_trace=llm_trace,
                 trace_meta=rag_meta,
                 trace_verbose=self._trace_verbose,
@@ -2130,6 +2214,7 @@ class CashierAgent:
         context, info = self._do_rag(
             search_query,
             profile,
+            client_utterance=rag_text,
             search_queries=_derive_secondary_search_queries(
                 client_text,
                 history,
@@ -2178,6 +2263,7 @@ class CashierAgent:
         text: str,
         profile: dict[str, Any],
         *,
+        client_utterance: str = "",
         search_queries: Sequence[str] = (),
         rag_constraint_texts: Sequence[str] = (),
         rag_json_spec: dict[str, Any] | None = None,
@@ -2194,6 +2280,8 @@ class CashierAgent:
             return self._do_graph_rag(
                 text,
                 profile,
+                client_utterance=client_utterance,
+                search_queries=search_queries,
                 rag_constraint_texts=rag_constraint_texts,
                 rag_json_spec=rag_json_spec,
                 include_full_nutrition=include_full_nutrition,
@@ -2409,6 +2497,8 @@ class CashierAgent:
         text: str,
         profile: dict[str, Any],
         *,
+        client_utterance: str = "",
+        search_queries: Sequence[str] = (),
         rag_constraint_texts: Sequence[str] = (),
         rag_json_spec: dict[str, Any] | None = None,
         include_full_nutrition: bool = False,
@@ -2455,8 +2545,19 @@ class CashierAgent:
             self.rag_top_k,
             include_full_nutrition=include_full_nutrition,
         )
-        rows, graph_info = search_menu_graph(
+        spec_extra: list[str] = []
+        if rag_json_spec:
+            for x in _rag_json_list(rag_json_spec, "requested_items"):
+                t = str(x or "").strip()
+                if t:
+                    spec_extra.append(t)
+        graph_query = merge_graph_retrieval_query(
             text,
+            client_utterance,
+            (*search_queries, *spec_extra),
+        )
+        rows, graph_info = search_menu_graph(
+            graph_query,
             allergens_blacklist=search_blacklist or None,
             top_k=effective_top_k,
             max_energy=float(max_e) if max_e is not None else None,
@@ -2467,6 +2568,7 @@ class CashierAgent:
             "top_k": effective_top_k,
             "allergen_blacklist_tokens": list(search_blacklist),
             **cmeta,
+            "graph_retrieval_query": graph_query,
             "candidates": [
                 {"name": r["name"], "distance": r["distance"], "energy": r["energy"]}
                 for r in rows

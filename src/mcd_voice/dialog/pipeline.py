@@ -162,6 +162,13 @@ _ORDER_CUE_RE = re.compile(
     r"can\s+i\s+have|give\s+me|add|order|for\s+me)\b",
     re.IGNORECASE,
 )
+# Негация непосредственно перед токеном (ингредиент / ограничение), даже если
+# в том же предложении раньше было «can I have …».
+_IMMEDIATE_DIETARY_NEGATION_RE = re.compile(
+    r"\b(?:no|without|excluding|exclude|avoid|cut\s+out|hold\s+the|skip\s+the|"
+    r"free\s+of|free\s+from|sans|not)\s+$",
+    re.IGNORECASE,
+)
 
 
 def _is_restriction_mention(lower_text: str, idx: int, name_norm: str) -> bool:
@@ -169,14 +176,43 @@ def _is_restriction_mention(lower_text: str, idx: int, name_norm: str) -> bool:
     True when an item mention is likely a dietary restriction, not an order.
     Example: "I have allergy on milk" should not add menu item "Milk".
     """
-    left = lower_text[max(0, idx - 40):idx]
-    ctx = lower_text[max(0, idx - 40): min(len(lower_text), idx + len(name_norm) + 24)]
-    if not _RESTRICTION_CUE_RE.search(ctx):
+    pre_touch = lower_text[max(0, idx - 36):idx]
+    if _IMMEDIATE_DIETARY_NEGATION_RE.search(pre_touch):
+        return True
+
+    # Ограничение должно быть СЛЕВА от названия; не использовать «no» из другого
+    # хвоста фразы («… with no eggs» после уже названного блюда).
+    left = lower_text[max(0, idx - 56):idx]
+    if not _RESTRICTION_CUE_RE.search(left):
         return False
-    # Explicit ordering cue near the mention should still count as an order.
     if _ORDER_CUE_RE.search(left):
         return False
     return True
+
+
+def _menu_item_only_mentioned_as_restriction(
+    utterance: str,
+    mapped_menu_name: str,
+) -> bool:
+    """
+    True when every occurrence of this menu name reads as a dietary exclusion,
+    not as ordering that dish (mini-LLM sometimes emits ingredient tokens).
+    """
+    lower = _normalize_item_text(utterance)
+    name_norm = _normalize_item_text(mapped_menu_name)
+    if len(name_norm) < 2:
+        return False
+    positions: list[int] = []
+    start = 0
+    while True:
+        pos = lower.find(name_norm, start)
+        if pos == -1:
+            break
+        positions.append(pos)
+        start = pos + 1
+    if not positions:
+        return False
+    return all(_is_restriction_mention(lower, pos, name_norm) for pos in positions)
 
 
 def parse_order_from_text(
@@ -275,7 +311,7 @@ def _build_alias_patterns(menu_names: list[str]) -> list[tuple[re.Pattern[str], 
         (r"\bcold coffee\b", pick("cold", "coffee")),
         (r"\biced tea\b", pick("iced", "tea")),
         (r"\bcheesy fries\b", pick("cheesy", "fries")),
-        (r"\b(plain |regular |just )?fries\b", pick_plain_fries()),
+        (r"\b(?<!cheesy\s)(?:plain |regular |just )?fries\b", pick_plain_fries()),
         (r"\b10\s*(?:pc|piece)[- ]*(?:chicken\s*)?nuggets\b", pick("10pc", "mcnuggets")),
         (r"\bnuggets\b", pick("mcnuggets")),
         (r"\bmcveggie\b", pick("mcveggie")),
@@ -316,6 +352,7 @@ _UNAVAILABLE_CUES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bwe don't have\b", re.I),
     re.compile(r"\b(?:i|we)\s+(?:am|are)\s+not seeing\b", re.I),
     re.compile(r"\bi'm\s+not\s+seeing\b", re.I),
+    re.compile(r"\bi\s+can'?t\s+confirm\b", re.I),
     re.compile(r"\bnot (currently )?in (our )?menu\b", re.I),
     re.compile(r"\bnot available\b", re.I),
 )
@@ -943,6 +980,10 @@ Rules:
   - everyone for all persons
   - both for customer + one explicitly referenced person
 - If item is not clearly ordered (restriction-only phrase), do not include it.
+- Dietary exclusions are NOT menu orders: phrases like "no X", "without X", "free of X",
+  "hold the X", "nut-free", "dairy-free" mean avoid that ingredient — do NOT output a line item
+  whose MENU_NAMES entry is only that ingredient word (e.g. \"Milk\", \"Eggs\") unless the
+  customer clearly orders that exact menu product by name.
 - quantity must be integer >= 1.
 - Output valid JSON only.
 """
@@ -1798,6 +1839,8 @@ class DialogPipeline:
                 if not mapped:
                     continue
                 if _item_mention_position(text, mapped, menu_names) >= 10**9:
+                    continue
+                if _menu_item_only_mentioned_as_restriction(text, mapped):
                     continue
                 try:
                     qty = int(it.get("quantity") or 1)

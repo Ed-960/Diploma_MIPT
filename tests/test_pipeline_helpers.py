@@ -144,6 +144,22 @@ class TestParseOrderFromText:
         )
         assert ("Milk", 1) in result
 
+    def test_order_cue_then_no_milk_is_restriction_not_milk_product(self):
+        """«Can I have …» раньше отменяло негацию; непосредственное «no milk» — ограничение."""
+        result = parse_order_from_text(
+            "Hello, can I have burger with no milk",
+            ["Milk", "Hamburger"],
+        )
+        assert ("Milk", 1) not in result
+
+    def test_without_nuts_after_order_cue_not_product(self):
+        result = parse_order_from_text(
+            "I'll take Chicken McNuggets with no eggs",
+            ["Eggs", "Chicken McNuggets"],
+        )
+        assert ("Chicken McNuggets", 1) in result
+        assert ("Eggs", 1) not in result
+
     def test_diet_coke_does_not_add_regular_coke(self):
         result = parse_order_from_text(
             "I'll take a Diet Coke.",
@@ -170,6 +186,28 @@ class TestParseOrderFromText:
         )
 
         assert result == []
+
+    def test_structured_parser_strips_negated_ingredient_rows(self, monkeypatch):
+        pipeline = DialogPipeline()
+        pipeline._order_json_client = object()
+        monkeypatch.setattr(
+            "mcd_voice.dialog.pipeline._call_llm",
+            lambda *a, **k: (
+                '{"orders":[{"target":"self","items":['
+                '{"name":"Milk","quantity":1},{"name":"Big Mac","quantity":1}]}]}'
+            ),
+        )
+
+        result = pipeline._parse_structured_orders(
+            "Hello, can I have a Big Mac with no milk",
+            ["Milk", "Big Mac"],
+            [{"role": "self", "label": "customer"}],
+        )
+
+        assert len(result) == 1
+        pairs = result[0]["items"]
+        assert ("Milk", 1) not in pairs
+        assert ("Big Mac", 1) in pairs
 
 
 # ── _detect_target_person ─────────────────────────────────────────────
@@ -411,7 +449,8 @@ def test_allow_cashier_order_sync_blocked_for_generic_reply_with_existing_items(
 ):
     os = build_initial_order_state(family_profile)
     os["persons"][0]["items"] = [{"name": "Big Mac", "quantity": 1}]
-    assert _allow_cashier_order_sync("Thanks!", os) is False
+    # «Thanks» совпадает с паттерном подтверждения и всегда разрешает sync — берём нейтральную реплику.
+    assert _allow_cashier_order_sync("Good to hear.", os) is False
 
 
 def test_expand_client_reference_items_resolves_both_of_them_to_recent_options() -> None:

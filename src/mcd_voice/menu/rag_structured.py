@@ -75,7 +75,13 @@ _ALLERGEN_ALIASES: dict[str, str] = {
 
 # Mini-LLM отвечает только за intent/query/nutrient hints; safety-фильтры
 # аллергенов строятся детерминированно в rag_constraints.py.
-_RAG_JSON_TEMPLATE = """You are a menu RAG pre-processor and intent extractor. Read the customer message and output a SINGLE JSON object only (no markdown, no commentary).
+_RAG_JSON_TEMPLATE = """You are a menu RAG pre-processor and intent extractor. You will read the customer's latest line and output a SINGLE JSON object only (no markdown, no commentary).
+
+Input shape (either is valid):
+1) A single customer utterance only, OR
+2) A block "Recent dialog (newest last; context only):" with a few prior Customer/Cashier lines, then a line "Current customer message:" followed by the utterance you MUST extract from.
+
+When form (2) is used, use the recent lines ONLY to disambiguate vague follow-ups ("what else", "suggest", "anything else", "what do you recommend"). The **Current customer message** alone decides category and search_query. Example: if the thread discussed burgers but the current line asks for drinks or coffee, search_query MUST describe beverages/coffee/juice/soda/milkshakes — not burgers. Do not let earlier turns override an explicit drink/coffee/side request in the current message.
 
 Schema:
 {{
@@ -116,7 +122,7 @@ Rules:
 - "finalize": true only when the message is a pure closure/confirmation such as "that's all", "nothing else", "all set", "thanks", "done" and has no new food/drink request.
 - "excluded_lexical": 0–12 short English tokens or 2-word phrases the customer must NOT get, matched against menu item name/description/ingredients/tag (e.g. beef, bacon, pickle, onion, mayo, coffee). Use only for avoided foods or ingredients that are not allergen tags. Empty [] if none. Lowercase words; no sentences.
 - "max_kcal" / "min_kcal": numbers (kcal) or null. Use max_kcal for "under X calories", "light", "not more than X kcal". Use min_kcal for "at least X calories", "filling", "hearty". If unclear, null.
-- If there is no food/diet intent, set search_query to: general menu items
+- If there is no menu/food/diet intent (pure thanks, off-topic, meta), set search_query to: general menu items
 - Output valid JSON only, one object.
 """
 

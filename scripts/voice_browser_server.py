@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import threading
 import time
 import uuid
@@ -30,6 +29,7 @@ _bootstrap.ensure_src()
 
 from mcd_voice.dialog.human_voice_session import HumanDriveThroughSession
 from mcd_voice.dialog.save_dialog import save_dialog
+from mcd_voice.llm.agent import resolve_rag_mode_from_env
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -67,9 +67,20 @@ def _save_voice_dialog_snapshot(
 
 
 def _prewarm_menu_rag() -> None:
-    """Первый RAG тянет Chroma + эмбеддинги; делаем до HTTP, чтобы UI не «молчал» минуту."""
-    print("Prewarm: loading Chroma + sentence-transformers (first time can be slow)…", flush=True)
+    """Прогрев тяжёлых зависимостей до HTTP, чтобы первый запрос не висел."""
     t0 = time.perf_counter()
+    if resolve_rag_mode_from_env() == "graph":
+        print("Prewarm: graph RAG (menu JSON, без Chroma)…", flush=True)
+        try:
+            from mcd_voice.menu.graph_rag import search_menu_graph
+
+            search_menu_graph("burger", top_k=1)
+        except Exception as exc:
+            print(f"Prewarm graph RAG failed: {exc}", flush=True)
+        print(f"Prewarm done in {time.perf_counter() - t0:.1f}s", flush=True)
+        return
+
+    print("Prewarm: loading Chroma + sentence-transformers (first time can be slow)…", flush=True)
     try:
         from mcd_voice.menu.search import search_menu
 
@@ -77,14 +88,6 @@ def _prewarm_menu_rag() -> None:
     except Exception as exc:
         print(f"Prewarm vector RAG failed (Start session may still trigger load): {exc}", flush=True)
         return
-    mode = (os.environ.get("RAG_MODE") or "vector").strip().lower()
-    if mode == "graph":
-        try:
-            from mcd_voice.menu.graph_rag import search_menu_graph
-
-            search_menu_graph("burger", top_k=1)
-        except Exception as exc:
-            print(f"Prewarm graph RAG failed: {exc}", flush=True)
     print(f"Prewarm done in {time.perf_counter() - t0:.1f}s", flush=True)
 
 
@@ -385,9 +388,14 @@ def main() -> None:
         f"Tracing: print_trace={args.print_trace} trace_verbose={args.trace_verbose} trace_all={args.trace_all}",
         flush=True,
     )
+    rag_label = resolve_rag_mode_from_env()
     print(
         "Menu mode: "
-        + ("Non-RAG full mcd.json per LLM turn" if args.no_rag else "RAG retrieval"),
+        + (
+            "Non-RAG full mcd.json per LLM turn"
+            if args.no_rag
+            else f"RAG retrieval ({rag_label})"
+        ),
         flush=True,
     )
     try:

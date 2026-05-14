@@ -37,7 +37,11 @@ from mcd_voice.dialog.trace_format import (
     summarize_rag_event,
 )
 from mcd_voice.llm import CashierAgent
-from mcd_voice.llm.agent import _resolve_model
+from mcd_voice.llm.agent import (
+    RAG_MODE_GRAPH,
+    _resolve_model,
+    resolve_rag_mode_from_env,
+)
 from mcd_voice.profile import neutral_drive_through_profile
 
 
@@ -65,6 +69,9 @@ class HumanDriveThroughSession:
 
     При вызове start() без аргумента профиль нейтральный (без скрытых ограничений REG);
     можно передать свой dict для тестов или расширенного сценария.
+
+    Режим RAG кассира: параметр ``rag_mode`` или переменная окружения ``RAG_MODE``
+    (``vector`` / ``graph``). При ``full_menu_context=True`` поиск по меню отключён.
     """
 
     def __init__(
@@ -77,6 +84,7 @@ class HumanDriveThroughSession:
         print_trace: bool = False,
         trace_all: bool = False,
         full_menu_context: bool = False,
+        rag_mode: str | None = None,
     ) -> None:
         self.max_turns = max_turns
         self.model = _resolve_model(model)
@@ -85,6 +93,7 @@ class HumanDriveThroughSession:
         self.print_trace = bool(print_trace or trace_all)
         self.trace_all = bool(trace_all)
         self.full_menu_context = bool(full_menu_context)
+        self._rag_mode = rag_mode
         self._catalog = MenuCatalog()
         self._helper = DialogPipeline(
             max_turns=max_turns,
@@ -189,9 +198,19 @@ class HumanDriveThroughSession:
         self._started = True
         prof = profile if profile is not None else neutral_drive_through_profile()
         self._profile = prof
-        menu_names, energy_by_name, allergen_map, restriction_map = (
-            self._catalog.load_runtime_index()
+        effective_rag = (
+            self._rag_mode
+            if self._rag_mode is not None
+            else resolve_rag_mode_from_env()
         )
+        if effective_rag == RAG_MODE_GRAPH and not self.full_menu_context:
+            menu_names, energy_by_name, allergen_map, restriction_map = (
+                self._catalog.load_runtime_index_from_json()
+            )
+        else:
+            menu_names, energy_by_name, allergen_map, restriction_map = (
+                self._catalog.load_runtime_index()
+            )
         self._menu_names = menu_names
         self._energy_by_name = energy_by_name
         self._allergen_map = allergen_map
@@ -207,6 +226,8 @@ class HumanDriveThroughSession:
         }
         if self.full_menu_context:
             cashier_kwargs["rag_top_k"] = 0
+        else:
+            cashier_kwargs["rag_mode"] = effective_rag
         self._cashier = CashierAgent(**cashier_kwargs)
         cashier = self._cashier
         assert cashier is not None

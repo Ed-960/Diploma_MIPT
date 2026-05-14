@@ -83,6 +83,70 @@ def test_human_session_step_updates_order_without_live_llm(
     assert order_state["persons"][0]["items"][0]["name"] == "Big Mac®"
 
 
+def test_human_session_passes_graph_rag_mode_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("ORDER_JSON_REWRITE", "0")
+    monkeypatch.setenv("RAG_MODE", "graph")
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "mcd_voice.dialog.catalog.MenuCatalog.load_runtime_index",
+        lambda _self: (
+            ["Big Mac®"],
+            {"Big Mac®": 493.0},
+            {"Big Mac®": []},
+            {"Big Mac®": {}},
+        ),
+    )
+
+    class FakeCashierAgent:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def generate_response(self, profile, history, order_state, **_kwargs):
+            if not history:
+                return "Hi, what can I get for you?"
+            return "Ok."
+
+    monkeypatch.setattr(
+        "mcd_voice.dialog.human_voice_session.CashierAgent",
+        FakeCashierAgent,
+    )
+    s = HumanDriveThroughSession(max_turns=2)
+    s.start()
+    assert captured.get("rag_mode") == "graph"
+
+
+def test_human_session_rag_mode_constructor_overrides_env(monkeypatch) -> None:
+    monkeypatch.setenv("ORDER_JSON_REWRITE", "0")
+    monkeypatch.setenv("RAG_MODE", "graph")
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "mcd_voice.dialog.catalog.MenuCatalog.load_runtime_index",
+        lambda _self: (
+            ["Big Mac®"],
+            {"Big Mac®": 493.0},
+            {"Big Mac®": []},
+            {"Big Mac®": {}},
+        ),
+    )
+
+    class FakeCashierAgent:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def generate_response(self, profile, history, order_state, **_kwargs):
+            return "Hi"
+
+    monkeypatch.setattr(
+        "mcd_voice.dialog.human_voice_session.CashierAgent",
+        FakeCashierAgent,
+    )
+    s = HumanDriveThroughSession(max_turns=2, rag_mode="vector")
+    s.start()
+    assert captured.get("rag_mode") == "vector"
+
+
 def test_human_session_realistic_does_not_auto_prune_hidden_profile_restrictions(
     monkeypatch,
 ) -> None:

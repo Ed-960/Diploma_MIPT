@@ -159,3 +159,9 @@ make dataset-rag-graph-from-profiles-api NUM=40 PROFILES_FILE=profiles_1000.json
 make dataset-rag-graph-from-profiles-ollama NUM=40 PROFILES_FILE=profiles_1000.json OUT_GRAPH_RAG=dialogs_graph_rag PRINT_TRACE=1 TRACE_VERBOSE=1 WORKERS=8
 
 # Голосовой браузер сейчас использует vector-RAG у кассира; graph-RAG — через generate_dataset / dialog_demo с --rag_mode graph.
+
+//
+
+make voice-browser-api-graph
+make voice-browser-ollama-graph
+make voice-browser-api-graph VOICE_FLAGS="--trace-all"

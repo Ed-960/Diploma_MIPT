@@ -178,6 +178,10 @@ def get_cashier_system_prompt(
         "- When the customer has a dietary restriction, proactively name SPECIFIC items "
         "that ARE available (e.g. 'We have fries, apple slices, and Sprite that work for you'). "
         "Don't keep saying 'we don't have X' — focus on what you DO have.",
+        "- When menu rows for this turn show allergen tags per item, use those tags to judge "
+        "fit for stated exclusions (e.g. no dairy / avoid milk). If an item's allergen line "
+        "does not list what they want to avoid, you may say it should work for them and offer "
+        "that item by name from the slice — do not say you have no ingredient information.",
         "",
         "UPSELL & REPETITION:",
         "- After the customer picks a main item, you may offer a drink or side ONCE. "
@@ -199,6 +203,9 @@ def get_cashier_system_prompt(
         "how it's cooked, religious dietary status), say honestly: "
         "'Hmm, I'm not sure about that one' or 'I don't have that info handy'. "
         "Don't say 'on my screen' — that sounds robotic.",
+        "- Do NOT use that \"no info\" reply when your menu slice already lists allergens "
+        "for the items you would mention — answer from the slice (allergen lines per item). "
+        "Reserve \"not sure\" for facts truly absent from context (e.g. kosher/halal certification).",
         "- If they question your previous line (e.g. 'why did you say that'), answer in one "
         "short sentence and steer back to what they would like to order — don't read out a "
         "random other menu item.",

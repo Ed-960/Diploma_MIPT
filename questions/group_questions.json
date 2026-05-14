@@ -1,0 +1,1581 @@
+[
+  {
+    "category": "group",
+    "question": "Our family of 4: two adults, two kids (ages 6 and 9). The 6-year-old is allergic to milk. What can each person order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["adult1", "adult2", "child6", "child9"] },
+      { "type": "allergen", "for": "child6", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "My wife and I want burgers. She is gluten‑intolerant. I have no restrictions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["me", "wife"] },
+      { "type": "diet", "for": "wife", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three friends: one vegan, one allergic to nuts, one wants a high protein burger. Suggestions?",
+    "expected_constraints": [
+      { "type": "group", "members": ["friend1", "friend2", "friend3"] },
+      { "type": "diet", "for": "friend1", "value": "vegan" },
+      { "type": "allergen", "for": "friend2", "value": "Nuts" },
+      { "type": "diet", "for": "friend3", "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Couple with a 5-year-old. The child is vegetarian. The mother is lactose intolerant. Father has no restrictions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "child5"] },
+      { "type": "diet", "for": "child5", "value": "vegetarian" },
+      { "type": "allergen", "for": "mom", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 4 colleagues: two have gluten allergy, one is vegan, one wants low calorie. Help us order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["col1", "col2", "col3", "col4"] },
+      {
+        "type": "allergen",
+        "for": "col1",
+        "value": "Cereal containing gluten"
+      },
+      {
+        "type": "allergen",
+        "for": "col2",
+        "value": "Cereal containing gluten"
+      },
+      { "type": "diet", "for": "col3", "value": "vegan" },
+      { "type": "diet", "for": "col4", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 5: grandparents, parents, and a 7-year-old. The child has a peanut allergy. Grandfather is diabetic (low sugar). Others no restrictions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gf", "gm", "dad", "mom", "child7"] },
+      { "type": "allergen", "for": "child7", "value": "Nuts" },
+      { "type": "diet", "for": "gf", "value": "low sugar" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is on keto (low carb), the other is vegetarian. Can we order from the same menu?",
+    "expected_constraints": [
+      { "type": "group", "members": ["friendA", "friendB"] },
+      { "type": "diet", "for": "friendA", "value": "low carb" },
+      { "type": "diet", "for": "friendB", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mom and dad with two teenagers (14 and 16). The younger teen is allergic to eggs. Everyone else fine.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "dad", "teen14", "teen16"] },
+      { "type": "allergen", "for": "teen14", "value": "Egg" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple with a toddler (2 years). Toddler can't have dairy. Wife is gluten‑free. Husband wants a double cheeseburger.",
+    "expected_constraints": [
+      { "type": "group", "members": ["husband", "wife", "toddler2"] },
+      { "type": "allergen", "for": "toddler2", "value": "Milk" },
+      { "type": "diet", "for": "wife", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Four sports teammates: two need high protein, one is vegan, one has a fish allergy. What do we order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["T1", "T2", "T3", "T4"] },
+      { "type": "diet", "for": "T1", "value": "high protein" },
+      { "type": "diet", "for": "T2", "value": "high protein" },
+      { "type": "diet", "for": "T3", "value": "vegan" },
+      { "type": "allergen", "for": "T4", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Parents with two kids (8 and 10). The 8-year-old is celiac (gluten‑free). The 10-year-old hates onions. Mother is vegetarian. Father no restrictions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "child8", "child10"] },
+      { "type": "diet", "for": "child8", "value": "gluten-free" },
+      { "type": "exclude", "for": "child10", "value": "onion" },
+      { "type": "diet", "for": "mom", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of friends: one lactose intolerant, one allergic to sesame, one on a low carb diet, one wants a shake. Help!",
+    "expected_constraints": [
+      { "type": "group", "members": ["F1", "F2", "F3", "F4"] },
+      { "type": "allergen", "for": "F1", "value": "Milk" },
+      { "type": "allergen", "for": "F2", "value": "Sesame" },
+      { "type": "diet", "for": "F3", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Wedding party of 10: we have a mix of vegetarians, vegans, gluten‑free, and nut allergies. Too complex, but can you suggest a few items that work for many?",
+    "expected_constraints": [
+      { "type": "group", "members": ["generic"] },
+      { "type": "diet", "value": "vegetarian" },
+      { "type": "diet", "value": "vegan" },
+      { "type": "diet", "value": "gluten-free" },
+      { "type": "allergen", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Dad and two sons (12 and 15). The younger son is allergic to milk. The older son wants a spicy chicken sandwich. Dad wants a quarter pounder.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "son12", "son15"] },
+      { "type": "allergen", "for": "son12", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Office lunch for 5: one person is vegan, one is gluten‑free, one has a shellfish allergy, two are fine. Can we order a mix?",
+    "expected_constraints": [
+      { "type": "group", "members": ["O1", "O2", "O3", "O4", "O5"] },
+      { "type": "diet", "for": "O1", "value": "vegan" },
+      { "type": "diet", "for": "O2", "value": "gluten-free" },
+      { "type": "allergen", "for": "O3", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with three children (4, 7, 10). The 4-year-old is lactose intolerant. The 7-year-old doesn't like pickles. The 10-year-old wants a burger with everything. Mother is gluten‑free.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c4", "c7", "c10"] },
+      { "type": "allergen", "for": "c4", "value": "Milk" },
+      { "type": "exclude", "for": "c7", "value": "pickles" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two couples: one couple is vegetarian, the other is not. One person has a nut allergy. How to order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["C1a", "C1b", "C2a", "C2b"] },
+      { "type": "diet", "for": "C1a", "value": "vegetarian" },
+      { "type": "diet", "for": "C1b", "value": "vegetarian" },
+      { "type": "allergen", "for": "C2a", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 6: grandparents, parents, two kids. Grandma has celiac (gluten‑free). Grandpa has a fish allergy. Kids are picky, no onions. Parents fine.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gm", "gp", "dad", "mom", "k1", "k2"] },
+      { "type": "diet", "for": "gm", "value": "gluten-free" },
+      { "type": "allergen", "for": "gp", "value": "Fish" },
+      { "type": "exclude", "for": "k1", "value": "onion" },
+      { "type": "exclude", "for": "k2", "value": "onion" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A rugby team of 8: most want high protein, two are vegetarian, one has a milk allergy. Suggestions?",
+    "expected_constraints": [
+      { "type": "group", "members": ["R1..R8"] },
+      { "type": "diet", "for": "most", "value": "high protein" },
+      { "type": "diet", "for": "two", "value": "vegetarian" },
+      { "type": "allergen", "for": "one", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Our family of 3: mom, dad, 8-year-old son. Son is allergic to milk. Dad wants a Big Mac. Mom wants a salad with no cheese. What can we order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "dad", "son8"] },
+      { "type": "allergen", "for": "son8", "value": "Milk" },
+      { "type": "exclude", "for": "mom", "value": "cheese" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: Alice is vegetarian, Bob has a peanut allergy. Alice wants a veggie burger. Bob wants a chicken sandwich. What's safe?",
+    "expected_constraints": [
+      { "type": "group", "members": ["alice", "bob"] },
+      { "type": "diet", "for": "alice", "value": "vegetarian" },
+      { "type": "allergen", "for": "bob", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple: John is gluten‑intolerant, Mary is lactose intolerant. John wants a burger without bun. Mary wants a milkshake but can't have milk. Help!",
+    "expected_constraints": [
+      { "type": "group", "members": ["john", "mary"] },
+      { "type": "diet", "for": "john", "value": "gluten-free" },
+      { "type": "allergen", "for": "mary", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 4: parents, two kids (6 and 10). The 6-year-old has a fish allergy. The 10-year-old hates onions. Parents want spicy chicken sandwiches. What to order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "child6", "child10"] },
+      { "type": "allergen", "for": "child6", "value": "Fish" },
+      { "type": "exclude", "for": "child10", "value": "onion" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three colleagues: one vegan, one on keto (low carb), one with a sesame allergy. They want to share a meal. Any common items?",
+    "expected_constraints": [
+      { "type": "group", "members": ["col1", "col2", "col3"] },
+      { "type": "diet", "for": "col1", "value": "vegan" },
+      { "type": "diet", "for": "col2", "value": "low carb" },
+      { "type": "allergen", "for": "col3", "value": "Sesame" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mom and two daughters (14 and 17). The 14-year-old is vegetarian. The 17-year-old is allergic to eggs. Mom wants a low calorie meal. Any options?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "d14", "d17"] },
+      { "type": "diet", "for": "d14", "value": "vegetarian" },
+      { "type": "allergen", "for": "d17", "value": "Egg" },
+      { "type": "diet", "for": "mom", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 5 friends: two are gluten‑free, one is vegan, one has a nut allergy, one wants a high protein meal. Can we find something for everyone?",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2", "f3", "f4", "f5"] },
+      { "type": "diet", "for": "f1", "value": "gluten-free" },
+      { "type": "diet", "for": "f2", "value": "gluten-free" },
+      { "type": "diet", "for": "f3", "value": "vegan" },
+      { "type": "allergen", "for": "f4", "value": "Nuts" },
+      { "type": "diet", "for": "f5", "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Grandparents with their grandson (5). Grandfather is diabetic (low sugar). Grandmother has a milk allergy. Grandson wants chicken nuggets. What's safe?",
+    "expected_constraints": [
+      { "type": "group", "members": ["gf", "gm", "gs5"] },
+      { "type": "diet", "for": "gf", "value": "low sugar" },
+      { "type": "allergen", "for": "gm", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two roommates: one is vegetarian, the other is allergic to soy. They want to order pizza (but no pizza), so burgers. Any suggestions?",
+    "expected_constraints": [
+      { "type": "group", "members": ["rm1", "rm2"] },
+      { "type": "diet", "for": "rm1", "value": "vegetarian" },
+      { "type": "allergen", "for": "rm2", "value": "Soya" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 5: parents, three kids (4, 7, 9). The 4-year-old is lactose intolerant. The 7-year-old hates pickles. The 9-year-old wants a McFlurry but is allergic to nuts. Parents want spicy chicken sandwiches.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "c4", "c7", "c9"] },
+      { "type": "allergen", "for": "c4", "value": "Milk" },
+      { "type": "exclude", "for": "c7", "value": "pickles" },
+      { "type": "allergen", "for": "c9", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple celebrating anniversary: wife is gluten‑free, husband is allergic to shellfish. Wife wants a pasta (not available), but a salad. Husband wants a fish sandwich. Any safe fish?",
+    "expected_constraints": [
+      { "type": "group", "members": ["wife", "husband"] },
+      { "type": "diet", "for": "wife", "value": "gluten-free" },
+      { "type": "allergen", "for": "husband", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three sisters: one vegan, one low carb, one has a sesame allergy. They want to share fries and drinks. What's common?",
+    "expected_constraints": [
+      { "type": "group", "members": ["s1", "s2", "s3"] },
+      { "type": "diet", "for": "s1", "value": "vegan" },
+      { "type": "diet", "for": "s2", "value": "low carb" },
+      { "type": "allergen", "for": "s3", "value": "Sesame" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Dad with two teenagers (13 and 16). The 13-year-old is vegetarian. The 16-year-old is allergic to milk. Dad wants a double cheeseburger. What to order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "t13", "t16"] },
+      { "type": "diet", "for": "t13", "value": "vegetarian" },
+      { "type": "allergen", "for": "t16", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 8 from a soccer team: most want high protein, two are vegetarian, one has a nut allergy, one is gluten‑free. Any suggestions for the team?",
+    "expected_constraints": [
+      {
+        "type": "group",
+        "members": ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+      },
+      { "type": "diet", "value": "high protein" },
+      { "type": "diet", "for": "p5", "value": "vegetarian" },
+      { "type": "diet", "for": "p6", "value": "vegetarian" },
+      { "type": "allergen", "for": "p7", "value": "Nuts" },
+      { "type": "diet", "for": "p8", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 3: single mom, son (10), daughter (14). Son is allergic to eggs. Daughter is on a low carb diet. Mom wants a salad with no cheese.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "son10", "dau14"] },
+      { "type": "allergen", "for": "son10", "value": "Egg" },
+      { "type": "diet", "for": "dau14", "value": "low carb" },
+      { "type": "exclude", "for": "mom", "value": "cheese" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two coworkers: one has celiac (gluten‑free), the other is lactose intolerant. They want a quick lunch. Any sandwich without gluten and milk?",
+    "expected_constraints": [
+      { "type": "group", "members": ["cow1", "cow2"] },
+      { "type": "diet", "for": "cow1", "value": "gluten-free" },
+      { "type": "allergen", "for": "cow2", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her teenage son (15). Son is allergic to peanuts. Mother is vegan. Son wants a burger with bacon. Mother wants a veggie burger. Any safe options?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "son15"] },
+      { "type": "diet", "for": "mom", "value": "vegan" },
+      { "type": "allergen", "for": "son15", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Grandparents with two grandchildren (6 and 8). The 6-year-old has a fish allergy. The 8-year-old hates ketchup. Grandparents are fine. What to order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["gf", "gm", "c6", "c8"] },
+      { "type": "allergen", "for": "c6", "value": "Fish" },
+      { "type": "exclude", "for": "c8", "value": "ketchup" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple with a baby (1 year). Baby is too young for solids, just milk formula (not our concern). Mom is vegetarian. Dad wants a spicy chicken sandwich. Mom wants a vegetarian wrap.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "dad", "baby"] },
+      { "type": "diet", "for": "mom", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Four university students: one vegan, one low carb, one allergic to sesame, one wants a milkshake. They need a meal that works for all? Probably not, but separate orders.",
+    "expected_constraints": [
+      { "type": "group", "members": ["s1", "s2", "s3", "s4"] },
+      { "type": "diet", "for": "s1", "value": "vegan" },
+      { "type": "diet", "for": "s2", "value": "low carb" },
+      { "type": "allergen", "for": "s3", "value": "Sesame" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Father and daughter (12). Daughter is allergic to milk. Father is on a keto diet (low carb). Daughter wants a cheeseburger but can't have cheese. Father wants a bunless burger.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "d12"] },
+      { "type": "diet", "for": "dad", "value": "low carb" },
+      { "type": "allergen", "for": "d12", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 6 from a book club: three are vegetarian, one has a nut allergy, one is gluten‑free, one loves fries. They want to share a platter (but no platter). How to order individually?",
+    "expected_constraints": [
+      { "type": "group", "members": ["b1", "b2", "b3", "b4", "b5", "b6"] },
+      { "type": "diet", "for": "b1", "value": "vegetarian" },
+      { "type": "diet", "for": "b2", "value": "vegetarian" },
+      { "type": "diet", "for": "b3", "value": "vegetarian" },
+      { "type": "allergen", "for": "b4", "value": "Nuts" },
+      { "type": "diet", "for": "b5", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mom and her two sons (5 and 9). The 5-year-old has a milk allergy. The 9-year-old hates onions. Mom wants a salad with no cheese. Any options?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "s5", "s9"] },
+      { "type": "allergen", "for": "s5", "value": "Milk" },
+      { "type": "exclude", "for": "s9", "value": "onion" },
+      { "type": "exclude", "for": "mom", "value": "cheese" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple: one is pescatarian (fish but no meat), the other is allergic to fish. That's tricky. Any common ground?",
+    "expected_constraints": [
+      { "type": "group", "members": ["p1", "p2"] },
+      { "type": "diet", "for": "p1", "value": "pescatarian" },
+      { "type": "allergen", "for": "p2", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 3: dad, mom, 7-year-old. The 7-year-old is celiac (gluten‑free). Mom is vegetarian. Dad wants a quarter pounder. Any safe meal for the child?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "c7"] },
+      { "type": "diet", "for": "c7", "value": "gluten-free" },
+      { "type": "diet", "for": "mom", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is on a paleo diet (no grains, no dairy), the other is vegan. They want to share a meal. Any common items?",
+    "expected_constraints": [
+      { "type": "group", "members": ["a", "b"] },
+      { "type": "diet", "for": "a", "value": "paleo" },
+      { "type": "diet", "for": "b", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her teenage daughter (15). Daughter is allergic to eggs. Mother is on a low fat diet. Daughter wants a McMuffin with egg? Not possible. Mother wants a grilled chicken sandwich.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "d15"] },
+      { "type": "allergen", "for": "d15", "value": "Egg" },
+      { "type": "diet", "for": "mom", "value": "low fat" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Group of 3 seniors: one has diabetes (low sugar), one has high blood pressure (low sodium), one has a gluten allergy. Any items that suit all?",
+    "expected_constraints": [
+      { "type": "group", "members": ["s1", "s2", "s3"] },
+      { "type": "diet", "for": "s1", "value": "low sugar" },
+      { "type": "diet", "for": "s2", "value": "low sodium" },
+      { "type": "diet", "for": "s3", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family with a child with a nut allergy and a parent with a fish allergy. The other parent is vegetarian. The child wants chicken nuggets. What's safe?",
+    "expected_constraints": [
+      { "type": "group", "members": ["p1", "p2", "child"] },
+      { "type": "allergen", "for": "child", "value": "Nuts" },
+      { "type": "allergen", "for": "p1", "value": "Fish" },
+      { "type": "diet", "for": "p2", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two business partners: one is gluten‑free and vegetarian, the other is low carb and has a milk allergy. They need a quick meeting lunch.",
+    "expected_constraints": [
+      { "type": "group", "members": ["b1", "b2"] },
+      { "type": "diet", "for": "b1", "value": "gluten-free" },
+      { "type": "diet", "for": "b1", "value": "vegetarian" },
+      { "type": "diet", "for": "b2", "value": "low carb" },
+      { "type": "allergen", "for": "b2", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mom with her 6-year-old son. Son is allergic to milk and eggs. Mom is vegan. Son wants a happy meal. Any happy meal without milk and eggs?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "son6"] },
+      { "type": "allergen", "for": "son6", "value": "Milk" },
+      { "type": "allergen", "for": "son6", "value": "Egg" },
+      { "type": "diet", "for": "mom", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 4: parents, two kids (7 and 9). The 7-year-old has a peanut allergy. The 9-year-old is vegetarian. Parents want burgers with everything.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "c7", "c9"] },
+      { "type": "allergen", "for": "c7", "value": "Nuts" },
+      { "type": "diet", "for": "c9", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two roommates: one is on a whole30 diet (no grains, no dairy, no sugar), the other is allergic to shellfish. What can they order together?",
+    "expected_constraints": [
+      { "type": "group", "members": ["r1", "r2"] },
+      { "type": "diet", "for": "r1", "value": "whole30" },
+      { "type": "allergen", "for": "r2", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple: man is low carb, woman is vegetarian and allergic to sesame. They want to share a pizza? No pizza, but burgers. Any?",
+    "expected_constraints": [
+      { "type": "group", "members": ["man", "woman"] },
+      { "type": "diet", "for": "man", "value": "low carb" },
+      { "type": "diet", "for": "woman", "value": "vegetarian" },
+      { "type": "allergen", "for": "woman", "value": "Sesame" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mom and her two kids (8 and 11). The 8-year-old has a soy allergy. The 11-year-old is gluten‑free. Mom wants a salad with no cheese. Suggestions?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c8", "c11"] },
+      { "type": "allergen", "for": "c8", "value": "Soya" },
+      { "type": "diet", "for": "c11", "value": "gluten-free" },
+      { "type": "exclude", "for": "mom", "value": "cheese" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three friends: one is keto, one is vegetarian, one has a milk allergy. They want to get ice cream? Not possible. Maybe shakes? Not for the milk allergy. Any dessert?",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2", "f3"] },
+      { "type": "diet", "for": "f1", "value": "low carb" },
+      { "type": "diet", "for": "f2", "value": "vegetarian" },
+      { "type": "allergen", "for": "f3", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his 16-year-old son. Son is allergic to peanuts and wants a burger. Father is gluten‑free and wants a salad. Any safe burger for son?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "son16"] },
+      { "type": "allergen", "for": "son16", "value": "Nuts" },
+      { "type": "diet", "for": "dad", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 5: grandparents, parents, child (10). Grandfather has a fish allergy. Grandmother is diabetic (low sugar). Child is vegetarian. Parents have no restrictions. Help!",
+    "expected_constraints": [
+      { "type": "group", "members": ["gf", "gm", "dad", "mom", "c10"] },
+      { "type": "allergen", "for": "gf", "value": "Fish" },
+      { "type": "diet", "for": "gm", "value": "low sugar" },
+      { "type": "diet", "for": "c10", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is paleo, one is vegan. They want to go for a burger. Any burger that fits both? Possibly a lettuce wrap with no cheese, no sauce, but vegan? Maybe not.",
+    "expected_constraints": [
+      { "type": "group", "members": ["a", "b"] },
+      { "type": "diet", "for": "a", "value": "paleo" },
+      { "type": "diet", "for": "b", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mom with her 5-year-old. Child has a milk allergy. Mom is on a low calorie diet. Child wants a happy meal. Any happy meal without milk?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c5"] },
+      { "type": "allergen", "for": "c5", "value": "Milk" },
+      { "type": "diet", "for": "mom", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 4 from a gym: two want high protein, one is vegetarian, one has a nut allergy. They want a post‑workout meal.",
+    "expected_constraints": [
+      { "type": "group", "members": ["g1", "g2", "g3", "g4"] },
+      { "type": "diet", "for": "g1", "value": "high protein" },
+      { "type": "diet", "for": "g2", "value": "high protein" },
+      { "type": "diet", "for": "g3", "value": "vegetarian" },
+      { "type": "allergen", "for": "g4", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple with a toddler (2). Toddler is allergic to eggs. Mother is gluten‑free. Father wants a double cheeseburger. What can the toddler eat?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "t2"] },
+      { "type": "allergen", "for": "t2", "value": "Egg" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three office workers: one has celiac (gluten‑free), one is low carb, one has a milk allergy. They need a quick lunch that fits all.",
+    "expected_constraints": [
+      { "type": "group", "members": ["o1", "o2", "o3"] },
+      { "type": "diet", "for": "o1", "value": "gluten-free" },
+      { "type": "diet", "for": "o2", "value": "low carb" },
+      { "type": "allergen", "for": "o3", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 4: mom, dad, 12-year-old, 14-year-old. The 12-year-old is allergic to fish. The 14-year-old is vegetarian. Mom wants a spicy chicken wrap. Dad wants a Big Mac.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "c12", "c14"] },
+      { "type": "allergen", "for": "c12", "value": "Fish" },
+      { "type": "diet", "for": "c14", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is on a low FODMAP diet (no onion, no garlic, no wheat), the other is vegetarian. They want to share a meal.",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2"] },
+      { "type": "diet", "for": "f1", "value": "low fodmap" },
+      { "type": "diet", "for": "f2", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her 4-year-old. Child is allergic to soy. Mother is vegan. Child wants chicken nuggets. Chicken nuggets contain soy? Possibly. What to do?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c4"] },
+      { "type": "allergen", "for": "c4", "value": "Soya" },
+      { "type": "diet", "for": "mom", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 5 from a hiking club: one is gluten‑free, one is low carb, one is vegetarian, one has a nut allergy, one is fine. Any meal for all?",
+    "expected_constraints": [
+      { "type": "group", "members": ["h1", "h2", "h3", "h4", "h5"] },
+      { "type": "diet", "for": "h1", "value": "gluten-free" },
+      { "type": "diet", "for": "h2", "value": "low carb" },
+      { "type": "diet", "for": "h3", "value": "vegetarian" },
+      { "type": "allergen", "for": "h4", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A dad with his two kids (5 and 7). The 5-year-old has a milk allergy. The 7-year-old hates pickles. Dad wants a spicy chicken sandwich. Any safe options for the kids?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "c5", "c7"] },
+      { "type": "allergen", "for": "c5", "value": "Milk" },
+      { "type": "exclude", "for": "c7", "value": "pickles" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is on a low sodium diet (heart condition), the other is allergic to sesame. They want a quick lunch.",
+    "expected_constraints": [
+      { "type": "group", "members": ["a", "b"] },
+      { "type": "diet", "for": "a", "value": "low sodium" },
+      { "type": "allergen", "for": "b", "value": "Sesame" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 3: single dad, son (9), daughter (12). Son is allergic to eggs. Daughter is vegetarian. Dad wants a quarter pounder. What can the kids eat?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "son9", "dau12"] },
+      { "type": "allergen", "for": "son9", "value": "Egg" },
+      { "type": "diet", "for": "dau12", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple: one is on a keto diet (low carb), the other is allergic to milk. They want to share a dessert. Any keto dessert without milk?",
+    "expected_constraints": [
+      { "type": "group", "members": ["k1", "k2"] },
+      { "type": "diet", "for": "k1", "value": "low carb" },
+      { "type": "allergen", "for": "k2", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her 8-year-old son. Son is allergic to fish. Mother is gluten‑free. Son wants a Filet‑O‑Fish? Not safe. Mother wants a salad. Any fish‑free for son?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "son8"] },
+      { "type": "allergen", "for": "son8", "value": "Fish" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 4 from a yoga class: two are vegan, one is gluten‑free, one has a nut allergy. They want a light meal after yoga.",
+    "expected_constraints": [
+      { "type": "group", "members": ["y1", "y2", "y3", "y4"] },
+      { "type": "diet", "for": "y1", "value": "vegan" },
+      { "type": "diet", "for": "y2", "value": "vegan" },
+      { "type": "diet", "for": "y3", "value": "gluten-free" },
+      { "type": "allergen", "for": "y4", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his teenage son (14). Son is allergic to peanuts. Father is on a low calorie diet. Son wants a burger with bacon. Father wants a salad.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "son14"] },
+      { "type": "allergen", "for": "son14", "value": "Nuts" },
+      { "type": "diet", "for": "dad", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is a vegetarian, one is allergic to gluten. They want to order fries and a burger. Any burger without gluten for the second?",
+    "expected_constraints": [
+      { "type": "group", "members": ["v", "g"] },
+      { "type": "diet", "for": "v", "value": "vegetarian" },
+      { "type": "allergen", "for": "g", "value": "Cereal containing gluten" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mom with her two daughters (7 and 10). The 7-year-old has a milk allergy. The 10-year-old hates lettuce. Mom wants a spicy chicken wrap. Any options?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c7", "c10"] },
+      { "type": "allergen", "for": "c7", "value": "Milk" },
+      { "type": "exclude", "for": "c10", "value": "lettuce" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Our family: me (no restrictions), my wife (vegetarian), son 5 (lactose intolerant). What can we order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "son5"] },
+      { "type": "diet", "for": "mom", "value": "vegetarian" },
+      { "type": "allergen", "for": "son5", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two colleagues: one is vegan, the other has celiac disease. What do you recommend for lunch?",
+    "expected_constraints": [
+      { "type": "group", "members": ["col1", "col2"] },
+      { "type": "diet", "for": "col1", "value": "vegan" },
+      { "type": "diet", "for": "col2", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 3: dad (loves spicy), mom (gluten‑free), daughter 8 (allergic to milk). Help us pick a meal.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "daughter8"] },
+      { "type": "diet", "for": "mom", "value": "gluten-free" },
+      { "type": "allergen", "for": "daughter8", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is on a keto diet (low carb), the other is vegetarian and allergic to eggs. What can we share?",
+    "expected_constraints": [
+      { "type": "group", "members": ["friendA", "friendB"] },
+      { "type": "diet", "for": "friendA", "value": "low carb" },
+      { "type": "diet", "for": "friendB", "value": "vegetarian" },
+      { "type": "allergen", "for": "friendB", "value": "Egg" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with two teens: one teen is vegan, the other has a nut allergy. Mother wants a low calorie meal. Any suggestions?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "teen1", "teen2"] },
+      { "type": "diet", "for": "teen1", "value": "vegan" },
+      { "type": "allergen", "for": "teen2", "value": "Nuts" },
+      { "type": "diet", "for": "mom", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Parents with a 10-year-old: the child is gluten‑intolerant. Father is lactose intolerant. Mother has no restrictions. What can we order together?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "child10"] },
+      { "type": "allergen", "for": "dad", "value": "Milk" },
+      { "type": "diet", "for": "child10", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Group of 6 friends: three are vegetarian, one is vegan, one has a fish allergy, one is lactose intolerant. We want a mix of meals. Help!",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2", "f3", "f4", "f5", "f6"] },
+      { "type": "diet", "for": ["f1", "f2", "f3"], "value": "vegetarian" },
+      { "type": "diet", "for": "f4", "value": "vegan" },
+      { "type": "allergen", "for": "f5", "value": "Fish" },
+      { "type": "allergen", "for": "f6", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Grandparents and two grandchildren (6 and 8). Grandpa has a peanut allergy. Grandmother is diabetic (low sugar). Kids have no restrictions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gp", "gm", "c6", "c8"] },
+      { "type": "allergen", "for": "gp", "value": "Nuts" },
+      { "type": "diet", "for": "gm", "value": "low sugar" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple: husband is on a low carb diet, wife wants a high protein meal. They also need a kids meal for their 4-year-old who is allergic to milk.",
+    "expected_constraints": [
+      { "type": "group", "members": ["husband", "wife", "child4"] },
+      { "type": "diet", "for": "husband", "value": "low carb" },
+      { "type": "diet", "for": "wife", "value": "high protein" },
+      { "type": "allergen", "for": "child4", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three sisters: one is vegetarian and hates mayo, one is gluten‑free, one is allergic to eggs. Order for all.",
+    "expected_constraints": [
+      { "type": "group", "members": ["s1", "s2", "s3"] },
+      { "type": "diet", "for": "s1", "value": "vegetarian" },
+      { "type": "exclude", "for": "s1", "value": "mayo" },
+      { "type": "diet", "for": "s2", "value": "gluten-free" },
+      { "type": "allergen", "for": "s3", "value": "Egg" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Office lunch for 4: one is vegan, one has a sesame allergy, one wants a low calorie salad, one wants a double cheeseburger. Can you assist?",
+    "expected_constraints": [
+      { "type": "group", "members": ["p1", "p2", "p3", "p4"] },
+      { "type": "diet", "for": "p1", "value": "vegan" },
+      { "type": "allergen", "for": "p2", "value": "Sesame" },
+      { "type": "diet", "for": "p3", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 5: father (no restrictions), mother (lactose intolerant), son 12 (celiac), daughter 9 (vegetarian), daughter 4 (allergic to nuts). What can we order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "s12", "d9", "d4"] },
+      { "type": "allergen", "for": "mom", "value": "Milk" },
+      { "type": "diet", "for": "s12", "value": "gluten-free" },
+      { "type": "diet", "for": "d9", "value": "vegetarian" },
+      { "type": "allergen", "for": "d4", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two couples: one couple is vegetarian, the other couple is on a low carb diet. Both couples have a child with a milk allergy. This is complicated.",
+    "expected_constraints": [
+      {
+        "type": "group",
+        "members": ["c1a", "c1b", "c2a", "c2b", "ch1", "ch2"]
+      },
+      { "type": "diet", "for": ["c1a", "c1b"], "value": "vegetarian" },
+      { "type": "diet", "for": ["c2a", "c2b"], "value": "low carb" },
+      { "type": "allergen", "for": ["ch1", "ch2"], "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his three kids (6, 9, 12). The youngest is allergic to eggs. The middle is vegetarian. The oldest wants a spicy chicken sandwich. Dad wants a Big Mac.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "c6", "c9", "c12"] },
+      { "type": "allergen", "for": "c6", "value": "Egg" },
+      { "type": "diet", "for": "c9", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mixed friend group: one vegan, one gluten-free, one nut allergy, one lactose intolerant, one wants high protein, one low calorie. Six people. Help!",
+    "expected_constraints": [
+      { "type": "group", "members": ["p1", "p2", "p3", "p4", "p5", "p6"] },
+      { "type": "diet", "for": "p1", "value": "vegan" },
+      { "type": "diet", "for": "p2", "value": "gluten-free" },
+      { "type": "allergen", "for": "p3", "value": "Nuts" },
+      { "type": "allergen", "for": "p4", "value": "Milk" },
+      { "type": "diet", "for": "p5", "value": "high protein" },
+      { "type": "diet", "for": "p6", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mom and dad with a 7-year-old and a baby (2). The 7-year-old is vegetarian. The baby is lactose intolerant. Parents have no restrictions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "c7", "baby2"] },
+      { "type": "diet", "for": "c7", "value": "vegetarian" },
+      { "type": "allergen", "for": "baby2", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Group of 5 construction workers: three want high protein, one is allergic to gluten, one is diabetic (low sugar). They all want burgers.",
+    "expected_constraints": [
+      { "type": "group", "members": ["w1", "w2", "w3", "w4", "w5"] },
+      { "type": "diet", "for": ["w1", "w2", "w3"], "value": "high protein" },
+      { "type": "diet", "for": "w4", "value": "gluten-free" },
+      { "type": "diet", "for": "w5", "value": "low sugar" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with two daughters (14 and 17). The younger is vegan. The older has a sesame allergy. Mother is gluten-free. What can they order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "d14", "d17"] },
+      { "type": "diet", "for": "d14", "value": "vegan" },
+      { "type": "allergen", "for": "d17", "value": "Sesame" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Grandparents with three grandchildren (5,7,9). Grandpa is allergic to milk. Grandma is vegetarian. The 7-year-old hates pickles. The 9-year-old wants extra cheese. The 5-year-old needs low sodium.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gp", "gm", "c5", "c7", "c9"] },
+      { "type": "allergen", "for": "gp", "value": "Milk" },
+      { "type": "diet", "for": "gm", "value": "vegetarian" },
+      { "type": "exclude", "for": "c7", "value": "pickles" },
+      { "type": "diet", "for": "c5", "value": "low sodium" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A soccer team of 9: many want high protein, two are vegetarian, one has a fish allergy, one is vegan. Suggest a group order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["T1..T9"] },
+      { "type": "diet", "for": "most", "value": "high protein" },
+      { "type": "diet", "for": "two", "value": "vegetarian" },
+      { "type": "allergen", "for": "one", "value": "Fish" },
+      { "type": "diet", "for": "one", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Family of 4: dad (wants a low carb meal), mom (allergic to milk), son 10 (gluten-free), daughter 6 (vegetarian). What can we order for everyone?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "s10", "d6"] },
+      { "type": "diet", "for": "dad", "value": "low carb" },
+      { "type": "allergen", "for": "mom", "value": "Milk" },
+      { "type": "diet", "for": "s10", "value": "gluten-free" },
+      { "type": "diet", "for": "d6", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two sisters: one is vegan and allergic to soy, the other is gluten-free and wants a high protein meal. Suggestions for both?",
+    "expected_constraints": [
+      { "type": "group", "members": ["sis1", "sis2"] },
+      { "type": "diet", "for": "sis1", "value": "vegan" },
+      { "type": "allergen", "for": "sis1", "value": "Soya" },
+      { "type": "diet", "for": "sis2", "value": "gluten-free" },
+      { "type": "diet", "for": "sis2", "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A widowed father with two teenage boys (14 and 16). The father is diabetic (low sugar). The boys want high protein, no restrictions. Order help.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "b14", "b16"] },
+      { "type": "diet", "for": "dad", "value": "low sugar" },
+      { "type": "diet", "for": ["b14", "b16"], "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three generations: grandfather (low sodium), grandmother (gluten-free), mother (lactose intolerant), father (no restrictions), two kids (5 and 8) both like chicken nuggets. Help us order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gf", "gm", "mom", "dad", "c5", "c8"] },
+      { "type": "diet", "for": "gf", "value": "low sodium" },
+      { "type": "diet", "for": "gm", "value": "gluten-free" },
+      { "type": "allergen", "for": "mom", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of friends on a road trip: one is keto, one vegetarian, one allergic to peanuts, one wants a milkshake (no allergies).",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2", "f3", "f4"] },
+      { "type": "diet", "for": "f1", "value": "low carb" },
+      { "type": "diet", "for": "f2", "value": "vegetarian" },
+      { "type": "allergen", "for": "f3", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Parents with a 12-year-old and a 6-month-old baby (no solid food). The 12-year-old is allergic to eggs. Mother is vegan. Father has no restrictions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "c12", "baby"] },
+      { "type": "allergen", "for": "c12", "value": "Egg" },
+      { "type": "diet", "for": "mom", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Office team of 6: two vegans, one gluten-free, one nut allergy, one high protein, one low calorie. We need to order together. Is that possible?",
+    "expected_constraints": [
+      { "type": "group", "members": ["o1", "o2", "o3", "o4", "o5", "o6"] },
+      { "type": "diet", "for": ["o1", "o2"], "value": "vegan" },
+      { "type": "diet", "for": "o3", "value": "gluten-free" },
+      { "type": "allergen", "for": "o4", "value": "Nuts" },
+      { "type": "diet", "for": "o5", "value": "high protein" },
+      { "type": "diet", "for": "o6", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 4: mom (gluten‑free), dad (lactose intolerant), son 15 (wants a spicy burger), daughter 9 (vegetarian). What can we order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "dad", "s15", "d9"] },
+      { "type": "diet", "for": "mom", "value": "gluten-free" },
+      { "type": "allergen", "for": "dad", "value": "Milk" },
+      { "type": "diet", "for": "d9", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Group of 8 people: 4 want low calorie, 2 are vegetarian, 1 is vegan, 1 has a fish allergy. We're ordering for a party.",
+    "expected_constraints": [
+      { "type": "group", "members": ["p1..p8"] },
+      { "type": "diet", "for": "4", "value": "low calorie" },
+      { "type": "diet", "for": "2", "value": "vegetarian" },
+      { "type": "diet", "for": "1", "value": "vegan" },
+      { "type": "allergen", "for": "1", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A single father with a 7-year-old boy who is allergic to milk and eggs. The father is on a low carb diet. Help them order dinner.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "c7"] },
+      { "type": "allergen", "for": "c7", "value": "Milk" },
+      { "type": "allergen", "for": "c7", "value": "Egg" },
+      { "type": "diet", "for": "dad", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two couples with a child each: couple A is vegetarian, their child (3) is allergic to milk. Couple B has no restrictions, their child (6) is gluten‑intolerant. Suggest meals.",
+    "expected_constraints": [
+      { "type": "group", "members": ["A1", "A2", "c3", "B1", "B2", "c6"] },
+      { "type": "diet", "for": ["A1", "A2"], "value": "vegetarian" },
+      { "type": "allergen", "for": "c3", "value": "Milk" },
+      { "type": "diet", "for": "c6", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Grandparents and two grandchildren (5 and 7). Grandma has a nut allergy. Grandpa is diabetic. Kids have no restrictions. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gm", "gp", "c5", "c7"] },
+      { "type": "allergen", "for": "gm", "value": "Nuts" },
+      { "type": "diet", "for": "gp", "value": "low sugar" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of 7 college students: three are vegan, two are gluten‑free, one is lactose intolerant, one wants a burger with everything. Help us order.",
+    "expected_constraints": [
+      {
+        "type": "group",
+        "members": ["s1", "s2", "s3", "s4", "s5", "s6", "s7"]
+      },
+      { "type": "diet", "for": ["s1", "s2", "s3"], "value": "vegan" },
+      { "type": "diet", "for": ["s4", "s5"], "value": "gluten-free" },
+      { "type": "allergen", "for": "s6", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mother with two daughters (10 and 13). The 10-year-old is allergic to gluten. The 13-year-old hates onions. Mother is on a low calorie diet. What can we order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "d10", "d13"] },
+      { "type": "diet", "for": "d10", "value": "gluten-free" },
+      { "type": "exclude", "for": "d13", "value": "onion" },
+      { "type": "diet", "for": "mom", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his son (16) and daughter (12). The son wants a high protein meal. The daughter is vegetarian. The father has a fish allergy. Suggestions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "s16", "d12"] },
+      { "type": "diet", "for": "s16", "value": "high protein" },
+      { "type": "diet", "for": "d12", "value": "vegetarian" },
+      { "type": "allergen", "for": "dad", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three siblings: one is vegan, one is allergic to milk, one wants a low carb meal. What can we order for dinner?",
+    "expected_constraints": [
+      { "type": "group", "members": ["sib1", "sib2", "sib3"] },
+      { "type": "diet", "for": "sib1", "value": "vegan" },
+      { "type": "allergen", "for": "sib2", "value": "Milk" },
+      { "type": "diet", "for": "sib3", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A pregnant woman with her husband and 4-year-old. The woman has gestational diabetes (low sugar). The husband wants a spicy burger. The child is lactose intolerant. Help.",
+    "expected_constraints": [
+      { "type": "group", "members": ["wife", "husband", "c4"] },
+      { "type": "diet", "for": "wife", "value": "low sugar" },
+      { "type": "allergen", "for": "c4", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Five seniors from a retirement home: two have high blood pressure (low sodium), one is diabetic, one has a gluten allergy, one has no restrictions. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["s1", "s2", "s3", "s4", "s5"] },
+      { "type": "diet", "for": ["s1", "s2"], "value": "low sodium" },
+      { "type": "diet", "for": "s3", "value": "low sugar" },
+      { "type": "diet", "for": "s4", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Mother and her two children (8 and 11). The 8-year-old is allergic to soy. The 11-year-old is vegetarian. Mother wants a low fat meal. Help us order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c8", "c11"] },
+      { "type": "allergen", "for": "c8", "value": "Soya" },
+      { "type": "diet", "for": "c11", "value": "vegetarian" },
+      { "type": "diet", "for": "mom", "value": "low fat" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his two sons (5 and 9). The 5-year-old is allergic to eggs. The 9-year-old is gluten‑free. The father wants a double cheeseburger. Suggestions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "c5", "c9"] },
+      { "type": "allergen", "for": "c5", "value": "Egg" },
+      { "type": "diet", "for": "c9", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Group of 9: we have a mix of low carb, vegan, vegetarian, gluten‑free, nut allergy, fish allergy, low calorie, high protein, and one person who eats anything. What do we do?",
+    "expected_constraints": [
+      { "type": "group", "members": ["p1..p9"] },
+      { "type": "diet", "for": "1", "value": "low carb" },
+      { "type": "diet", "for": "1", "value": "vegan" },
+      { "type": "diet", "for": "1", "value": "vegetarian" },
+      { "type": "diet", "for": "1", "value": "gluten-free" },
+      { "type": "allergen", "for": "1", "value": "Nuts" },
+      { "type": "allergen", "for": "1", "value": "Fish" },
+      { "type": "diet", "for": "1", "value": "low calorie" },
+      { "type": "diet", "for": "1", "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with a teenage son (15) and daughter (13). The son is allergic to milk. The daughter is on a low carb diet. Mother is gluten‑free. Order for the family.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "s15", "d13"] },
+      { "type": "allergen", "for": "s15", "value": "Milk" },
+      { "type": "diet", "for": "d13", "value": "low carb" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two families with kids: Family A (dad, mom, 6yo) – mom vegetarian, child allergic to nuts. Family B (dad, mom, 8yo) – dad gluten‑free, child lactose intolerant. Combine order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["A1", "A2", "c6", "B1", "B2", "c8"] },
+      { "type": "diet", "for": "A2", "value": "vegetarian" },
+      { "type": "allergen", "for": "c6", "value": "Nuts" },
+      { "type": "diet", "for": "B1", "value": "gluten-free" },
+      { "type": "allergen", "for": "c8", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple celebrating anniversary: wife is vegan, husband is allergic to sesame. They want a nice meal. Suggest options.",
+    "expected_constraints": [
+      { "type": "group", "members": ["wife", "husband"] },
+      { "type": "diet", "for": "wife", "value": "vegan" },
+      { "type": "allergen", "for": "husband", "value": "Sesame" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his three daughters (5, 8, 12). The 5-year-old is allergic to milk. The 8-year-old is vegetarian. The 12-year-old wants a spicy chicken sandwich. Father wants a burger.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "c5", "c8", "c12"] },
+      { "type": "allergen", "for": "c5", "value": "Milk" },
+      { "type": "diet", "for": "c8", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three roommates: one is keto, one is vegan, one has a gluten allergy. They need to order delivery. Help them choose.",
+    "expected_constraints": [
+      { "type": "group", "members": ["r1", "r2", "r3"] },
+      { "type": "diet", "for": "r1", "value": "low carb" },
+      { "type": "diet", "for": "r2", "value": "vegan" },
+      { "type": "diet", "for": "r3", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Grandmother and grandfather with two grandchildren (4 and 6). Grandmother is allergic to fish. Grandfather has a nut allergy. Kids have no restrictions. What can they all eat?",
+    "expected_constraints": [
+      { "type": "group", "members": ["gm", "gp", "c4", "c6"] },
+      { "type": "allergen", "for": "gm", "value": "Fish" },
+      { "type": "allergen", "for": "gp", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 5: dad (low carb), mom (vegetarian), son 10 (gluten‑free), daughter 7 (allergic to milk), baby 1 (lactose intolerant). We need a meal plan.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "s10", "d7", "baby"] },
+      { "type": "diet", "for": "dad", "value": "low carb" },
+      { "type": "diet", "for": "mom", "value": "vegetarian" },
+      { "type": "diet", "for": "s10", "value": "gluten-free" },
+      { "type": "allergen", "for": "d7", "value": "Milk" },
+      { "type": "allergen", "for": "baby", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Group of 10 from a gym: 6 want high protein, 2 are vegetarian, 1 is vegan, 1 has a milk allergy. Order to satisfy everyone.",
+    "expected_constraints": [
+      { "type": "group", "members": ["g1..g10"] },
+      { "type": "diet", "for": "6", "value": "high protein" },
+      { "type": "diet", "for": "2", "value": "vegetarian" },
+      { "type": "diet", "for": "1", "value": "vegan" },
+      { "type": "allergen", "for": "1", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her two kids (5 and 9). The 5-year-old is allergic to eggs. The 9-year-old hates pickles. Mother is on a low calorie diet. Help them order lunch.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c5", "c9"] },
+      { "type": "allergen", "for": "c5", "value": "Egg" },
+      { "type": "exclude", "for": "c9", "value": "pickles" },
+      { "type": "diet", "for": "mom", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Father and two sons (11 and 13). The 11-year-old is vegetarian. The 13-year-old is allergic to nuts. Father wants a quarter pounder. Suggestions for everyone.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "s11", "s13"] },
+      { "type": "diet", "for": "s11", "value": "vegetarian" },
+      { "type": "allergen", "for": "s13", "value": "Nuts" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple with a 7-year-old and a 10-year-old. The 7-year-old is gluten‑free. The 10-year-old is lactose intolerant. Mother is vegan. Father wants a spicy burger. What can they order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "c7", "c10"] },
+      { "type": "diet", "for": "c7", "value": "gluten-free" },
+      { "type": "allergen", "for": "c10", "value": "Milk" },
+      { "type": "diet", "for": "mom", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three friends: one is keto, one is vegetarian, one has a fish allergy. They want to share a meal but also order individually. Help them decide.",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2", "f3"] },
+      { "type": "diet", "for": "f1", "value": "low carb" },
+      { "type": "diet", "for": "f2", "value": "vegetarian" },
+      { "type": "allergen", "for": "f3", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with three children (4, 6, 9). The 4-year-old is allergic to milk. The 6-year-old is vegetarian. The 9-year-old wants a McFlurry. Mother is gluten‑free. Order for the family.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c4", "c6", "c9"] },
+      { "type": "allergen", "for": "c4", "value": "Milk" },
+      { "type": "diet", "for": "c6", "value": "vegetarian" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two colleagues: one has a peanut allergy, the other is on a low calorie diet. They want to order lunch together. What options do they have?",
+    "expected_constraints": [
+      { "type": "group", "members": ["cow1", "cow2"] },
+      { "type": "allergen", "for": "cow1", "value": "Nuts" },
+      { "type": "diet", "for": "cow2", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A grandfather with his grandson (8). The grandfather is diabetic (low sugar). The grandson is allergic to milk. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gp", "gs8"] },
+      { "type": "diet", "for": "gp", "value": "low sugar" },
+      { "type": "allergen", "for": "gs8", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 6: three adults, three kids (4, 7, 10). The 4-year-old is allergic to eggs. The 7-year-old is vegetarian. The 10-year-old hates onions. The adults have no restrictions. Help them order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["a1", "a2", "a3", "c4", "c7", "c10"] },
+      { "type": "allergen", "for": "c4", "value": "Egg" },
+      { "type": "diet", "for": "c7", "value": "vegetarian" },
+      { "type": "exclude", "for": "c10", "value": "onion" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Four friends: one vegan, one gluten‑free, one low carb, one wants a normal meal. They're going to a McDonald's. Help them choose.",
+    "expected_constraints": [
+      { "type": "group", "members": ["fr1", "fr2", "fr3", "fr4"] },
+      { "type": "diet", "for": "fr1", "value": "vegan" },
+      { "type": "diet", "for": "fr2", "value": "gluten-free" },
+      { "type": "diet", "for": "fr3", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her 12-year-old son and 15-year-old daughter. The son is allergic to milk. The daughter is on a low carb diet. Mother wants a low calorie meal. Help.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "s12", "d15"] },
+      { "type": "allergen", "for": "s12", "value": "Milk" },
+      { "type": "diet", "for": "d15", "value": "low carb" },
+      { "type": "diet", "for": "mom", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his two sons (6 and 9). The 6-year-old is allergic to soy. The 9-year-old is gluten‑free. The father wants a bacon burger. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "c6", "c9"] },
+      { "type": "allergen", "for": "c6", "value": "Soya" },
+      { "type": "diet", "for": "c9", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three sisters: one vegan, one lactose intolerant, one on a low carb diet. They want to share a meal. What can they order together?",
+    "expected_constraints": [
+      { "type": "group", "members": ["sis1", "sis2", "sis3"] },
+      { "type": "diet", "for": "sis1", "value": "vegan" },
+      { "type": "allergen", "for": "sis2", "value": "Milk" },
+      { "type": "diet", "for": "sis3", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A grandmother with her two grandchildren (5 and 8). The grandmother has a nut allergy. The 5-year-old is vegetarian. The 8-year-old wants a cheeseburger. Help them order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gm", "c5", "c8"] },
+      { "type": "allergen", "for": "gm", "value": "Nuts" },
+      { "type": "diet", "for": "c5", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 5: father (low carb), mother (gluten‑free), son 14 (high protein), daughter 10 (vegetarian), daughter 6 (allergic to milk). Order for everyone.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "s14", "d10", "d6"] },
+      { "type": "diet", "for": "dad", "value": "low carb" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" },
+      { "type": "diet", "for": "s14", "value": "high protein" },
+      { "type": "diet", "for": "d10", "value": "vegetarian" },
+      { "type": "allergen", "for": "d6", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A group of friends: two are keto, one is vegan, one has a shellfish allergy, one is gluten‑free, one wants a dessert. This is complex. Suggest a few items that might work for multiple.",
+    "expected_constraints": [
+      { "type": "group", "members": ["p1..p6"] },
+      { "type": "diet", "for": "2", "value": "low carb" },
+      { "type": "diet", "for": "1", "value": "vegan" },
+      { "type": "allergen", "for": "1", "value": "Fish" },
+      { "type": "diet", "for": "1", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her 9-year-old daughter who is allergic to milk and eggs. The mother wants a high protein meal. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "d9"] },
+      { "type": "allergen", "for": "d9", "value": "Milk" },
+      { "type": "allergen", "for": "d9", "value": "Egg" },
+      { "type": "diet", "for": "mom", "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father and his three kids (4, 7, 10). The 4-year-old is allergic to milk. The 7-year-old is vegetarian. The 10-year-old wants a spicy chicken sandwich. Father wants a double cheeseburger. What can they order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "c4", "c7", "c10"] },
+      { "type": "allergen", "for": "c4", "value": "Milk" },
+      { "type": "diet", "for": "c7", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two mothers with their daughters (both 5). One mother is vegan, the other is gluten‑free. One daughter is allergic to nuts, the other is lactose intolerant. Order for the group.",
+    "expected_constraints": [
+      { "type": "group", "members": ["m1", "m2", "d1", "d2"] },
+      { "type": "diet", "for": "m1", "value": "vegan" },
+      { "type": "diet", "for": "m2", "value": "gluten-free" },
+      { "type": "allergen", "for": "d1", "value": "Nuts" },
+      { "type": "allergen", "for": "d2", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A couple: the husband is on a low carb diet, the wife is allergic to milk. They have a 3-year-old who is vegetarian. Help them order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["husband", "wife", "c3"] },
+      { "type": "diet", "for": "husband", "value": "low carb" },
+      { "type": "allergen", "for": "wife", "value": "Milk" },
+      { "type": "diet", "for": "c3", "value": "vegetarian" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Grandparents with two grandchildren (4 and 7). Grandpa has a gluten allergy. Grandma is diabetic. The 4-year-old is allergic to eggs. The 7-year-old hates pickles. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gp", "gm", "c4", "c7"] },
+      { "type": "diet", "for": "gp", "value": "gluten-free" },
+      { "type": "diet", "for": "gm", "value": "low sugar" },
+      { "type": "allergen", "for": "c4", "value": "Egg" },
+      { "type": "exclude", "for": "c7", "value": "pickles" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three colleagues: one is vegan, one has a sesame allergy, one wants a high protein burger. They are ordering for lunch. Help.",
+    "expected_constraints": [
+      { "type": "group", "members": ["c1", "c2", "c3"] },
+      { "type": "diet", "for": "c1", "value": "vegan" },
+      { "type": "allergen", "for": "c2", "value": "Sesame" },
+      { "type": "diet", "for": "c3", "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 5: dad (wants a low fat meal), mom (gluten‑free), son 12 (high protein), daughter 8 (vegetarian), daughter 4 (allergic to milk). What can they order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "s12", "d8", "d4"] },
+      { "type": "diet", "for": "dad", "value": "low fat" },
+      { "type": "diet", "for": "mom", "value": "gluten-free" },
+      { "type": "diet", "for": "s12", "value": "high protein" },
+      { "type": "diet", "for": "d8", "value": "vegetarian" },
+      { "type": "allergen", "for": "d4", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with a teenage daughter (14). The daughter is vegan. The mother is lactose intolerant. They want to order a meal together. Suggestions.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "d14"] },
+      { "type": "allergen", "for": "mom", "value": "Milk" },
+      { "type": "diet", "for": "d14", "value": "vegan" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two friends: one is on a keto diet, the other has a fish allergy. They want to order burgers. What can they both eat safely?",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2"] },
+      { "type": "diet", "for": "f1", "value": "low carb" },
+      { "type": "allergen", "for": "f2", "value": "Fish" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A grandfather with his grandson (6). The grandfather has a low sodium diet. The grandson is allergic to milk. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gp", "c6"] },
+      { "type": "diet", "for": "gp", "value": "low sodium" },
+      { "type": "allergen", "for": "c6", "value": "Milk" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A family of 4: dad (low carb), mom (vegetarian), son 7 (gluten‑free), daughter 5 (allergic to eggs). What can they order for dinner?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "mom", "s7", "d5"] },
+      { "type": "diet", "for": "dad", "value": "low carb" },
+      { "type": "diet", "for": "mom", "value": "vegetarian" },
+      { "type": "diet", "for": "s7", "value": "gluten-free" },
+      { "type": "allergen", "for": "d5", "value": "Egg" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three roommates: one is vegan, one has a nut allergy, one wants a low calorie meal. They need to order for the evening. Help.",
+    "expected_constraints": [
+      { "type": "group", "members": ["r1", "r2", "r3"] },
+      { "type": "diet", "for": "r1", "value": "vegan" },
+      { "type": "allergen", "for": "r2", "value": "Nuts" },
+      { "type": "diet", "for": "r3", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his two daughters (10 and 12). The 10-year-old is allergic to milk. The 12-year-old is on a low carb diet. Father wants a quarter pounder with cheese. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "d10", "d12"] },
+      { "type": "allergen", "for": "d10", "value": "Milk" },
+      { "type": "diet", "for": "d12", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her son (7) and daughter (9). The son is gluten‑free. The daughter is vegetarian. Mother wants a high protein salad. What can they order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "s7", "d9"] },
+      { "type": "diet", "for": "s7", "value": "gluten-free" },
+      { "type": "diet", "for": "d9", "value": "vegetarian" },
+      { "type": "diet", "for": "mom", "value": "high protein" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Two couples: Couple A (both vegetarian, one has a peanut allergy). Couple B (both gluten‑free, one wants low carb). Help them order.",
+    "expected_constraints": [
+      { "type": "group", "members": ["a1", "a2", "b1", "b2"] },
+      { "type": "diet", "for": ["a1", "a2"], "value": "vegetarian" },
+      { "type": "allergen", "for": "a1", "value": "Nuts" },
+      { "type": "diet", "for": ["b1", "b2"], "value": "gluten-free" },
+      { "type": "diet", "for": "b2", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A grandmother with her three grandchildren (3, 6, 9). The 3-year-old is allergic to milk. The 6-year-old is vegetarian. The 9-year-old hates onions. Grandmother is diabetic. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["gm", "c3", "c6", "c9"] },
+      { "type": "allergen", "for": "c3", "value": "Milk" },
+      { "type": "diet", "for": "c6", "value": "vegetarian" },
+      { "type": "exclude", "for": "c9", "value": "onion" },
+      { "type": "diet", "for": "gm", "value": "low sugar" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A father with his son (8). The son is allergic to eggs. The father is on a low carb diet. What can they order together?",
+    "expected_constraints": [
+      { "type": "group", "members": ["dad", "s8"] },
+      { "type": "allergen", "for": "s8", "value": "Egg" },
+      { "type": "diet", "for": "dad", "value": "low carb" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "Three friends: one is vegan, one has a sesame allergy, one is gluten‑free. They want to share a meal. What can they all eat?",
+    "expected_constraints": [
+      { "type": "group", "members": ["f1", "f2", "f3"] },
+      { "type": "diet", "for": "f1", "value": "vegan" },
+      { "type": "allergen", "for": "f2", "value": "Sesame" },
+      { "type": "diet", "for": "f3", "value": "gluten-free" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A mother with her two children (4 and 7). The 4-year-old is lactose intolerant. The 7-year-old is vegetarian. Mother wants a low calorie meal. Order for them.",
+    "expected_constraints": [
+      { "type": "group", "members": ["mom", "c4", "c7"] },
+      { "type": "allergen", "for": "c4", "value": "Milk" },
+      { "type": "diet", "for": "c7", "value": "vegetarian" },
+      { "type": "diet", "for": "mom", "value": "low calorie" }
+    ]
+  },
+  {
+    "category": "group",
+    "question": "A grandfather with his granddaughter (5). The grandfather has a nut allergy. The granddaughter is allergic to milk. What can they order?",
+    "expected_constraints": [
+      { "type": "group", "members": ["gp", "gd5"] },
+      { "type": "allergen", "for": "gp", "value": "Nuts" },
+      { "type": "allergen", "for": "gd5", "value": "Milk" }
+    ]
+  }
+]

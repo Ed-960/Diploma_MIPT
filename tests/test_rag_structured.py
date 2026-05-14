@@ -12,6 +12,28 @@ from mcd_voice.menu.rag_structured import (
 )
 
 
+def test_rag_json_user_message_adds_dialog_tail() -> None:
+    from mcd_voice.llm.agent import _rag_json_user_message
+
+    history = [
+        {"speaker": "client", "text": "Big Mac please"},
+        {"speaker": "cashier", "text": "Got it."},
+        {"speaker": "client", "text": "And a Coke"},
+    ]
+    out = _rag_json_user_message("And a Coke", history)
+    assert "Recent dialog" in out
+    assert "Current customer message:" in out
+    assert out.endswith("And a Coke")
+    assert "Big Mac" in out
+
+
+def test_rag_json_user_message_no_history_is_utterance_only() -> None:
+    from mcd_voice.llm.agent import _rag_json_user_message
+
+    assert _rag_json_user_message("fries", None) == "fries"
+    assert _rag_json_user_message("fries", []) == "fries"
+
+
 def test_rag_json_system_is_non_empty() -> None:
     p = get_rag_json_system_prompt()
     assert "search_query" in p
@@ -19,6 +41,7 @@ def test_rag_json_system_is_non_empty() -> None:
     assert "restrictions" in p
     assert "requested_items" in p
     assert "finalize" in p
+    assert "Current customer message" in p
     assert "Hard allergen exclusions are handled by deterministic safety code" in p
     assert len(chroma_excludable_allergen_vocabulary()) >= 1
 
