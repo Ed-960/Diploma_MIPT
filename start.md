@@ -165,3 +165,25 @@ make dataset-rag-graph-from-profiles-ollama NUM=40 PROFILES_FILE=profiles_1000.j
 make voice-browser-api-graph
 make voice-browser-ollama-graph
 make voice-browser-api-graph VOICE_FLAGS="--trace-all"
+
+// Эксперименты
+Полный прогон (как ваш первый пример):
+
+make question-experiment-norag
+По умолчанию: OUT_QUESTIONS=experiments/no_rag_questions, MAX_QUESTIONS=0 (все вопросы), MAX_DIALOG_TURNS=4.
+
+Свой каталог / лимит:
+
+make question-experiment-norag OUT_QUESTIONS=experiments/no_rag_questions MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4
+Облако / Ollama (как dataset-norag-api — через apply_llm_mode):
+
+make question-experiment-norag-api
+make question-experiment-norag-ollama
+Короткий smoke (60 вопросов → experiments/no_rag_questions_smoke):
+
+make question-experiment-norag-smoke
+make question-experiment-norag-smoke-api
+make question-experiment-norag-smoke-ollama
+Дополнительно: CASHIER_MODEL=..., CLIENT_MODEL=..., JUDGE_MODEL=..., при необходимости трассы — TRACE_VERBOSE=1 (как в других целях).
+
+Справка: make help — блок «Эксперимент по вопросам».
