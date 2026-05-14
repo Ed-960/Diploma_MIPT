@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import re
+import sys
 import time
 from typing import Any
 
@@ -167,7 +168,19 @@ def run_question_dialog_experiment(
 
     rows: list[dict[str, Any]] = []
     total = len(questions) if max_questions <= 0 else min(len(questions), max_questions)
+    print(
+        f"[question-experiment] starting {total} dialogs (max_dialog_turns={max_dialog_turns})...",
+        file=sys.stderr,
+        flush=True,
+    )
     for idx, row in enumerate(questions[:total], start=1):
+        cat = row.get("category")
+        cat_s = repr(cat) if cat is not None else "?"
+        print(
+            f"[question-experiment] {idx}/{total} category={cat_s}",
+            file=sys.stderr,
+            flush=True,
+        )
         question = str(row.get("question") or "").strip()
         order_state = build_initial_order_state(profile)
         history: list[DialogTurn] = [DialogTurn(speaker="client", text=question)]
@@ -283,7 +296,19 @@ def run_single_turn_experiment(
 
     rows: list[dict[str, Any]] = []
     total = len(questions) if max_questions <= 0 else min(len(questions), max_questions)
+    print(
+        f"[single-turn-experiment] starting {total} questions...",
+        file=sys.stderr,
+        flush=True,
+    )
     for idx, row in enumerate(questions[:total], start=1):
+        cat = row.get("category")
+        cat_s = repr(cat) if cat is not None else "?"
+        print(
+            f"[single-turn-experiment] {idx}/{total} category={cat_s}",
+            file=sys.stderr,
+            flush=True,
+        )
         question = str(row.get("question") or "").strip()
         history = [{"speaker": "client", "text": question}]
         rag_trace: list[dict[str, Any]] = []

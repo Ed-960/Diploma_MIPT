@@ -13,7 +13,7 @@ import _bootstrap
 
 _bootstrap.ensure_src()
 
-from mcd_voice.llm import ensure_llm_credentials
+from mcd_voice.llm import ensure_llm_credentials, get_llm_runtime_config
 from mcd_voice.dialog.question_experiment import (
     load_question_banks,
     run_question_dialog_experiment,
@@ -119,6 +119,19 @@ def main() -> int:
     if not questions:
         print("No valid questions loaded.", file=sys.stderr)
         return 1
+
+    total_run = len(questions) if args.max_questions <= 0 else min(len(questions), args.max_questions)
+    cfg = get_llm_runtime_config()
+    print(
+        "[question-experiment] LLM "
+        f"provider={cfg['provider']} model={cfg['model']} base_url={cfg['base_url']}",
+        flush=True,
+    )
+    print(
+        f"[question-experiment] loaded {len(questions)} questions; will run {total_run} "
+        f"(max_dialog_turns={max(1, args.max_dialog_turns)}, trace_verbose={args.trace_verbose})",
+        flush=True,
+    )
 
     out_dir = Path(args.output_dir)
     if not out_dir.is_absolute():

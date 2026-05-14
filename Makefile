@@ -155,7 +155,7 @@ help:
 	@echo "  make question-experiment-norag-api / question-experiment-norag-ollama"
 	@echo "  make question-experiment-norag-smoke   # MAX_QUESTIONS=60 -> experiments/no_rag_questions_smoke"
 	@echo "  make question-experiment-norag-smoke-api / question-experiment-norag-smoke-ollama"
-	@echo "  + модели: CASHIER_MODEL=... CLIENT_MODEL=... JUDGE_MODEL=...  + трассы: TRACE_VERBOSE=1"
+	@echo "  + модели: CASHIER_MODEL=... CLIENT_MODEL=... JUDGE_MODEL=...  (трассы --trace_verbose всегда)"
 	@echo ""
 	@echo "Экспорт кода в один файл (для ИИ / ревью):"
 	@echo "  make export-ai           -> $(AI_EXPORT)  (скрипт scripts/export_all_project_for_ai.py)"
@@ -351,7 +351,7 @@ _QUESTION_EXP_ARGS = scripts/run_question_experiment.py --output_dir $(OUT_QUEST
 	$(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) \
 	$(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) \
 	$(if $(JUDGE_MODEL),--judge_model $(JUDGE_MODEL),) \
-	$(TRACE_VERBOSE_FLAG)
+	--trace_verbose
 
 question-experiment-norag:
 	$(PY) $(_QUESTION_EXP_ARGS)

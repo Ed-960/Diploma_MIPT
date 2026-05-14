@@ -170,7 +170,7 @@ make voice-browser-api-graph VOICE_FLAGS="--trace-all"
 Полный прогон (как ваш первый пример):
 
 make question-experiment-norag
-По умолчанию: OUT_QUESTIONS=experiments/no_rag_questions, MAX_QUESTIONS=0 (все вопросы), MAX_DIALOG_TURNS=4.
+По умолчанию: OUT_QUESTIONS=experiments/no_rag_questions, MAX_QUESTIONS=0 (все вопросы), MAX_DIALOG_TURNS=4. Подробные трассы LLM/RAG (`--trace_verbose`) включены всегда для этих целей `make`.
 
 Свой каталог / лимит:
 
@@ -184,6 +184,6 @@ make question-experiment-norag-ollama
 make question-experiment-norag-smoke
 make question-experiment-norag-smoke-api
 make question-experiment-norag-smoke-ollama
-Дополнительно: CASHIER_MODEL=..., CLIENT_MODEL=..., JUDGE_MODEL=..., при необходимости трассы — TRACE_VERBOSE=1 (как в других целях).
+Дополнительно: CASHIER_MODEL=..., CLIENT_MODEL=..., JUDGE_MODEL=...
 
 Справка: make help — блок «Эксперимент по вопросам».

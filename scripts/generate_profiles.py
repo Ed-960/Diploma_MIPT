@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import sys
 
 import _bootstrap
 
@@ -69,7 +70,27 @@ def main() -> None:
 
     rng = random.Random(args.seed) if args.seed is not None else None
     gen = ProfileGenerator(rng=rng)
-    profiles = [gen.generate() for _ in range(args.num_profiles)]
+    n = args.num_profiles
+    profiles: list[dict] = []
+    if n >= 50:
+        step = max(1, n // 20)
+        print(
+            "[generate-profiles] generating %d profiles (every %d-th + last)..."
+            % (n, step),
+            file=sys.stderr,
+            flush=True,
+        )
+        for i in range(n):
+            profiles.append(gen.generate())
+            k = i + 1
+            if k % step == 0 or k == n:
+                print(
+                    "[generate-profiles] %d/%d" % (k, n),
+                    file=sys.stderr,
+                    flush=True,
+                )
+    else:
+        profiles = [gen.generate() for _ in range(n)]
 
     with open(args.output_file, "w", encoding="utf-8") as f:
         json.dump(profiles, f, ensure_ascii=False, indent=2)

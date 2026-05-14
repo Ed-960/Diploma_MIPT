@@ -198,13 +198,26 @@ def main() -> int:
                 except Exception:
                     pass
 
+    print(
+        "[history-judge] files=%d output=%s ids_already_done=%d"
+        % (len(files), out_path, len(done)),
+        file=sys.stderr,
+        flush=True,
+    )
+
     n = 0
     with out_path.open("a", encoding="utf-8") as out:
-        for f in files:
+        for fi, f in enumerate(files, start=1):
             data = json.loads(f.read_text(encoding="utf-8"))
             did = int(data["dialog_id"])
             if did in done:
                 continue
+            print(
+                "[history-judge] %d/%d dialog_id=%d"
+                % (fi, len(files), did),
+                file=sys.stderr,
+                flush=True,
+            )
             hist = data.get("history") or []
             tr = history_to_transcript(hist)
             try:
