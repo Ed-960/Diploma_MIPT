@@ -1351,6 +1351,7 @@ def _call_llm(
     system: str,
     messages: list[dict[str, str]],
     temperature: float = 0.8,
+    response_format: dict[str, Any] | None = None,
 ) -> str:
     """Один Chat Completions вызов; бросает RuntimeError при пустом ответе."""
     payload = [{"role": "system", "content": system}, *messages]
@@ -1363,6 +1364,8 @@ def _call_llm(
                 "messages": payload,
                 "temperature": temperature,
             }
+            if response_format is not None:
+                create_kwargs["response_format"] = response_format
             xb = _openrouter_extra_body()
             if xb is not None:
                 create_kwargs["extra_body"] = xb
@@ -1691,6 +1694,7 @@ class CashierAgent:
         order_state: dict[str, Any],
         query: str | None = None,
         *,
+        extra_grounding_context: str | None = None,
         rag_trace: list[dict[str, Any]] | None = None,
         rag_meta: dict[str, Any] | None = None,
         llm_trace: list[dict[str, Any]] | None = None,
@@ -1704,6 +1708,7 @@ class CashierAgent:
                 history=history,
                 order_state=order_state,
                 query=query,
+                extra_grounding_context=extra_grounding_context,
                 rag_trace=rag_trace,
                 rag_meta=rag_meta,
                 llm_trace=llm_trace,
@@ -1717,6 +1722,18 @@ class CashierAgent:
             rag_meta=rag_meta,
             llm_trace=llm_trace,
         )
+        grounding = (extra_grounding_context or "").strip()
+        if grounding:
+            rag_context = f"{grounding}\n\n{rag_context}" if rag_context else grounding
+            _trace(
+                rag_trace,
+                {
+                    **(rag_meta or {}),
+                    "event": "extra_grounding_context",
+                    "grounding_chars": len(grounding),
+                    "grounding_preview": _preview(grounding),
+                },
+            )
         intent = _rag_intent(rag_spec)
         allow_calories = (
             intent == "calorie_tune"
@@ -2624,8 +2641,21 @@ class CashierAgent:
             )
             if self._full_menu_context:
                 extras.append(
-                    "Full mcd.json menu context for this turn. Use this JSON as the complete "
-                    "menu source; do not use retrieval, vector DB assumptions, or invented items:\n"
+                    "Full mcd.json menu context for this turn — official POS menu for THIS McDonald's only.\n"
+                    "Behavior rules (full JSON mode):\n"
+                    "- Treat this JSON as YOUR register screen, not 'data the customer provided'. "
+                    "NEVER say: your provided data, the list you gave, which restaurant, different restaurant, "
+                    "seems this list is from, or ask the customer to clarify the menu source.\n"
+                    "- You are speaking live at the speaker; your reply must be ONLY what the cashier says aloud.\n"
+                    "- Before saying we do not have an item: scan ALL objects for a matching \"name\" field "
+                    "(case-insensitive substring match on the full name). If ANY row matches what the customer "
+                    "ordered (e.g. Big Mac), you MUST confirm it is on the order and speak as a real drive-through "
+                    "cashier in 1–2 short sentences; one optional upsell (drink or fries) is enough.\n"
+                    "- Do not write long analytical paragraphs, bullet lists, or multi-question interrogations "
+                    "unless the customer explicitly asked for nutrition or allergens.\n"
+                    "- Use this JSON as the complete menu source; do not use retrieval, vector DB assumptions, "
+                    "or invented items outside this JSON.\n"
+                    "JSON:\n"
                     f"{context_payload}"
                 )
             else:

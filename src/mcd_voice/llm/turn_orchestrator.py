@@ -17,6 +17,7 @@ def run_cashier_turn(
     history: list[dict[str, str]],
     order_state: dict[str, Any],
     query: str | None,
+    extra_grounding_context: str | None,
     rag_trace: list[dict[str, Any]] | None,
     rag_meta: dict[str, Any] | None,
     llm_trace: list[dict[str, Any]] | None,
@@ -56,6 +57,18 @@ def run_cashier_turn(
     )
     ctx.rag_context = retrieval_result.rag_context
     ctx.rag_spec = retrieval_result.rag_spec
+    extra_grounding = (extra_grounding_context or "").strip()
+    if extra_grounding:
+        ctx.rag_context = f"{extra_grounding}\n\n{ctx.rag_context}" if ctx.rag_context else extra_grounding
+        _trace(
+            rag_trace,
+            {
+                **(rag_meta or {}),
+                "event": "extra_grounding_context",
+                "grounding_chars": len(extra_grounding),
+                "grounding_preview": extra_grounding[:600],
+            },
+        )
     ctx.plan = TurnPlan.from_legacy(
         client_text=ctx.client_text,
         spec=ctx.rag_spec,

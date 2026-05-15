@@ -1,0 +1,143 @@
+[
+  {
+    "question_id": 1,
+    "category": "simple",
+    "question": "Order a Big Mac",
+    "expected_item": "Big Mac",
+    "expected_constraints": [],
+    "dialog_finished_reason": "cashier_direct_answer",
+    "dialog_turns": 2,
+    "history": [
+      {
+        "speaker": "client",
+        "text": "Order a Big Mac"
+      },
+      {
+        "speaker": "cashier",
+        "text": "Got it, a Big Mac. Anything else for you today?"
+      },
+      {
+        "speaker": "judge",
+        "text": "{\"success_at_1\": true, \"success_at_3\": true, \"success_at_5\": true, \"hallucination\": false, \"constraint_violation\": false, \"need_to_specify\": false, \"empty_response\": false, \"group_completeness\": null, \"short_analysis\": \"\", \"risks\": [], \"final_label\": \"pass\"}"
+      }
+    ],
+    "final_cashier_response": "Got it, a Big Mac. Anything else for you today?",
+    "mentioned_items": [
+      "Big Mac"
+    ],
+    "need_to_specify": false,
+    "empty_response": false,
+    "response_time_ms": 52459.11,
+    "turn_timings_ms": [
+      {
+        "cashier_step": 1.0,
+        "duration_ms": 52459.11
+      }
+    ],
+    "rag_trace": [
+      {
+        "call": "question_dialog",
+        "question_idx": 1,
+        "step": 1,
+        "client_query": "Order a Big Mac",
+        "event": "rag_disabled",
+        "rag_top_k": 0,
+        "retrieval_mode": "vector"
+      },
+      {
+        "call": "question_dialog",
+        "question_idx": 1,
+        "step": 1,
+        "event": "extra_grounding_context",
+        "grounding_chars": 621,
+        "grounding_preview": "Question-bank structured grounding (built from question JSON and mcd.json; use this before scanning the full raw menu):\n{\n  \"question\": \"Order a Big Mac\",\n  \"expected_item\": \"Big Mac\",\n  \"expected_constraints\": [],\n  \"expected_item_exact_menu_match\": {\n    \"name\": \"Big Mac\",\n    \"ingredients\": \"Two 100% beef patties, Big Mac sauce, lettuce, cheese, pickles, onions, sesame seed bun\",\n    \"allergens\": [\n      \"cereal containing gluten\",\n      \"milk\",\n      \"sesame\"\n    ],\n    \"nutrients\": {\n      \"energy\": 550.0,\n      \"protein\": 25.0,\n      \"carbs\": 45.0,\n      \"total_sugar\": 9.0,\n      \"sodium\": 1010.0\n    }\n  }\n}"
+      }
+    ],
+    "llm_trace": [
+      {
+        "event": "llm_call",
+        "agent": "cashier",
+        "model": "qwen2.5:14b-instruct",
+        "kind": "dialog_llm",
+        "messages_count": 1,
+        "duration_ms": 52456.74,
+        "system_preview": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n\nMENU / RAG:\n- Full-menu JSON mode: the list is long; a requested item may appear far down. Never decide an item is missing after only reading the first few rows — scan by exact product name.\n- DECISION FLOW: (1) If customer names an item that exists in context, first confirm it is added. (2) Give nutrition/allergen numbers only if asked. (3) If item is truly absent from context, say unavailable and suggest 1 nearby alternative.\n- Use only the menu data slice in context when naming specific products. Speak naturally: after first mention, say 'fries' instead of 'Our World Famous Fries', 'nuggets' instead of 'Chicken McNuggets'.\n- NEVER use the ® or ™ symbol when speaking — say 'McNuggets', 'fries', 'Big Mac', 'Iced Tea', not 'Chicken McNuggets®'.\n- NEVER invent item names, prices, or calorie numbers.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says **no matching menu items** for what they asked, say pl…",
+        "messages_preview": [
+          {
+            "role": "user",
+            "content": "Order a Big Mac"
+          }
+        ],
+        "response_preview": "Got it, a Big Mac. Anything else for you today?"
+      }
+    ],
+    "metrics": {
+      "success_at_1": true,
+      "success_at_3": true,
+      "success_at_5": true,
+      "hallucination": false,
+      "constraint_violation": false,
+      "constraint_violation_reasons": [],
+      "group_completeness": null,
+      "need_to_specify": false,
+      "empty_response": false
+    },
+    "heuristic_metrics": {
+      "success_at_1": true,
+      "success_at_3": true,
+      "success_at_5": true,
+      "hallucination": false,
+      "constraint_violation": false,
+      "constraint_violation_reasons": [],
+      "group_completeness": null
+    },
+    "metric_sources": {
+      "success_at_1": "judge",
+      "success_at_3": "judge",
+      "success_at_5": "judge",
+      "hallucination": "judge",
+      "constraint_violation": "judge",
+      "need_to_specify": "judge",
+      "empty_response": "judge",
+      "group_completeness": "none"
+    },
+    "audit": {
+      "expected_item": "Big Mac",
+      "expected_item_in_menu": true,
+      "expected_item_used": true,
+      "context_ignorance": false,
+      "factual_conflicts": [],
+      "critical_error": false,
+      "need_to_specify": false,
+      "heuristic_hallucination": false
+    },
+    "judge": {
+      "raw_response": "{\"success_at_1\": true, \"success_at_3\": true, \"success_at_5\": true, \"hallucination\": false, \"constraint_violation\": false, \"need_to_specify\": false, \"empty_response\": false, \"group_completeness\": null, \"short_analysis\": \"\", \"risks\": [], \"final_label\": \"pass\"}",
+      "parsed": {
+        "success_at_1": true,
+        "success_at_3": true,
+        "success_at_5": true,
+        "hallucination": false,
+        "constraint_violation": false,
+        "need_to_specify": false,
+        "empty_response": false,
+        "group_completeness": null,
+        "short_analysis": "",
+        "risks": [],
+        "final_label": "pass"
+      },
+      "vs_heuristic": {
+        "disagreement_count": 0,
+        "disagreements": [],
+        "supports_audit_signals": true,
+        "audit_signals": {
+          "context_ignorance": false,
+          "factual_conflicts": [],
+          "critical_error": false
+        }
+      }
+    },
+    "source_file": "/mnt/c/Users/grigorianea/Desktop/Diploma_MIPT/questions/simple_questions.json",
+    "source_index": 1
+  }
+]

@@ -187,3 +187,5 @@ make question-experiment-norag-smoke-ollama
 Дополнительно: CASHIER_MODEL=..., CLIENT_MODEL=..., JUDGE_MODEL=...
 
 Справка: make help — блок «Эксперимент по вопросам».
+
+.venv-wsl/bin/python scripts/apply_llm_mode.py ollama .venv-wsl/bin/python scripts/run_question_experiment.py --output_dir experiments/no_rag_questions --max_dialog_turns 4 --trace_verbose

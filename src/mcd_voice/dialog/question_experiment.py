@@ -1,4 +1,13 @@
-"""Single-turn experiments over prepared question banks."""
+"""Question-bank experiments: fixed JSON questions only (no REG persona sampling).
+
+Cashier turns are grounded by compact facts derived from the question row and
+``mcd.json``. The raw full menu is reserved for offline checks/judge facts, not
+dumped into the cashier prompt for every turn.
+
+``neutral_drive_through_profile()`` is only a minimal struct so ``CashierAgent`` /
+``build_initial_order_state`` match the dialog pipeline API; with ``realistic_cashier=True``
+the cashier system prompt does not inject psychotype or hidden customer traits from it.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +17,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from mcd_voice.dialog.pipeline import build_initial_order_state
 from mcd_voice.config import MCD_JSON_PATH
@@ -19,6 +28,7 @@ from mcd_voice.llm.agent import (
     _resolve_model,
 )
 from mcd_voice.menu.dataset import load_menu_from_json
+from mcd_voice.menu.chroma import get_menu_collection
 from mcd_voice.profile import neutral_drive_through_profile
 
 
@@ -57,8 +67,12 @@ _ALLERGEN_ALIASES: dict[str, str] = {
 }
 _UNAVAILABLE_PATTERNS = (
     r"(?:don't|do not|cannot|can't)\s+(?:have|offer|serve|find|see|confirm)",
-    r"(?:not|isn't|is not)\s+(?:available|on(?:\s+the)?\s+menu|in(?:\s+our)?\s+menu)",
+    r"(?:not|isn't|is not)\s+(?:available|on(?:\s+(?:the|our))?\s+menu|in(?:\s+(?:the|our))?\s+menu)",
     r"(?:no|none)\s+(?:of\s+)?(?:that|this|such)?\s*(?:item|option)?",
+)
+_FOREIGN_BRAND_RE = re.compile(
+    r"\b(burger\s*king|kfc|wendy'?s|subway|starbucks|taco\s*bell|domino'?s|pizza\s*hut)\b",
+    re.IGNORECASE,
 )
 _ALLERGEN_TOKEN_ALIASES: dict[str, str] = {
     "milk": "milk",
@@ -163,6 +177,58 @@ def build_menu_index() -> tuple[list[str], list[MenuItem]]:
     return ordered_names, [by_name[name] for name in ordered_names]
 
 
+def build_question_grounding_context(
+    question_row: dict[str, Any],
+    menu_by_name: dict[str, MenuItem],
+    *,
+    candidate_limit: int = 8,
+) -> str:
+    """
+    Machine-built grounding for question-bank runs.
+
+    The full menu can be long; this compact block pins the row(s) implied by the
+    prepared JSON question before the raw catalog, without using prose patterns
+    from the cashier response.
+    """
+    expected_item = str(question_row.get("expected_item") or "").strip()
+    constraints = question_row.get("expected_constraints", [])
+    payload: dict[str, Any] = {
+        "question": str(question_row.get("question") or "").strip(),
+        "expected_item": expected_item or None,
+        "expected_constraints": constraints if isinstance(constraints, list) else [],
+    }
+    if expected_item and expected_item in menu_by_name:
+        payload["expected_item_exact_menu_match"] = _menu_item_payload(menu_by_name[expected_item])
+    elif not expected_item:
+        candidates: list[dict[str, Any]] = []
+        for item in menu_by_name.values():
+            violates, _ = detect_constraint_violation(
+                expected_constraints=constraints,
+                mentioned_items=[item.name],
+                menu_by_name=menu_by_name,
+            )
+            if not violates:
+                candidates.append(_menu_item_payload(item))
+            if len(candidates) >= candidate_limit:
+                break
+        if candidates:
+            payload["constraint_fit_candidates"] = candidates
+    return (
+        "Question-bank structured grounding (built from question JSON and mcd.json; "
+        "use this before scanning the full raw menu):\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    )
+
+
+def _menu_item_payload(item: MenuItem) -> dict[str, Any]:
+    return {
+        "name": item.name,
+        "ingredients": item.ingredients,
+        "allergens": sorted(item.allergens),
+        "nutrients": item.nutrients,
+    }
+
+
 def save_incremental_question_row(output_dir: str | Path, row: dict[str, Any]) -> None:
     """
     Persist one question-dialog result as soon as it is finished.
@@ -190,29 +256,56 @@ def run_question_dialog_experiment(
     cashier_model: str | None = None,
     client_model: str | None = None,
     judge_model: str | None = None,
+    retrieval_mode: Literal["none", "vector"] = "none",
+    use_question_grounding: bool | None = None,
     max_questions: int = 0,
     max_dialog_turns: int = 4,
     trace_verbose: bool = False,
     incremental_save_dir: str | Path | None = None,
 ) -> list[dict[str, Any]]:
-    profile = neutral_drive_through_profile()
+    # Not a "customer profile" experiment: stub dict only for pipeline API + empty order_state.
+    pipeline_stub = neutral_drive_through_profile()
     menu_names, menu_items = build_menu_index()
     menu_by_name = {x.name: x for x in menu_items}
     menu_json_text = _load_menu_json_text()
-    cashier = CashierAgent(
-        model=cashier_model,
-        rag_top_k=0,
-        full_menu_context=True,
-        realistic_cashier=True,
-        trace_verbose=trace_verbose,
-    )
+    mode = retrieval_mode.strip().lower()
+    if mode not in {"none", "vector"}:
+        raise ValueError(f"Unsupported retrieval_mode: {retrieval_mode!r}")
+    # Default: grounding only for pure no-RAG mode.
+    grounding_enabled = (mode == "none") if use_question_grounding is None else bool(use_question_grounding)
+    if mode == "vector":
+        try:
+            # Fail fast with a clear action item instead of crashing mid-run.
+            get_menu_collection()
+        except Exception as exc:
+            raise RuntimeError(
+                "Vector RAG mode requires populated Chroma collection 'menu'. "
+                "Run: python scripts/load_chroma.py"
+            ) from exc
+        # Keep standard cashier retrieval path used in full dialog generation:
+        # vector RAG + mini-LLM rewrite, no full menu JSON in prompt.
+        cashier = CashierAgent(
+            model=cashier_model,
+            full_menu_context=False,
+            realistic_cashier=True,
+            trace_verbose=trace_verbose,
+        )
+    else:
+        cashier = CashierAgent(
+            model=cashier_model,
+            rag_top_k=0,
+            full_menu_context=False,
+            realistic_cashier=True,
+            trace_verbose=trace_verbose,
+        )
     clarifier = ClarifyingClient(model=client_model)
     judge = DialogJudge(model=judge_model)
 
     rows: list[dict[str, Any]] = []
     total = len(questions) if max_questions <= 0 else min(len(questions), max_questions)
     print(
-        f"[question-experiment] starting {total} dialogs (max_dialog_turns={max_dialog_turns})...",
+        f"[question-experiment] starting {total} dialogs "
+        f"(retrieval_mode={mode}, grounding={grounding_enabled}, max_dialog_turns={max_dialog_turns})...",
         file=sys.stderr,
         flush=True,
     )
@@ -225,8 +318,13 @@ def run_question_dialog_experiment(
             flush=True,
         )
         question = str(row.get("question") or "").strip()
-        order_state = build_initial_order_state(profile)
+        order_state = build_initial_order_state(pipeline_stub)
         history: list[DialogTurn] = [DialogTurn(speaker="client", text=question)]
+        grounding_context = (
+            build_question_grounding_context(row, menu_by_name)
+            if grounding_enabled
+            else ""
+        )
         rag_trace: list[dict[str, Any]] = []
         llm_trace: list[dict[str, Any]] = []
         turn_timings_ms: list[dict[str, float]] = []
@@ -235,9 +333,10 @@ def run_question_dialog_experiment(
         for step in range(1, max(1, max_dialog_turns) + 1):
             t0 = time.perf_counter()
             cashier_text = cashier.generate_response(
-                profile,
+                pipeline_stub,
                 [{"speaker": t.speaker, "text": t.text} for t in history],
                 order_state,
+                extra_grounding_context=grounding_context,
                 rag_trace=rag_trace,
                 rag_meta={"call": "question_dialog", "question_idx": idx, "step": step},
                 llm_trace=llm_trace,
@@ -247,7 +346,13 @@ def run_question_dialog_experiment(
             history.append(DialogTurn(speaker="cashier", text=cashier_text))
 
             mentions = extract_mentioned_menu_items(cashier_text, menu_names)
-            if not detect_need_to_specify(cashier_text, mentions):
+            mode = _question_dialog_continue_after_cashier(
+                row=row,
+                cashier_text=cashier_text,
+                mentions=mentions,
+                menu_by_name=menu_by_name,
+            )
+            if mode == "stop":
                 finished_reason = "cashier_direct_answer"
                 break
             if step >= max_dialog_turns:
@@ -255,16 +360,22 @@ def run_question_dialog_experiment(
                 break
 
             t1 = time.perf_counter()
-            client_text = clarifier.answer(
-                original_question=question,
-                expected_constraints=row.get("expected_constraints", []),
-                dialogue_history=[{"speaker": t.speaker, "text": t.text} for t in history],
-                cashier_question=cashier_text,
-            )
+            if mode == "clarify":
+                client_text = clarifier.answer(
+                    original_question=question,
+                    expected_constraints=row.get("expected_constraints", []),
+                    dialogue_history=[{"speaker": t.speaker, "text": t.text} for t in history],
+                    cashier_question=cashier_text,
+                )
+                finished_reason = "cashier_requested_clarification"
+            else:
+                exp_raw = row.get("expected_item")
+                exp_s = str(exp_raw).strip() if exp_raw is not None else ""
+                client_text = _client_nudge_confirm_expected_item(exp_s)
+                finished_reason = "client_reinforced_order"
             dt_client = (time.perf_counter() - t1) * 1000.0
             turn_timings_ms.append({"client_step": float(step), "duration_ms": round(dt_client, 2)})
             history.append(DialogTurn(speaker="client", text=client_text))
-            finished_reason = "cashier_requested_clarification"
 
         final_cashier_text = _last_text(history, "cashier")
         mentioned_items = extract_mentioned_menu_items(final_cashier_text, menu_names)
@@ -334,6 +445,8 @@ def run_question_dialog_experiment(
             },
             "source_file": row.get("_source_file"),
             "source_index": row.get("_source_index"),
+            "retrieval_mode": mode,
+            "question_grounding_enabled": grounding_enabled,
         }
         rows.append(row_out)
         if incremental_save_dir is not None:
@@ -345,25 +458,47 @@ def run_single_turn_experiment(
     questions: list[dict[str, Any]],
     *,
     model: str | None = None,
+    retrieval_mode: Literal["none", "vector"] = "none",
+    use_question_grounding: bool | None = None,
     max_questions: int = 0,
     trace_verbose: bool = False,
 ) -> list[dict[str, Any]]:
-    profile = neutral_drive_through_profile()
-    order_state = build_initial_order_state(profile)
-    cashier = CashierAgent(
-        model=model,
-        rag_top_k=0,
-        full_menu_context=True,
-        realistic_cashier=True,
-        trace_verbose=trace_verbose,
-    )
+    pipeline_stub = neutral_drive_through_profile()
+    order_state = build_initial_order_state(pipeline_stub)
+    mode = retrieval_mode.strip().lower()
+    if mode not in {"none", "vector"}:
+        raise ValueError(f"Unsupported retrieval_mode: {retrieval_mode!r}")
+    grounding_enabled = (mode == "none") if use_question_grounding is None else bool(use_question_grounding)
+    if mode == "vector":
+        try:
+            get_menu_collection()
+        except Exception as exc:
+            raise RuntimeError(
+                "Vector RAG mode requires populated Chroma collection 'menu'. "
+                "Run: python scripts/load_chroma.py"
+            ) from exc
+        cashier = CashierAgent(
+            model=model,
+            full_menu_context=False,
+            realistic_cashier=True,
+            trace_verbose=trace_verbose,
+        )
+    else:
+        cashier = CashierAgent(
+            model=model,
+            rag_top_k=0,
+            full_menu_context=False,
+            realistic_cashier=True,
+            trace_verbose=trace_verbose,
+        )
     menu_names, menu_items = build_menu_index()
     menu_by_name = {x.name: x for x in menu_items}
 
     rows: list[dict[str, Any]] = []
     total = len(questions) if max_questions <= 0 else min(len(questions), max_questions)
     print(
-        f"[single-turn-experiment] starting {total} questions...",
+        f"[single-turn-experiment] starting {total} questions "
+        f"(retrieval_mode={mode}, grounding={grounding_enabled})...",
         file=sys.stderr,
         flush=True,
     )
@@ -377,13 +512,19 @@ def run_single_turn_experiment(
         )
         question = str(row.get("question") or "").strip()
         history = [{"speaker": "client", "text": question}]
+        grounding_context = (
+            build_question_grounding_context(row, menu_by_name)
+            if grounding_enabled
+            else ""
+        )
         rag_trace: list[dict[str, Any]] = []
         llm_trace: list[dict[str, Any]] = []
         t0 = time.perf_counter()
         response = cashier.generate_response(
-            profile,
+            pipeline_stub,
             history,
             order_state,
+            extra_grounding_context=grounding_context,
             rag_trace=rag_trace,
             rag_meta={"call": "single_turn", "question_idx": idx},
             llm_trace=llm_trace,
@@ -416,6 +557,8 @@ def run_single_turn_experiment(
                 "metrics": metrics,
                 "source_file": row.get("_source_file"),
                 "source_index": row.get("_source_index"),
+                "retrieval_mode": mode,
+                "question_grounding_enabled": grounding_enabled,
             }
         )
     return rows
@@ -556,6 +699,55 @@ def detect_need_to_specify(response_text: str, mentioned_items: list[str]) -> bo
     return ("?" in response_text) and not mentioned_items
 
 
+def cashier_named_expected_item(
+    expected_item: Any,
+    *,
+    response_text: str,
+    mentioned_items: list[str],
+) -> bool:
+    """True if there is no expected menu item to verify, or cashier text names it (by menu row name)."""
+    if expected_item is None:
+        return True
+    exp = str(expected_item).strip()
+    if not exp:
+        return True
+    if exp in mentioned_items:
+        return True
+    blob = f" {response_text.lower()} "
+    return bool(re.search(_name_pattern(exp), blob, flags=re.IGNORECASE))
+
+
+def _client_nudge_confirm_expected_item(expected_menu_name: str) -> str:
+    item = expected_menu_name.strip()
+    return (
+        f"I'm ordering {item} from the McDonald's menu in this chat. "
+        "Please confirm it's available and add it to my order."
+    )
+
+
+def _question_dialog_continue_after_cashier(
+    *,
+    row: dict[str, Any],
+    cashier_text: str,
+    mentions: list[str],
+    menu_by_name: dict[str, MenuItem],
+) -> Literal["stop", "clarify", "nudge"]:
+    """After a cashier turn: stop, ask clarifier to answer ?, or nudge when item not acknowledged."""
+    if detect_need_to_specify(cashier_text, mentions):
+        return "clarify"
+    raw = row.get("expected_item")
+    exp = str(raw).strip() if raw is not None else ""
+    if not exp or exp not in menu_by_name:
+        return "stop"
+    if _claims_item_unavailable(cashier_text, exp):
+        return "nudge"
+    if _FOREIGN_BRAND_RE.search(cashier_text):
+        return "nudge"
+    if cashier_named_expected_item(raw, response_text=cashier_text, mentioned_items=mentions):
+        return "stop"
+    return "nudge"
+
+
 def is_empty_response(response_text: str) -> bool:
     txt = (response_text or "").strip()
     if not txt:
@@ -647,6 +839,7 @@ def build_metrics_from_judge(
 
     Heuristics remain a fallback when judge output is missing/invalid for a key.
     """
+    judge_values = _flat_judge_metrics(judge_parsed)
     out = dict(heuristic_metrics)
     sources: dict[str, str] = {}
     keys = (
@@ -659,15 +852,15 @@ def build_metrics_from_judge(
         "empty_response",
     )
     for key in keys:
-        if key in judge_parsed:
-            out[key] = _coerce_bool(judge_parsed.get(key))
+        if key in judge_values:
+            out[key] = _coerce_bool(judge_values.get(key))
             sources[key] = "judge"
         else:
             out[key] = _coerce_bool(heuristic_metrics.get(key))
             sources[key] = "heuristic_fallback"
 
-    if "group_completeness" in judge_parsed and judge_parsed.get("group_completeness") is not None:
-        out["group_completeness"] = _as_float(judge_parsed.get("group_completeness"))
+    if "group_completeness" in judge_values and judge_values.get("group_completeness") is not None:
+        out["group_completeness"] = _as_float(judge_values.get("group_completeness"))
         sources["group_completeness"] = "judge"
     elif heuristic_metrics.get("group_completeness") is not None:
         out["group_completeness"] = heuristic_metrics.get("group_completeness")
@@ -676,6 +869,19 @@ def build_metrics_from_judge(
         out["group_completeness"] = None
         sources["group_completeness"] = "none"
     return out, sources
+
+
+def _flat_judge_metrics(judge_parsed: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(judge_parsed, dict):
+        return {}
+    nested = judge_parsed.get("metrics")
+    if isinstance(nested, dict):
+        flat = dict(nested)
+        for key, value in judge_parsed.items():
+            if key != "metrics" and key not in flat:
+                flat[key] = value
+        return flat
+    return judge_parsed
 
 
 def build_judge_comparison(
@@ -1034,12 +1240,15 @@ class DialogJudge:
     ) -> tuple[str, dict[str, Any]]:
         system = (
             "You are an evaluator for McDonald's assistant experiments. "
-            "Use the full menu JSON and full dialogue. "
-            "Return strict JSON only with keys: "
+            "Use the compact menu facts and full dialogue. "
+            "Return EXACTLY one flat JSON object (no nesting, no wrappers) with keys: "
             "success_at_1, success_at_3, success_at_5, hallucination, "
             "constraint_violation, need_to_specify, empty_response, "
             "group_completeness, short_analysis, risks, final_label. "
+            "Do NOT output keys like heuristic_metrics, result, scores, or data. "
+            "All success/violation fields must be booleans. "
             "Include risks as an array of short strings. "
+            "final_label must be 'pass' or 'fail'. "
             "CRITICAL: If cashier says an item is unavailable while that item is present in menu_json, "
             "set hallucination=true and all success_at_* to false. "
             "CRITICAL: If cashier provides item facts (allergens/nutrition) that conflict with menu_json, "
@@ -1049,7 +1258,7 @@ class DialogJudge:
         payload = {
             "question_row": question_row,
             "dialogue": history,
-            "menu_json": menu_json,
+            "menu_facts": _compact_menu_facts(menu_json, question_row),
             "heuristic_metrics": heuristic_metrics,
             "instruction": (
                 "Re-evaluate metrics with your own judgment. "
@@ -1062,9 +1271,98 @@ class DialogJudge:
             system,
             [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
             temperature=0.0,
+            response_format={"type": "json_object"},
         ).strip()
         parsed = _parse_json_object(raw)
+        if not parsed.get("parse_error"):
+            return raw, parsed
+
+        # Retry once with explicit repair instructions when provider/model ignores JSON mode.
+        repair_system = (
+            "Convert the input into one strict JSON object. "
+            "No markdown, no explanations, no code fences, no wrapper keys."
+        )
+        repair_payload = {
+            "required_keys": [
+                "success_at_1",
+                "success_at_3",
+                "success_at_5",
+                "hallucination",
+                "constraint_violation",
+                "need_to_specify",
+                "empty_response",
+                "group_completeness",
+                "short_analysis",
+                "risks",
+                "final_label",
+            ],
+            "bool_keys": [
+                "success_at_1",
+                "success_at_3",
+                "success_at_5",
+                "hallucination",
+                "constraint_violation",
+                "need_to_specify",
+                "empty_response",
+            ],
+            "notes": [
+                "risks must be a JSON array of strings",
+                "group_completeness can be number or null",
+                "final_label should be 'pass' or 'fail'",
+                "output must be a flat object with exactly required_keys",
+                "do not include keys like heuristic_metrics/result/scores/data",
+            ],
+            "source_text": raw,
+        }
+        repaired_raw = _call_llm(
+            self._client,
+            self.model,
+            repair_system,
+            [{"role": "user", "content": json.dumps(repair_payload, ensure_ascii=False)}],
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        ).strip()
+        repaired = _parse_json_object(repaired_raw)
+        if not repaired.get("parse_error"):
+            return repaired_raw, repaired
         return raw, parsed
+
+
+def _compact_menu_facts(menu_json: str, question_row: dict[str, Any]) -> dict[str, Any]:
+    expected_item = str(question_row.get("expected_item") or "").strip()
+    facts: dict[str, Any] = {
+        "expected_item": expected_item or None,
+        "expected_item_in_menu": False,
+        "expected_item_row": None,
+        "known_menu_names": [],
+    }
+    try:
+        rows = json.loads(menu_json)
+    except Exception:
+        return facts
+    if not isinstance(rows, list):
+        return facts
+
+    names: list[str] = []
+    expected_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "").strip()
+        if not name:
+            continue
+        if name not in names:
+            names.append(name)
+        if expected_item and name == expected_item:
+            expected_rows.append(row)
+
+    facts["known_menu_names"] = names
+    if expected_rows:
+        facts["expected_item_in_menu"] = True
+        facts["expected_item_row"] = expected_rows[0]
+        if len(expected_rows) > 1:
+            facts["expected_item_variants"] = expected_rows
+    return facts
 
 
 def _parse_json_object(text: str) -> dict[str, Any]:

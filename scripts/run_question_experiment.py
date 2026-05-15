@@ -61,8 +61,7 @@ def main() -> int:
     _configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description=(
-            "Question-driven dialogue benchmark "
-            "in no-RAG mode (full mcd.json in cashier prompt each cashier turn)."
+            "Question-driven dialogue benchmark over prepared question banks."
         )
     )
     parser.add_argument(
@@ -94,6 +93,24 @@ def main() -> int:
         type=str,
         default=None,
         help="LLM model for post-dialog judge (defaults to API_MODEL/.env).",
+    )
+    parser.add_argument(
+        "--retrieval_mode",
+        choices=["none", "vector"],
+        default="none",
+        help=(
+            "Menu grounding mode for cashier: "
+            "'none' = no RAG retrieval; "
+            "'vector' = standard vector RAG path (no full menu dump)."
+        ),
+    )
+    parser.add_argument(
+        "--disable_question_grounding",
+        action="store_true",
+        help=(
+            "Disable compact machine-built grounding block from question bank row. "
+            "By default it is enabled only for --retrieval_mode none."
+        ),
     )
     parser.add_argument(
         "--max_questions",
@@ -151,11 +168,16 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     started = time.time()
+    question_grounding_enabled = (
+        False if args.disable_question_grounding else (args.retrieval_mode == "none")
+    )
     rows = run_question_dialog_experiment(
         questions,
         cashier_model=args.cashier_model,
         client_model=args.client_model,
         judge_model=args.judge_model,
+        retrieval_mode=args.retrieval_mode,
+        use_question_grounding=question_grounding_enabled,
         max_questions=args.max_questions,
         max_dialog_turns=max(1, args.max_dialog_turns),
         trace_verbose=args.trace_verbose,
@@ -163,7 +185,13 @@ def main() -> int:
     )
     artifacts = save_dialogs_by_category(rows, output_dir=str(out_dir))
     summary = artifacts["summary"]
-    summary["mode"] = "no_rag_full_menu_context"
+    summary["mode"] = (
+        "vector_rag_question_bank"
+        if args.retrieval_mode == "vector"
+        else "no_rag_question_bank_grounding"
+    )
+    summary["retrieval_mode"] = args.retrieval_mode
+    summary["question_grounding_enabled"] = question_grounding_enabled
     summary["question_files"] = question_files
     summary["cashier_model"] = args.cashier_model
     summary["client_model"] = args.client_model
