@@ -1,0 +1,2787 @@
+{
+  "question_id": 36,
+  "category": "allergy",
+  "question": "Can I have a McMuffin without egg?",
+  "expected_item": "Egg McMuffin",
+  "expected_constraints": [
+    {
+      "type": "allergen",
+      "value": "Egg"
+    }
+  ],
+  "dialog_finished_reason": "cashier_without_client_nudge",
+  "dialog_turns": 2,
+  "history": [
+    {
+      "speaker": "client",
+      "text": "Can I have a McMuffin without egg?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "Sure, we have a Sausage McMuffin without egg. Would you like that?"
+    },
+    {
+      "speaker": "judge",
+      "text": "{\n  \"success_at_1\": false,\n  \"success_at_3\": false,\n  \"success_at_5\": false,\n  \"hallucination\": true,\n  \"constraint_violation\": false,\n  \"group_completeness\": false,\n  \"short_reason\": \"The cashier claimed an item 'Sausage McMuffin without egg' that is not present in the menu (known_menu_names only includes 'Sausage McMuffin' and 'Sausage McMuffin with Egg').\"\n}"
+    }
+  ],
+  "final_cashier_response": "Sure, we have a Sausage McMuffin without egg. Would you like that?",
+  "mentioned_items": [
+    "Sausage McMuffin"
+  ],
+  "need_to_specify": false,
+  "empty_response": false,
+  "response_time_ms": 20738.42,
+  "turn_timings_ms": [
+    {
+      "cashier_step": 1.0,
+      "duration_ms": 20738.42
+    }
+  ],
+  "rag_trace": [
+    {
+      "event": "chroma_request",
+      "query_texts": [
+        "McMuffin without egg"
+      ],
+      "n_results": 101,
+      "where": {
+        "allergens": {
+          "$not_contains": "Egg"
+        }
+      }
+    },
+    {
+      "event": "chroma_response",
+      "query_duration_ms": 18.95,
+      "ids": [
+        "74",
+        "21",
+        "22",
+        "19",
+        "20",
+        "5",
+        "6",
+        "7",
+        "8",
+        "63",
+        "30",
+        "50",
+        "24",
+        "17",
+        "9",
+        "4",
+        "26",
+        "25",
+        "44",
+        "61",
+        "58",
+        "40",
+        "42",
+        "81",
+        "16",
+        "1",
+        "10",
+        "48",
+        "82",
+        "2",
+        "34",
+        "35",
+        "87",
+        "49",
+        "33",
+        "85",
+        "83",
+        "0",
+        "68",
+        "3",
+        "36",
+        "37",
+        "31",
+        "79",
+        "11",
+        "95",
+        "46",
+        "93",
+        "38",
+        "39",
+        "70",
+        "86",
+        "69",
+        "84",
+        "54",
+        "55",
+        "41",
+        "47",
+        "53",
+        "64",
+        "96",
+        "80",
+        "45",
+        "60",
+        "59",
+        "27",
+        "28",
+        "29",
+        "88",
+        "89",
+        "52",
+        "43",
+        "91",
+        "92",
+        "51",
+        "14",
+        "15",
+        "13",
+        "94",
+        "78",
+        "77",
+        "90",
+        "56",
+        "57"
+      ],
+      "distances": [
+        0.48216140270233154,
+        0.5365524291992188,
+        0.5365524291992188,
+        0.548281192779541,
+        0.548281192779541,
+        0.5995864868164062,
+        0.5995864868164062,
+        0.5995864868164062,
+        0.5995864868164062,
+        0.6012642979621887,
+        0.6120110154151917,
+        0.6205238103866577,
+        0.6243837475776672,
+        0.6250892281532288,
+        0.6294400095939636,
+        0.6366168260574341,
+        0.6440726518630981,
+        0.6769427061080933,
+        0.6786726713180542,
+        0.6799570322036743,
+        0.6942718029022217,
+        0.7239237427711487,
+        0.7418601512908936,
+        0.7513378858566284,
+        0.7515642046928406,
+        0.7576770782470703,
+        0.7581243515014648,
+        0.7640430331230164,
+        0.7645255327224731,
+        0.7709020376205444,
+        0.7730150818824768,
+        0.7730150818824768,
+        0.7921358346939087,
+        0.7975893020629883,
+        0.7996513247489929,
+        0.8024951815605164,
+        0.8035460710525513,
+        0.8054741621017456,
+        0.8070836663246155,
+        0.8122570514678955,
+        0.8170691132545471,
+        0.8170691132545471,
+        0.8175570964813232,
+        0.8182745575904846,
+        0.8183311223983765,
+        0.8227961659431458,
+        0.8261439800262451,
+        0.828585147857666,
+        0.833732008934021,
+        0.833732008934021,
+        0.835466742515564,
+        0.8382230997085571,
+        0.8427555561065674,
+        0.8443213701248169,
+        0.8445098400115967,
+        0.8445098400115967,
+        0.8546696901321411,
+        0.8612082600593567,
+        0.8616994023323059,
+        0.8661839365959167,
+        0.8741797208786011,
+        0.8754000067710876,
+        0.8820526599884033,
+        0.8823564052581787,
+        0.8891398906707764,
+        0.9035801291465759,
+        0.9035801291465759,
+        0.9035801291465759,
+        0.9047974348068237,
+        0.9095180630683899,
+        0.9103816151618958,
+        0.9111501574516296,
+        0.9127213954925537,
+        0.9226037263870239,
+        0.9279568195343018,
+        0.9381807446479797,
+        0.9381807446479797,
+        0.9431707859039307,
+        0.9550837874412537,
+        0.9684242606163025,
+        0.9718451499938965,
+        1.0364834070205688,
+        1.0381879806518555,
+        1.0381879806518555
+      ],
+      "metadatas": [
+        {
+          "category": "",
+          "sat_fat": 10.0,
+          "added_sugar": 2.0,
+          "tag": "Simple morning classic.",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk"
+          ],
+          "serving_size": "118g",
+          "energy": 400.0,
+          "carbs": 29.0,
+          "protein": 14.0,
+          "sodium": 760.0,
+          "chol": 45.0,
+          "description": "A savory sausage patty and melty American cheese on a toasted English muffin.",
+          "name": "Sausage McMuffin",
+          "trans_fat": 0.0,
+          "ingredients": "English muffin, sausage patty, American cheese",
+          "total_fat": 26.0,
+          "total_sugar": 2.0
+        },
+        {
+          "total_fat": 3.7,
+          "description": "Milk-based frozen dessert with oreo cookies.",
+          "ingredients": "Milk fat, Oreo",
+          "category": "",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya",
+            "Sulphites"
+          ],
+          "sodium": 80.73,
+          "energy": 116.36,
+          "name": "McFlurry (Oreo)",
+          "carbs": 18.69,
+          "sat_fat": 2.25,
+          "chol": 4.8,
+          "protein": 2.05,
+          "serving_size": "86.79g",
+          "total_sugar": 14.49,
+          "tag": "Burgers aren't the only things we're good at.",
+          "trans_fat": 0.07,
+          "added_sugar": 10.8
+        },
+        {
+          "total_fat": 6.81,
+          "name": "McFlurry (Oreo)",
+          "energy": 209.39,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya",
+            "Sulphites"
+          ],
+          "trans_fat": 0.12,
+          "chol": 8.0,
+          "added_sugar": 19.23,
+          "serving_size": "147.38g",
+          "protein": 3.58,
+          "sat_fat": 4.07,
+          "category": "",
+          "carbs": 33.42,
+          "tag": "Burgers aren't the only things we're good at.",
+          "description": "Milk-based frozen dessert with oreo cookies.",
+          "sodium": 150.9,
+          "ingredients": "Milk fat, Oreo",
+          "total_sugar": 25.35
+        },
+        {
+          "ingredients": "Milk fat, Chocolate",
+          "description": "Milk-based frozen dessert with chocolate crispies and chocolate dip.",
+          "name": "McFlurry (Choco Crunch)",
+          "category": "",
+          "added_sugar": 54.51,
+          "tag": "Burgers aren't the only things we're good at.",
+          "total_fat": 19.68,
+          "serving_size": "167.38g",
+          "carbs": 117.78,
+          "total_sugar": 66.93,
+          "protein": 10.99,
+          "sodium": 295.89,
+          "chol": 11.06,
+          "sat_fat": 13.8,
+          "allergens": [
+            "Milk",
+            "Soya"
+          ],
+          "trans_fat": 0.21,
+          "energy": 703.17
+        },
+        {
+          "serving_size": "94.29g",
+          "sodium": 57.8,
+          "added_sugar": 13.04,
+          "total_sugar": 17.36,
+          "ingredients": "Milk fat, Chocolate",
+          "sat_fat": 3.91,
+          "protein": 2.62,
+          "allergens": [
+            "Milk",
+            "Soya"
+          ],
+          "category": "",
+          "name": "McFlurry (Choco Crunch)",
+          "energy": 115.19,
+          "tag": "Burgers aren't the only things we're good at.",
+          "chol": 5.37,
+          "trans_fat": 0.07,
+          "total_fat": 5.39,
+          "description": "Milk-based frozen dessert with chocolate crispies and chocolate dip.",
+          "carbs": 23.67
+        },
+        {
+          "ingredients": "Chicken bites",
+          "chol": 24.66,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "carbs": 10.5,
+          "serving_size": "64g",
+          "name": "Chicken McNuggets",
+          "category": "",
+          "added_sugar": 0.0,
+          "sat_fat": 4.45,
+          "total_fat": 9.544,
+          "protein": 10.03,
+          "trans_fat": 0.06,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "total_sugar": 0.32,
+          "tag": "Each bite is better than the last.",
+          "sodium": 313.25,
+          "energy": 169.68
+        },
+        {
+          "total_sugar": 0.48,
+          "sodium": 469.87,
+          "total_fat": 14.3,
+          "serving_size": "96g",
+          "category": "",
+          "energy": 254.52,
+          "added_sugar": 0.0,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "chol": 36.99,
+          "trans_fat": 0.1,
+          "carbs": 15.74,
+          "tag": "Each bite is better than the last.",
+          "ingredients": "Chicken bites",
+          "sat_fat": 6.68,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "name": "Chicken McNuggets",
+          "protein": 15.04
+        },
+        {
+          "category": "",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "trans_fat": 0.3,
+          "protein": 47.6,
+          "total_fat": 46.9,
+          "energy": 806.1,
+          "ingredients": "Chicken bites",
+          "added_sugar": 0.0,
+          "total_sugar": 1.7,
+          "sodium": 1490.0,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "chol": 115.0,
+          "tag": "Each bite is better than the last.",
+          "serving_size": "320g",
+          "name": "Chicken McNuggets",
+          "sat_fat": 21.11,
+          "carbs": 49.88
+        },
+        {
+          "protein": 22.56,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "chol": 55.48,
+          "carbs": 23.62,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "added_sugar": 0.0,
+          "energy": 381.77,
+          "name": "Chicken McNuggets",
+          "serving_size": "144g",
+          "total_fat": 21.46,
+          "tag": "Each bite is better than the last.",
+          "total_sugar": 0.72,
+          "category": "",
+          "sat_fat": 10.02,
+          "sodium": 704.81,
+          "trans_fat": 0.14,
+          "ingredients": "Chicken bites"
+        },
+        {
+          "category": "",
+          "carbs": 42.0,
+          "tag": "A meal that makes kids smile.",
+          "added_sugar": 0.0,
+          "chol": 30.0,
+          "protein": 15.0,
+          "energy": 395.0,
+          "serving_size": "250g",
+          "total_fat": 18.0,
+          "trans_fat": 0.0,
+          "ingredients": "4pc Chicken McNuggets, small fries, apple slices, choice of drink",
+          "sodium": 500.0,
+          "total_sugar": 5.0,
+          "name": "Happy Meal (4pc McNuggets)",
+          "sat_fat": 3.0,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "description": "A Happy Meal with 4 Chicken McNuggets, small fries, apple slices, and your choice of a drink. Includes a fun toy!"
+        },
+        {
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "sodium": 390.74,
+          "energy": 228.21,
+          "description": "A blend of assorted vegetables (carrot, beans,capsicum, onion & green peas); mozzarella cheese mixed with tomato sauce; and exotic spices stuffed in rectangle shaped savoury dough. Quick frozen.",
+          "tag": "Something different. Something delicious.",
+          "ingredients": "Assorted vegetables, Refined wheat flour, Pizza seasoning",
+          "name": "Pizza McPuff",
+          "carbs": 24.79,
+          "total_sugar": 2.73,
+          "category": "",
+          "trans_fat": 0.09,
+          "protein": 5.45,
+          "chol": 5.17,
+          "serving_size": "87g",
+          "added_sugar": 0.35,
+          "sat_fat": 5.72,
+          "total_fat": 11.44
+        },
+        {
+          "description": "Our tender, juicy Chicken McNuggets are made with 100% white meat chicken and no artificial colors, flavors or preservatives.",
+          "ingredients": "Chicken bites with tempura batter",
+          "carbs": 25.0,
+          "total_sugar": 0.0,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "sodium": 900.0,
+          "protein": 25.0,
+          "chol": 65.0,
+          "serving_size": "162g",
+          "sat_fat": 4.0,
+          "energy": 420.0,
+          "tag": "The perfect shareable snack.",
+          "added_sugar": 0.0,
+          "category": "",
+          "name": "10pc Chicken McNuggets",
+          "trans_fat": 0.0,
+          "total_fat": 25.0
+        },
+        {
+          "total_fat": 39.45,
+          "energy": 652.76,
+          "trans_fat": 0.18,
+          "category": "",
+          "name": "McSpicy Paneer",
+          "tag": "Let paneer surprise you.",
+          "protein": 20.29,
+          "sat_fat": 17.12,
+          "serving_size": "199g",
+          "description": "Crispy and spicy paneer patty with creamy tandoori sauce and crispy lettuce topping.",
+          "added_sugar": 5.27,
+          "chol": 21.85,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "sodium": 1074.58,
+          "total_sugar": 8.35,
+          "carbs": 52.33,
+          "ingredients": "Quarter pounder bun crown, Shredded lettuce, Tandoori mayo, Spicy paneer patty, Quarter pounder bun heel"
+        },
+        {
+          "sat_fat": 5.47,
+          "category": "",
+          "description": "Batter & breaded chicken patty containing green peas, carrots, green beans, onion, potatoes, rice and spices, served in a bun with eggless mayonnaise and lettuce.",
+          "energy": 400.8,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "total_sugar": 5.53,
+          "protein": 15.66,
+          "tag": "Familiarity breeds confidence.",
+          "trans_fat": 0.16,
+          "sodium": 766.33,
+          "name": "McChicken",
+          "added_sugar": 4.49,
+          "serving_size": "173g",
+          "chol": 31.17,
+          "carbs": 47.98,
+          "total_fat": 15.7,
+          "ingredients": "Quarter bun crown, Veg mayonnaise, Shredded lettuce, McChicken patty, Quarter bun heel"
+        },
+        {
+          "energy": 270.05,
+          "chol": 15.81,
+          "added_sugar": 19.98,
+          "description": "Rich smooth creamy cold coffee along with sweet vanilla flavoured soft serve mix.",
+          "protein": 5.91,
+          "allergens": [
+            "Milk"
+          ],
+          "total_fat": 7.18,
+          "name": "Cold Coffee Mcfloat",
+          "sat_fat": 4.89,
+          "category": "",
+          "serving_size": "270ml",
+          "carbs": 45.44,
+          "tag": "",
+          "trans_fat": 0.0,
+          "sodium": 173.59,
+          "total_sugar": 36.18,
+          "ingredients": ""
+        },
+        {
+          "category": "",
+          "sat_fat": 10.33,
+          "total_sugar": 8.92,
+          "sodium": 1854.71,
+          "serving_size": "296g",
+          "trans_fat": 0.25,
+          "protein": 34.0,
+          "ingredients": "Maharaja bun crown, Haberno sauce, Shredded lettuce, Shredded onion, Jalapenos, Flame-grilled chicken patty, Sliced cheese, Maharaja bun heel",
+          "total_fat": 36.69,
+          "energy": 689.12,
+          "tag": "A royal treat.",
+          "name": "Chicken Maharaja Mac",
+          "description": "A double-decker toasted Maharaja bun sandwiched with one layer of flame-grilled chicken patty; crunchy iceberg lettuce; shredded onion; and a slice of cheese. Topped with another layer of flame-grilled\n                                chicken patty; tomato slices; and crunchy iceberg lettuce infused with harberno sauce.",
+          "carbs": 55.39,
+          "added_sugar": 6.14,
+          "chol": 81.49,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ]
+        },
+        {
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "sat_fat": 5.34,
+          "serving_size": "168g",
+          "tag": "Pure taste. Pure veg.",
+          "chol": 2.49,
+          "total_fat": 13.83,
+          "protein": 10.24,
+          "ingredients": "Quarter bun crown, Veg mayonnaise, Shredded lettuce, Vegetable patty, Quarter bun heel",
+          "added_sugar": 4.49,
+          "description": "A delectable patty made of green goodness, potatoes, peas, carrots and a selection of Indian spices. Topped with crispy lettuce, mayonnaise, and packed into sesame toasted buns.",
+          "energy": 402.05,
+          "carbs": 56.54,
+          "name": "McVeggie",
+          "total_sugar": 7.9,
+          "trans_fat": 0.16,
+          "sodium": 706.13,
+          "category": ""
+        },
+        {
+          "sat_fat": 5.25,
+          "added_sugar": 11.31,
+          "category": "",
+          "carbs": 20.92,
+          "trans_fat": 0.07,
+          "serving_size": "93.29g",
+          "name": "McSwirl Chocolate",
+          "total_fat": 7.14,
+          "ingredients": "Soft serve mix (100% diary product), Chocolate dip",
+          "chol": 5.71,
+          "description": "Delightful soft-serve with a delectable chocolate topping.",
+          "protein": 2.71,
+          "total_sugar": 15.39,
+          "tag": "Melts in your mouth. Goes to your heart.",
+          "sodium": 51.31,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "energy": 160.14
+        },
+        {
+          "energy": 400.0,
+          "sat_fat": 9.0,
+          "name": "McDouble",
+          "total_sugar": 7.0,
+          "total_fat": 20.0,
+          "sodium": 920.0,
+          "chol": 70.0,
+          "protein": 22.0,
+          "category": "",
+          "ingredients": "Two 100% beef patties, one slice of cheese, pickles, onions, ketchup, mustard, regular bun",
+          "trans_fat": 1.0,
+          "carbs": 33.0,
+          "added_sugar": 5.0,
+          "tag": "Double the beef, double the taste.",
+          "description": "The McDouble features two 100% pure beef patties seasoned with just a pinch of salt and pepper. It's topped with tangy pickles, chopped onions, ketchup, mustard and a slice of melty American cheese.",
+          "serving_size": "155g",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk"
+          ]
+        },
+        {
+          "serving_size": "84g",
+          "trans_fat": 0.0,
+          "name": "Apple Pie",
+          "ingredients": "Apples, flour, sugar, palm oil, cinnamon, salt",
+          "carbs": 32.0,
+          "total_fat": 11.0,
+          "total_sugar": 13.0,
+          "sodium": 170.0,
+          "protein": 2.0,
+          "category": "",
+          "energy": 230.0,
+          "tag": "A warm, sweet classic.",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk"
+          ],
+          "sat_fat": 6.0,
+          "added_sugar": 10.0,
+          "chol": 0.0,
+          "description": "McDonald's Baked Apple Pie features 100% American-grown apples, and a lattice crust baked to perfection and topped with sprinkled sugar."
+        },
+        {
+          "description": "The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.",
+          "carbs": 34.0,
+          "chol": 0.0,
+          "energy": 150.0,
+          "name": "Orange Juice",
+          "tag": "Start your day with vitamin C.",
+          "added_sugar": 0.0,
+          "total_fat": 0.0,
+          "serving_size": "355ml",
+          "category": "",
+          "sat_fat": 0.0,
+          "sodium": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "trans_fat": 0.0,
+          "total_sugar": 30.0,
+          "ingredients": "100% orange juice from concentrate",
+          "protein": 2.0
+        },
+        {
+          "protein": 24.17,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "total_sugar": 11.52,
+          "category": "",
+          "serving_size": "306g",
+          "total_fat": 37.94,
+          "added_sugar": 6.92,
+          "energy": 832.67,
+          "chol": 36.19,
+          "description": "A double-decker toasted Maharaja bun sandwiched with one layer of corn & cheese patty; crunchy iceberg lettuce; shredded onion; and a slice of cheese. Topped with another layer of corn & cheese patty;\n                                tomato slices; and crunchy iceberg lettuce infused with harberno sauce.",
+          "sat_fat": 16.83,
+          "trans_fat": 0.28,
+          "tag": "A feast fit for kings (and queens).",
+          "sodium": 1529.22,
+          "carbs": 93.84,
+          "ingredients": "Maharaja bun crown, Cocktail sauce, Shredded lettuce, Shredded onion, Jalepenos, Corn & cheese patty, club, Sliced cheese, Maharaja bun heel",
+          "name": "Veg Maharaja Mac"
+        },
+        {
+          "protein": 25.0,
+          "chol": 80.0,
+          "total_fat": 30.0,
+          "added_sugar": 6.0,
+          "total_sugar": 9.0,
+          "name": "Big Mac",
+          "energy": 550.0,
+          "carbs": 45.0,
+          "sodium": 1010.0,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Sesame"
+          ],
+          "tag": "Two all-beef patties, special sauce, lettuce, cheese.",
+          "sat_fat": 11.0,
+          "serving_size": "215g",
+          "ingredients": "Two 100% beef patties, Big Mac sauce, lettuce, cheese, pickles, onions, sesame seed bun",
+          "trans_fat": 1.0,
+          "category": "",
+          "description": "Mouthwatering perfection starts with two 100% pure beef patties and Big Mac sauce sandwiched between a sesame seed bun. It's topped off with pickles, crisp shredded lettuce, finely chopped onion and American cheese."
+        },
+        {
+          "sodium": 120.0,
+          "energy": 310.0,
+          "serving_size": "355ml",
+          "carbs": 48.0,
+          "allergens": [
+            "Milk"
+          ],
+          "trans_fat": 0.0,
+          "name": "Caramel Macchiato",
+          "ingredients": "Espresso, steamed milk, vanilla syrup, caramel drizzle",
+          "total_sugar": 44.0,
+          "category": "",
+          "sat_fat": 4.5,
+          "total_fat": 8.0,
+          "protein": 10.0,
+          "tag": "Layered espresso favorite.",
+          "chol": 30.0,
+          "description": "Freshly steamed milk with vanilla-flavored syrup marked with espresso and caramel drizzle.",
+          "added_sugar": 38.0
+        },
+        {
+          "protein": 8.5,
+          "tag": "The one that never goes out of f(l)avour.",
+          "trans_fat": 0.2,
+          "description": "A golden fried vegetarian patty prepared with peas, potato and infused with aromatic spices. Clubbed with sliced tomatoes, shredded red onion, and tangy tomato mayonnaise. Served in a warm toasted bun.",
+          "carbs": 50.27,
+          "chol": 1.47,
+          "energy": 339.52,
+          "sodium": 545.34,
+          "total_fat": 11.31,
+          "ingredients": "Regular bun crown, Tom-Mayo sauce, Sliced tomatoes, Shredded onion, Aloo tikki patty, Regular bun heel",
+          "name": "McAloo Tikki Burger",
+          "serving_size": "146g",
+          "category": "",
+          "sat_fat": 4.27,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "added_sugar": 4.07,
+          "total_sugar": 7.05
+        },
+        {
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "description": "Premium grilled chicken patty topped with makhani sauce and shredded onions placed between freshly toasted sesame seeded buns.",
+          "total_sugar": 6.55,
+          "sodium": 919.59,
+          "name": "Butter Chicken Grilled Burger",
+          "chol": 31.93,
+          "added_sugar": 4.71,
+          "serving_size": "153g",
+          "trans_fat": 0.0,
+          "tag": "Dil se makhani burger.",
+          "total_fat": 14.41,
+          "energy": 357.01,
+          "protein": 17.06,
+          "category": "",
+          "ingredients": "Premium grilled chicken patty, Shredded onion, Sesame seeded buns",
+          "carbs": 39.76,
+          "sat_fat": 4.65
+        },
+        {
+          "allergens": [
+            "Milk"
+          ],
+          "serving_size": "250ml",
+          "added_sugar": 21.25,
+          "chol": 27.4,
+          "energy": 301.1,
+          "description": "A rich smooth creamy cold coffee made with coffee powder and milk.",
+          "sodium": 175.0,
+          "carbs": 40.2,
+          "name": "Cold Coffee",
+          "protein": 9.75,
+          "total_fat": 11.15,
+          "ingredients": "",
+          "tag": "",
+          "total_sugar": 37.5,
+          "trans_fat": 0.0,
+          "sat_fat": 7.45,
+          "category": ""
+        },
+        {
+          "total_fat": 20.0,
+          "trans_fat": 0.0,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk"
+          ],
+          "tag": "Crispy, juicy, tender.",
+          "chol": 55.0,
+          "energy": 470.0,
+          "serving_size": "210g",
+          "category": "",
+          "sat_fat": 4.0,
+          "protein": 26.0,
+          "carbs": 46.0,
+          "description": "A southern style fried chicken sandwich that's crispy, juicy and tender perfection. It's topped with crinkle-cut pickles and served on a toasted, buttered potato roll.",
+          "name": "Crispy Chicken Sandwich",
+          "total_sugar": 5.0,
+          "added_sugar": 3.0,
+          "ingredients": "Crispy chicken fillet, crinkle-cut pickles, butter, potato roll",
+          "sodium": 1100.0
+        },
+        {
+          "trans_fat": 0.0,
+          "added_sugar": 58.0,
+          "total_sugar": 64.0,
+          "ingredients": "Coffee, mocha sauce, ice, whipped cream, milk",
+          "total_fat": 18.0,
+          "category": "",
+          "energy": 480.0,
+          "name": "Mocha Frappe",
+          "chol": 55.0,
+          "sodium": 180.0,
+          "serving_size": "415ml",
+          "allergens": [
+            "Milk"
+          ],
+          "tag": "Frozen chocolate coffee treat.",
+          "carbs": 72.0,
+          "protein": 7.0,
+          "sat_fat": 11.0,
+          "description": "Mocha coffee frappe blended with ice and topped with whipped cream."
+        },
+        {
+          "description": "Mildly spiced grilled paneer patty topped with makhani sauce and shredded onions placed between freshly toasted sesame seeded buns.",
+          "total_sugar": 8.78,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "carbs": 44.12,
+          "trans_fat": 0.0,
+          "tag": "Dil se makhani burger.",
+          "serving_size": "142g",
+          "total_fat": 17.15,
+          "protein": 12.85,
+          "chol": 6.62,
+          "name": "Butter Paneer Grilled Burger",
+          "energy": 382.26,
+          "added_sugar": 5.08,
+          "ingredients": "Mildly spiced grilled paneer patty, Shredded onion, Sesame seeded buns",
+          "category": "",
+          "sodium": 900.37,
+          "sat_fat": 8.29
+        },
+        {
+          "name": "Sundae (Chocolate Brownie)",
+          "ingredients": "Soft serve mix (100% diary), Hazelnut brownie, Hot fudge topping",
+          "sat_fat": 3.65,
+          "serving_size": "110.79g",
+          "sodium": 100.89,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Nuts"
+          ],
+          "tag": "A global favourite.",
+          "energy": 205.26,
+          "description": "An iconic premium dessert option. Can be bought as an add-on to make it a \"full meal\" or simply as an indulgence.",
+          "total_fat": 5.45,
+          "carbs": 35.26,
+          "chol": 6.04,
+          "trans_fat": 0.1,
+          "total_sugar": 20.75,
+          "protein": 3.2,
+          "category": "",
+          "added_sugar": 14.39
+        },
+        {
+          "carbs": 55.24,
+          "ingredients": "Soft serve mix (100% diary), Hazelnut brownie, Hot fudge topping",
+          "trans_fat": 0.13,
+          "total_fat": 7.46,
+          "name": "Sundae (Chocolate Brownie)",
+          "sat_fat": 4.71,
+          "total_sugar": 27.94,
+          "category": "",
+          "added_sugar": 20.28,
+          "chol": 7.78,
+          "energy": 311.39,
+          "tag": "A global favourite.",
+          "serving_size": "155.08g",
+          "description": "An iconic premium dessert option. Can be bought as an add-on to make it a \"full meal\" or simply as an indulgence.",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Nuts"
+          ],
+          "protein": 4.65,
+          "sodium": 146.4
+        },
+        {
+          "added_sugar": 42.0,
+          "name": "Hot Chocolate",
+          "trans_fat": 0.0,
+          "sodium": 150.0,
+          "ingredients": "Steamed milk, chocolate syrup, whipped cream",
+          "carbs": 54.0,
+          "allergens": [
+            "Milk"
+          ],
+          "total_sugar": 48.0,
+          "serving_size": "355ml",
+          "description": "Steamed milk with rich chocolate syrup and optional whipped topping.",
+          "category": "",
+          "chol": 40.0,
+          "sat_fat": 8.0,
+          "total_fat": 14.0,
+          "protein": 11.0,
+          "energy": 380.0,
+          "tag": "Warm chocolate comfort."
+        },
+        {
+          "name": "Spicy Crispy Chicken Sandwich",
+          "total_sugar": 6.0,
+          "trans_fat": 0.0,
+          "chol": 60.0,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk"
+          ],
+          "added_sugar": 4.0,
+          "carbs": 47.0,
+          "total_fat": 26.0,
+          "tag": "Crispy chicken with a kick.",
+          "sodium": 1250.0,
+          "description": "A southern style fried chicken sandwich with a spicy pepper sauce. It's crispy, juicy, tender and topped with crinkle-cut pickles on a toasted, buttered potato roll.",
+          "category": "",
+          "energy": 530.0,
+          "protein": 27.0,
+          "sat_fat": 5.0,
+          "ingredients": "Spicy crispy chicken fillet, crinkle-cut pickles, spicy pepper sauce, potato roll",
+          "serving_size": "215g"
+        },
+        {
+          "protein": 20.96,
+          "added_sugar": 1.08,
+          "chol": 40.93,
+          "total_fat": 39.1,
+          "total_sugar": 3.5,
+          "ingredients": "Whole wheat flat bread, Spicy paneer patty, Veg mayo, Lettuce, Onion, Tomato, Mustard sauce, Cheese",
+          "carbs": 59.278,
+          "trans_fat": 0.26,
+          "description": "Tender paneer patty with a fiery, crunchy batter coating; dressed with fresh veggies and seasonings; topped with creamy sauce; and a dash of mustard and melted cheese.",
+          "energy": 674.68,
+          "sodium": 1087.46,
+          "category": "",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "sat_fat": 19.73,
+          "tag": "Unwrap deliciousness.",
+          "name": "Spicy Paneer Wrap",
+          "serving_size": "250g"
+        },
+        {
+          "total_fat": 13.0,
+          "carbs": 79.0,
+          "serving_size": "400ml",
+          "category": "",
+          "name": "Vanilla Shake",
+          "sat_fat": 8.0,
+          "tag": "Simple vanilla bliss.",
+          "chol": 50.0,
+          "total_sugar": 70.0,
+          "protein": 11.0,
+          "sodium": 280.0,
+          "ingredients": "Vanilla soft serve, milk",
+          "energy": 480.0,
+          "allergens": [
+            "Milk"
+          ],
+          "trans_fat": 0.0,
+          "description": "Classic vanilla shake — smooth and sweet.",
+          "added_sugar": 58.0
+        },
+        {
+          "added_sugar": 56.0,
+          "category": "",
+          "energy": 450.0,
+          "protein": 6.0,
+          "trans_fat": 0.0,
+          "serving_size": "415ml",
+          "carbs": 68.0,
+          "allergens": [
+            "Milk"
+          ],
+          "tag": "Sweet frozen coffee.",
+          "sat_fat": 10.0,
+          "description": "Blended coffee drink with buttery caramel and whipped cream.",
+          "total_sugar": 62.0,
+          "chol": 50.0,
+          "ingredients": "Coffee, caramel syrup, ice, whipped cream, milk",
+          "sodium": 170.0,
+          "total_fat": 17.0,
+          "name": "Caramel Frappe"
+        },
+        {
+          "total_sugar": 0.0,
+          "serving_size": "200ml",
+          "sat_fat": 0.0,
+          "added_sugar": 0.0,
+          "trans_fat": 0.0,
+          "sodium": 0.0,
+          "protein": 0.0,
+          "energy": 6.8,
+          "description": "Perfectly brewed for any time of the day.",
+          "category": "",
+          "allergens": [
+            "__none__"
+          ],
+          "carbs": 1.7,
+          "ingredients": "",
+          "name": "Black Coffee",
+          "tag": "",
+          "chol": 0.0,
+          "total_fat": 0.0
+        },
+        {
+          "total_sugar": 22.0,
+          "carbs": 30.0,
+          "description": "Our creamy, low-fat vanilla yogurt layered with strawberries, blueberries and crunchy granola. A delicious snack or treat.",
+          "allergens": [
+            "Milk",
+            "Cereal containing gluten"
+          ],
+          "ingredients": "Low-fat vanilla yogurt, strawberries, blueberries, granola",
+          "energy": 150.0,
+          "sat_fat": 1.0,
+          "category": "",
+          "name": "Fruit and Yogurt Parfait",
+          "protein": 4.0,
+          "chol": 5.0,
+          "added_sugar": 15.0,
+          "serving_size": "150g",
+          "tag": "A fresh, fruity treat.",
+          "trans_fat": 0.0,
+          "total_fat": 2.0,
+          "sodium": 70.0
+        },
+        {
+          "tag": "Hi, it’s cheese on this side!",
+          "energy": 453.92,
+          "name": "Cheesy Fries",
+          "sat_fat": 10.64,
+          "protein": 7.19,
+          "added_sugar": 0.4,
+          "ingredients": "Salted Fries, Smoky Chipotle Sauce",
+          "allergens": [
+            "Milk"
+          ],
+          "total_fat": 21.1,
+          "trans_fat": 0.59,
+          "category": "",
+          "chol": 3.89,
+          "serving_size": "150g",
+          "description": "The all-time favourite fries with a generous dollop of cheesy yet smoky chipotle sauce.",
+          "sodium": 430.79,
+          "carbs": 41.94,
+          "total_sugar": 0.95
+        },
+        {
+          "ingredients": "Soft serve mix (100% diary), Hot fudge topping",
+          "protein": 3.49,
+          "sat_fat": 5.16,
+          "chol": 8.55,
+          "added_sugar": 16.9,
+          "trans_fat": 0.13,
+          "allergens": [
+            "Milk"
+          ],
+          "total_fat": 6.87,
+          "serving_size": "132.08g",
+          "total_sugar": 27.01,
+          "energy": 197.45,
+          "carbs": 30.42,
+          "sodium": 110.39,
+          "description": "Creamy vanilla soft-serve topped with thick and rich hot fudge.",
+          "name": "Sundae (Chocolate)",
+          "tag": "Much more than ice-cream.",
+          "category": ""
+        },
+        {
+          "allergens": [
+            "Milk"
+          ],
+          "sodium": 65.56,
+          "chol": 5.85,
+          "name": "Sundae (Chocolate)",
+          "carbs": 19.11,
+          "trans_fat": 0.08,
+          "protein": 2.25,
+          "description": "Creamy vanilla soft-serve topped with thick and rich hot fudge.",
+          "added_sugar": 10.78,
+          "category": "",
+          "tag": "Much more than ice-cream.",
+          "total_sugar": 17.07,
+          "total_fat": 4.02,
+          "energy": 121.64,
+          "sat_fat": 3.01,
+          "serving_size": "91.79g",
+          "ingredients": "Soft serve mix (100% diary), Hot fudge topping"
+        },
+        {
+          "serving_size": "81.29g",
+          "total_fat": 1.82,
+          "name": "Soft Serve Cone",
+          "sodium": 40.78,
+          "trans_fat": 0.05,
+          "protein": 1.99,
+          "chol": 4.75,
+          "total_sugar": 10.68,
+          "sat_fat": 1.31,
+          "carbs": 15.23,
+          "ingredients": "Soft serve mix (100% diary product)",
+          "category": "",
+          "description": "Creamy vanilla soft-serve on a cone.",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "added_sugar": 6.99,
+          "energy": 85.73,
+          "tag": "Delightfully basic."
+        },
+        {
+          "chol": 25.0,
+          "ingredients": "Coffee, cream, liquid sugar",
+          "tag": "Cold and creamy pick-me-up.",
+          "energy": 180.0,
+          "allergens": [
+            "Milk"
+          ],
+          "trans_fat": 0.0,
+          "protein": 2.0,
+          "sat_fat": 4.0,
+          "total_fat": 7.0,
+          "category": "",
+          "added_sugar": 22.0,
+          "carbs": 28.0,
+          "serving_size": "400ml",
+          "name": "Iced Coffee",
+          "sodium": 45.0,
+          "total_sugar": 26.0,
+          "description": "Chilled premium roast coffee with cream and a touch of sweetness."
+        },
+        {
+          "trans_fat": 0.0,
+          "sat_fat": 4.22,
+          "total_fat": 12.39,
+          "tag": "A new taste of India.",
+          "serving_size": "138g",
+          "name": "Dosa Masala Burger",
+          "category": "",
+          "description": "Turmeric-spiced mashed potato filling topped with fresh peas. Grilled and placed inside a soft whole wheat bun with a spicy molagapodi chutney mayo.",
+          "chol": 0.0,
+          "carbs": 51.52,
+          "protein": 5.66,
+          "energy": 340.23,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "total_sugar": 12.68,
+          "added_sugar": 6.4,
+          "sodium": 710.54,
+          "ingredients": "Whole wheat bun, Rasam mayo, Dosa masala aloo patty"
+        },
+        {
+          "energy": 210.0,
+          "added_sugar": 35.0,
+          "sat_fat": 1.0,
+          "protein": 4.0,
+          "trans_fat": 0.0,
+          "total_fat": 2.0,
+          "chol": 5.0,
+          "description": "Blended strawberry and banana with creamy yogurt.",
+          "tag": "Fruit smoothie treat.",
+          "ingredients": "Strawberry puree, banana puree, low-fat yogurt, ice",
+          "sodium": 45.0,
+          "serving_size": "415ml",
+          "name": "Strawberry Banana Smoothie",
+          "category": "",
+          "allergens": [
+            "Milk"
+          ],
+          "total_sugar": 42.0,
+          "carbs": 46.0
+        },
+        {
+          "name": "Hamburger",
+          "ingredients": "100% beef patty, pickles, onions, ketchup, mustard, regular bun",
+          "trans_fat": 0.5,
+          "total_sugar": 6.0,
+          "category": "",
+          "description": "The original burger. A 100% beef patty seasoned with a pinch of salt and pepper, topped with tangy pickles, chopped onions, ketchup and mustard.",
+          "serving_size": "105g",
+          "added_sugar": 4.0,
+          "carbs": 31.0,
+          "chol": 30.0,
+          "sat_fat": 3.5,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "sodium": 510.0,
+          "energy": 250.0,
+          "protein": 12.0,
+          "tag": "The classic that started it all.",
+          "total_fat": 9.0
+        },
+        {
+          "ingredients": "Water, high fructose corn syrup, lemon juice concentrate",
+          "energy": 180.0,
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "added_sugar": 45.0,
+          "category": "",
+          "allergens": [
+            "__none__"
+          ],
+          "serving_size": "500ml",
+          "description": "Classic lemonade with real lemon flavor.",
+          "tag": "Tart and refreshing.",
+          "protein": 0.0,
+          "sat_fat": 0.0,
+          "carbs": 46.0,
+          "sodium": 25.0,
+          "total_sugar": 45.0,
+          "chol": 0.0,
+          "name": "Minute Maid Lemonade"
+        },
+        {
+          "allergens": [
+            "Milk"
+          ],
+          "category": "",
+          "trans_fat": 0.1,
+          "sat_fat": 1.74,
+          "name": "Sundae (Strawberry)",
+          "sodium": 48.28,
+          "ingredients": "Soft serve mix (100% diary), Strawberry topping",
+          "tag": "A little zing goes a long way.",
+          "total_sugar": 28.2,
+          "carbs": 31.77,
+          "added_sugar": 20.32,
+          "energy": 156.14,
+          "protein": 2.05,
+          "chol": 6.55,
+          "total_fat": 2.36,
+          "serving_size": "132.08g",
+          "description": "Creamy vanilla soft-serve with strawberry topping."
+        },
+        {
+          "description": "Creamy vanilla soft-serve with strawberry topping.",
+          "carbs": 19.78,
+          "total_fat": 1.77,
+          "added_sugar": 12.49,
+          "sat_fat": 1.3,
+          "serving_size": "91.79g",
+          "category": "",
+          "energy": 100.99,
+          "tag": "A little zing goes a long way.",
+          "chol": 4.85,
+          "total_sugar": 17.66,
+          "sodium": 34.51,
+          "name": "Sundae (Strawberry)",
+          "protein": 1.54,
+          "ingredients": "Soft serve mix (100% diary), Strawberry topping",
+          "allergens": [
+            "Milk"
+          ],
+          "trans_fat": 0.06
+        },
+        {
+          "carbs": 43.0,
+          "energy": 630.0,
+          "description": "A quarter pound of 100% beef with thick-cut applewood smoked bacon, two slices of cheese, pickles, ketchup and mustard.",
+          "tag": "Smoky bacon meets quarter pound beef.",
+          "chol": 120.0,
+          "serving_size": "245g",
+          "total_fat": 35.0,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Sesame"
+          ],
+          "protein": 37.0,
+          "sat_fat": 15.0,
+          "trans_fat": 1.5,
+          "total_sugar": 11.0,
+          "ingredients": "Quarter pound beef patty, bacon strips, cheese, pickles, ketchup, mustard, sesame bun",
+          "name": "Bacon Quarter Pounder with Cheese",
+          "category": "",
+          "added_sugar": 8.0,
+          "sodium": 1480.0
+        },
+        {
+          "energy": 500.0,
+          "sodium": 290.0,
+          "protein": 11.0,
+          "chol": 50.0,
+          "carbs": 84.0,
+          "added_sugar": 62.0,
+          "total_sugar": 75.0,
+          "serving_size": "400ml",
+          "description": "Strawberry-flavored shake blended with vanilla soft serve.",
+          "sat_fat": 8.0,
+          "total_fat": 13.0,
+          "trans_fat": 0.0,
+          "allergens": [
+            "Milk"
+          ],
+          "name": "Strawberry Shake",
+          "ingredients": "Vanilla soft serve, strawberry syrup, milk",
+          "tag": "Fruity pink shake.",
+          "category": ""
+        },
+        {
+          "chol": 175.0,
+          "name": "Double Quarter Pounder with Cheese",
+          "sat_fat": 21.0,
+          "tag": "Serious beef appetite.",
+          "carbs": 42.0,
+          "trans_fat": 2.0,
+          "serving_size": "280g",
+          "description": "Two quarter pound 100% beef patties with two slices of cheese, pickles, onions, ketchup and mustard on a sesame seed bun.",
+          "total_fat": 42.0,
+          "protein": 48.0,
+          "ingredients": "Two quarter pound beef patties, two cheese slices, pickles, onions, ketchup, mustard, sesame bun",
+          "sodium": 1520.0,
+          "energy": 740.0,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Sesame"
+          ],
+          "category": "",
+          "total_sugar": 10.0,
+          "added_sugar": 7.0
+        },
+        {
+          "carbs": 87.0,
+          "sat_fat": 9.0,
+          "energy": 530.0,
+          "serving_size": "400ml",
+          "allergens": [
+            "Milk"
+          ],
+          "category": "",
+          "total_fat": 15.0,
+          "sodium": 320.0,
+          "added_sugar": 65.0,
+          "total_sugar": 78.0,
+          "name": "Chocolate Shake",
+          "tag": "Thick and creamy classic.",
+          "ingredients": "Vanilla soft serve, chocolate syrup, milk",
+          "chol": 55.0,
+          "trans_fat": 0.0,
+          "description": "Creamy chocolate shake made with vanilla soft serve and chocolate syrup.",
+          "protein": 12.0
+        },
+        {
+          "name": "Coca-Cola",
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "energy": 210.0,
+          "protein": 0.0,
+          "trans_fat": 0.0,
+          "carbs": 58.0,
+          "category": "",
+          "serving_size": "500ml",
+          "total_fat": 0.0,
+          "added_sugar": 58.0,
+          "sat_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "tag": "The classic refreshment.",
+          "sodium": 45.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "total_sugar": 58.0,
+          "chol": 0.0
+        },
+        {
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "chol": 0.0,
+          "serving_size": "300ml",
+          "category": "",
+          "total_fat": 0.0,
+          "sodium": 30.0,
+          "sat_fat": 0.0,
+          "tag": "The classic refreshment.",
+          "name": "Coca-Cola",
+          "added_sugar": 39.0,
+          "carbs": 39.0,
+          "protein": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "energy": 140.0,
+          "total_sugar": 39.0,
+          "trans_fat": 0.0
+        },
+        {
+          "total_sugar": 5.66,
+          "sodium": 504.19,
+          "serving_size": "132g",
+          "tag": "A surprise that will leave you wide-eyed.",
+          "chol": 0.0,
+          "added_sugar": 1.64,
+          "trans_fat": 0.14,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Soya"
+          ],
+          "name": "Veg Surprise Burger",
+          "description": "A scrumptious potato patty topped with a delectable Italian herb sauce and shredded onions placed between perfectly toasted buns.",
+          "ingredients": "Regular Bun, Italian mayo, Shredded onion, Herb Chilli Potato patty",
+          "protein": 5.71,
+          "total_fat": 14.95,
+          "carbs": 39.84,
+          "energy": 313.44,
+          "category": "",
+          "sat_fat": 3.73
+        },
+        {
+          "sat_fat": 6.0,
+          "category": "",
+          "name": "Cheeseburger",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk"
+          ],
+          "serving_size": "118g",
+          "energy": 300.0,
+          "chol": 45.0,
+          "description": "Our simple, classic cheeseburger begins with a 100% pure beef patty seasoned with just a pinch of salt and pepper. It's topped with a tangy pickle, chopped onions, ketchup, mustard, and a slice of melty American cheese.",
+          "carbs": 32.0,
+          "total_fat": 13.0,
+          "total_sugar": 7.0,
+          "protein": 15.0,
+          "trans_fat": 0.5,
+          "added_sugar": 5.0,
+          "ingredients": "100% beef patty, one slice of cheese, pickles, onions, ketchup, mustard, regular bun",
+          "tag": "A timeless classic with cheese.",
+          "sodium": 720.0
+        },
+        {
+          "tag": "Golden and crispy breakfast side.",
+          "total_sugar": 0.0,
+          "carbs": 15.0,
+          "description": "Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.",
+          "sat_fat": 1.0,
+          "total_fat": 8.0,
+          "trans_fat": 0.0,
+          "added_sugar": 0.0,
+          "category": "",
+          "chol": 0.0,
+          "sodium": 310.0,
+          "ingredients": "Shredded potatoes, salt, pepper, dextrose",
+          "name": "Hash Browns",
+          "protein": 1.0,
+          "energy": 140.0,
+          "allergens": [
+            "__none__"
+          ],
+          "serving_size": "56g"
+        },
+        {
+          "category": "",
+          "total_fat": 17.0,
+          "trans_fat": 0.5,
+          "description": "A Happy Meal with a Hamburger, small fries, apple slices, and your choice of a drink. Includes a fun toy!",
+          "energy": 475.0,
+          "tag": "A classic meal for kids.",
+          "chol": 35.0,
+          "total_sugar": 12.0,
+          "name": "Happy Meal (Hamburger)",
+          "added_sugar": 4.0,
+          "carbs": 60.0,
+          "protein": 17.0,
+          "sodium": 680.0,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "serving_size": "260g",
+          "sat_fat": 5.0,
+          "ingredients": "Hamburger, small fries, apple slices, choice of drink"
+        },
+        {
+          "ingredients": "Mango puree, pineapple juice, low-fat yogurt, ice",
+          "energy": 220.0,
+          "serving_size": "415ml",
+          "category": "",
+          "protein": 3.0,
+          "sodium": 40.0,
+          "description": "Tropical mango and pineapple blended with yogurt.",
+          "trans_fat": 0.0,
+          "sat_fat": 1.0,
+          "total_fat": 1.5,
+          "name": "Mango Pineapple Smoothie",
+          "added_sugar": 38.0,
+          "chol": 5.0,
+          "total_sugar": 46.0,
+          "allergens": [
+            "Milk"
+          ],
+          "carbs": 50.0,
+          "tag": "Tropical fruit blend."
+        },
+        {
+          "category": "",
+          "sat_fat": 3.5,
+          "added_sugar": 32.0,
+          "carbs": 41.0,
+          "chol": 25.0,
+          "trans_fat": 0.0,
+          "name": "French Vanilla Latte",
+          "serving_size": "355ml",
+          "protein": 9.0,
+          "ingredients": "Espresso, steamed milk, vanilla syrup",
+          "tag": "Sweet vanilla espresso drink.",
+          "total_fat": 6.0,
+          "description": "Rich espresso with steamed milk and French vanilla flavor.",
+          "energy": 260.0,
+          "sodium": 95.0,
+          "total_sugar": 38.0,
+          "allergens": [
+            "Milk"
+          ]
+        },
+        {
+          "serving_size": "165g",
+          "category": "",
+          "carbs": 34.0,
+          "energy": 450.0,
+          "total_sugar": 7.0,
+          "sat_fat": 11.0,
+          "chol": 85.0,
+          "description": "The Double Cheeseburger features two 100% pure beef patties seasoned with just a pinch of salt and pepper. It's topped with tangy pickles, chopped onions, ketchup, mustard and two slices of melty American cheese.",
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk"
+          ],
+          "added_sugar": 5.0,
+          "sodium": 1120.0,
+          "protein": 25.0,
+          "name": "Double Cheeseburger",
+          "ingredients": "Two 100% beef patties, two slices of cheese, pickles, onions, ketchup, mustard, regular bun",
+          "tag": "Twice the cheese, twice the flavor.",
+          "trans_fat": 1.5,
+          "total_fat": 24.0
+        },
+        {
+          "sodium": 150.0,
+          "category": "",
+          "protein": 8.0,
+          "total_fat": 2.5,
+          "tag": "A sweet treat in a jug.",
+          "allergens": [
+            "Milk"
+          ],
+          "ingredients": "Reduced fat milk, sugar, cocoa, vitamin A palmitate, vitamin D3",
+          "name": "Chocolate Milk",
+          "trans_fat": 0.0,
+          "chol": 10.0,
+          "energy": 170.0,
+          "serving_size": "236ml",
+          "total_sugar": 24.0,
+          "description": "Fat Free Chocolate Milk Jug is a sweet treat for your Happy Meal.",
+          "sat_fat": 1.5,
+          "carbs": 26.0,
+          "added_sugar": 12.0
+        },
+        {
+          "chol": 10.0,
+          "total_sugar": 12.0,
+          "sat_fat": 1.5,
+          "category": "",
+          "carbs": 12.0,
+          "serving_size": "236ml",
+          "added_sugar": 0.0,
+          "ingredients": "Reduced fat milk, vitamin A palmitate, vitamin D3",
+          "protein": 8.0,
+          "total_fat": 2.5,
+          "name": "Milk",
+          "trans_fat": 0.0,
+          "description": "1% Low Fat Milk Jug is a wholesome drink choice for your Happy Meal.",
+          "tag": "A wholesome drink choice.",
+          "sodium": 105.0,
+          "energy": 100.0,
+          "allergens": [
+            "Milk"
+          ]
+        },
+        {
+          "added_sugar": 0.0,
+          "serving_size": "77g",
+          "total_fat": 10.39,
+          "sat_fat": 4.97,
+          "category": "",
+          "name": "Our World Famous Fries",
+          "carbs": 27.08,
+          "ingredients": "Potato and salt",
+          "chol": 0.77,
+          "protein": 3.38,
+          "sodium": 153.15,
+          "trans_fat": 0.08,
+          "tag": "The legend among legends.",
+          "allergens": [
+            "__none__"
+          ],
+          "total_sugar": 0.39,
+          "energy": 224.59,
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside."
+        },
+        {
+          "tag": "The legend among legends.",
+          "total_sugar": 0.77,
+          "sodium": 306.29,
+          "protein": 6.76,
+          "trans_fat": 0.15,
+          "total_fat": 20.77,
+          "ingredients": "Potato and salt",
+          "chol": 1.54,
+          "name": "Our World Famous Fries",
+          "carbs": 54.16,
+          "category": "",
+          "sat_fat": 9.95,
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "added_sugar": 0.0,
+          "serving_size": "154g",
+          "allergens": [
+            "__none__"
+          ],
+          "energy": 449.17
+        },
+        {
+          "total_sugar": 0.55,
+          "chol": 1.09,
+          "added_sugar": 0.0,
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "sodium": 216.79,
+          "energy": 317.92,
+          "trans_fat": 0.11,
+          "carbs": 38.34,
+          "name": "Our World Famous Fries",
+          "sat_fat": 7.04,
+          "protein": 4.79,
+          "total_fat": 14.7,
+          "tag": "The legend among legends.",
+          "category": "",
+          "ingredients": "Potato and salt",
+          "serving_size": "109g",
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "sodium": 40.0,
+          "allergens": [
+            "__none__"
+          ],
+          "chol": 0.0,
+          "trans_fat": 0.0,
+          "sat_fat": 0.0,
+          "category": "",
+          "protein": 0.0,
+          "description": "Diet Coke with the same great taste and no calories.",
+          "tag": "Zero-calorie cola.",
+          "serving_size": "500ml",
+          "total_sugar": 0.0,
+          "added_sugar": 0.0,
+          "total_fat": 0.0,
+          "carbs": 0.0,
+          "name": "Diet Coke",
+          "energy": 0.0,
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine"
+        },
+        {
+          "tag": "Zero-calorie cola.",
+          "description": "Small Diet Coke — crisp and refreshing.",
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "energy": 0.0,
+          "category": "",
+          "sat_fat": 0.0,
+          "trans_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "total_fat": 0.0,
+          "total_sugar": 0.0,
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine",
+          "sodium": 25.0,
+          "protein": 0.0,
+          "serving_size": "300ml",
+          "carbs": 0.0,
+          "name": "Diet Coke"
+        },
+        {
+          "description": "A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.",
+          "added_sugar": 0.0,
+          "serving_size": "87g",
+          "sodium": 10.0,
+          "chol": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "category": "",
+          "tag": "Fresh greens on the side.",
+          "name": "Side Salad",
+          "total_sugar": 2.0,
+          "carbs": 3.0,
+          "energy": 15.0,
+          "protein": 1.0,
+          "sat_fat": 0.0,
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "ingredients": "Mixed greens, grape tomatoes, shredded carrots"
+        },
+        {
+          "carbs": 42.0,
+          "total_sugar": 10.0,
+          "total_fat": 26.0,
+          "energy": 520.0,
+          "ingredients": "Quarter pound 100% beef patty, two slices of cheese, onions, pickles, mustard, ketchup, sesame seed bun",
+          "sodium": 1140.0,
+          "description": "Each Quarter Pounder with Cheese burger features a quarter pound of 100% fresh beef that's hot, deliciously juicy and cooked when you order. It's seasoned with just a pinch of salt and pepper, sizzled on a flat iron grill, then topped with slivered onions, tangy pickles and two slices of melty American cheese on a sesame seed bun.",
+          "chol": 95.0,
+          "serving_size": "202g",
+          "trans_fat": 1.5,
+          "added_sugar": 7.0,
+          "sat_fat": 13.0,
+          "category": "",
+          "tag": "A quarter pound of 100% fresh beef.",
+          "protein": 30.0,
+          "allergens": [
+            "Cereal containing gluten",
+            "Milk",
+            "Sesame"
+          ],
+          "name": "Quarter Pounder with Cheese"
+        },
+        {
+          "carbs": 57.0,
+          "protein": 0.0,
+          "name": "Fanta Orange",
+          "trans_fat": 0.0,
+          "total_sugar": 57.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors",
+          "sodium": 55.0,
+          "total_fat": 0.0,
+          "serving_size": "500ml",
+          "energy": 210.0,
+          "added_sugar": 57.0,
+          "allergens": [
+            "__none__"
+          ],
+          "tag": "Bright orange soda.",
+          "category": "",
+          "description": "Caffeine-free orange soda with a fruity burst.",
+          "sat_fat": 0.0,
+          "chol": 0.0
+        },
+        {
+          "chol": 0.0,
+          "added_sugar": 38.0,
+          "name": "Sweet Tea",
+          "category": "",
+          "tag": "Southern-style sweet tea.",
+          "energy": 150.0,
+          "sodium": 10.0,
+          "allergens": [
+            "__none__"
+          ],
+          "description": "Freshly brewed iced tea sweetened just right.",
+          "protein": 0.0,
+          "ingredients": "Brewed tea, sugar, water",
+          "total_fat": 0.0,
+          "sat_fat": 0.0,
+          "serving_size": "500ml",
+          "carbs": 38.0,
+          "total_sugar": 38.0,
+          "trans_fat": 0.0
+        },
+        {
+          "tag": "A fresh, healthy side.",
+          "sat_fat": 0.0,
+          "name": "Apple Slices",
+          "category": "",
+          "allergens": [
+            "__none__"
+          ],
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "ingredients": "Fresh sliced apples",
+          "protein": 0.0,
+          "energy": 15.0,
+          "total_fat": 0.0,
+          "total_sugar": 3.0,
+          "carbs": 4.0,
+          "trans_fat": 0.0,
+          "serving_size": "34g",
+          "description": "Fresh, crisp apple slices. A wholesome choice for any meal.",
+          "sodium": 0.0
+        },
+        {
+          "chol": 0.0,
+          "energy": 94.23,
+          "allergens": [
+            "Milk"
+          ],
+          "added_sugar": 13.68,
+          "tag": "",
+          "sat_fat": 0.87,
+          "category": "",
+          "total_sugar": 15.06,
+          "name": "Masala Chai",
+          "ingredients": "",
+          "trans_fat": 0.04,
+          "protein": 1.37,
+          "sodium": 7.08,
+          "description": "Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+          "serving_size": "150ml",
+          "total_fat": 1.46,
+          "carbs": 18.9
+        },
+        {
+          "total_fat": 0.85,
+          "trans_fat": 0.02,
+          "name": "Masala Chai",
+          "sodium": 4.13,
+          "added_sugar": 7.98,
+          "allergens": [
+            "Milk"
+          ],
+          "category": "",
+          "carbs": 11.02,
+          "description": "Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+          "tag": "",
+          "protein": 0.8,
+          "energy": 54.97,
+          "ingredients": "",
+          "chol": 0.0,
+          "sat_fat": 0.51,
+          "serving_size": "90ml",
+          "total_sugar": 8.79
+        },
+        {
+          "description": "A blend of aromatic tea and the fruity flavour of lemon.",
+          "energy": 242.52,
+          "total_sugar": 58.08,
+          "sodium": 16.68,
+          "added_sugar": 55.16,
+          "protein": 1.08,
+          "chol": 0.0,
+          "category": "",
+          "serving_size": "400ml",
+          "sat_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "name": "Iced Tea",
+          "trans_fat": 0.0,
+          "total_fat": 0.12,
+          "tag": "",
+          "ingredients": "",
+          "carbs": 59.28
+        },
+        {
+          "sat_fat": 0.0,
+          "ingredients": "Purified water",
+          "sodium": 0.0,
+          "tag": "Hydration on the go.",
+          "allergens": [
+            "__none__"
+          ],
+          "trans_fat": 0.0,
+          "category": "",
+          "total_sugar": 0.0,
+          "carbs": 0.0,
+          "description": "Refreshing purified drinking water.",
+          "protein": 0.0,
+          "name": "Bottled Water",
+          "added_sugar": 0.0,
+          "serving_size": "500ml",
+          "energy": 0.0,
+          "chol": 0.0,
+          "total_fat": 0.0
+        },
+        {
+          "tag": "Freshly brewed every day.",
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "sodium": 5.0,
+          "name": "Premium Roast Coffee",
+          "description": "Small cup of medium-roast Arabica coffee.",
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "sat_fat": 0.0,
+          "protein": 0.0,
+          "category": "",
+          "carbs": 0.0,
+          "ingredients": "100% Arabica coffee, water",
+          "total_sugar": 0.0,
+          "serving_size": "296ml",
+          "energy": 0.0,
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "total_sugar": 0.0,
+          "name": "Premium Roast Coffee",
+          "ingredients": "100% Arabica coffee, water",
+          "total_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "tag": "Freshly brewed every day.",
+          "category": "",
+          "serving_size": "473ml",
+          "protein": 0.0,
+          "sodium": 10.0,
+          "sat_fat": 0.0,
+          "carbs": 0.0,
+          "trans_fat": 0.0,
+          "energy": 5.0,
+          "description": "Medium-roast coffee made from 100% Arabica beans — smooth and balanced."
+        },
+        {
+          "category": "",
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors",
+          "energy": 200.0,
+          "total_sugar": 54.0,
+          "protein": 0.0,
+          "added_sugar": 54.0,
+          "chol": 0.0,
+          "carbs": 54.0,
+          "description": "Unique blend of 23 flavors in a bold fountain drink.",
+          "serving_size": "500ml",
+          "name": "Dr Pepper",
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "sodium": 60.0,
+          "allergens": [
+            "__none__"
+          ],
+          "tag": "23 flavors in one drink.",
+          "sat_fat": 0.0
+        },
+        {
+          "carbs": 54.0,
+          "protein": 0.0,
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "total_sugar": 54.0,
+          "sodium": 65.0,
+          "trans_fat": 0.0,
+          "total_fat": 0.0,
+          "tag": "Crisp and refreshing.",
+          "name": "Sprite",
+          "energy": 200.0,
+          "added_sugar": 54.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "chol": 0.0,
+          "sat_fat": 0.0,
+          "serving_size": "500ml",
+          "allergens": [
+            "__none__"
+          ],
+          "category": ""
+        },
+        {
+          "energy": 140.0,
+          "serving_size": "300ml",
+          "allergens": [
+            "__none__"
+          ],
+          "carbs": 38.0,
+          "sodium": 45.0,
+          "total_fat": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "trans_fat": 0.0,
+          "total_sugar": 38.0,
+          "added_sugar": 38.0,
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "protein": 0.0,
+          "chol": 0.0,
+          "sat_fat": 0.0,
+          "tag": "Crisp and refreshing.",
+          "name": "Sprite",
+          "category": ""
+        }
+      ],
+      "documents": [
+        "Sausage McMuffin. A savory sausage patty and melty American cheese on a toasted English muffin.. English muffin, sausage patty, American cheese. Simple morning classic.",
+        "McFlurry (Oreo). Milk-based frozen dessert with oreo cookies.. Milk fat, Oreo. Burgers aren't the only things we're good at.",
+        "McFlurry (Oreo). Milk-based frozen dessert with oreo cookies.. Milk fat, Oreo. Burgers aren't the only things we're good at.",
+        "McFlurry (Choco Crunch). Milk-based frozen dessert with chocolate crispies and chocolate dip.. Milk fat, Chocolate. Burgers aren't the only things we're good at.",
+        "McFlurry (Choco Crunch). Milk-based frozen dessert with chocolate crispies and chocolate dip.. Milk fat, Chocolate. Burgers aren't the only things we're good at.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Happy Meal (4pc McNuggets). A Happy Meal with 4 Chicken McNuggets, small fries, apple slices, and your choice of a drink. Includes a fun toy!. 4pc Chicken McNuggets, small fries, apple slices, choice of drink. A meal that makes kids smile.",
+        "Pizza McPuff. A blend of assorted vegetables (carrot, beans,capsicum, onion & green peas); mozzarella cheese mixed with tomato sauce; and exotic spices stuffed in rectangle shaped savoury dough. Quick frozen.. Assorted vegetables, Refined wheat flour, Pizza seasoning. Something different. Something delicious.",
+        "10pc Chicken McNuggets. Our tender, juicy Chicken McNuggets are made with 100% white meat chicken and no artificial colors, flavors or preservatives.. Chicken bites with tempura batter. The perfect shareable snack.",
+        "McSpicy Paneer. Crispy and spicy paneer patty with creamy tandoori sauce and crispy lettuce topping.. Quarter pounder bun crown, Shredded lettuce, Tandoori mayo, Spicy paneer patty, Quarter pounder bun heel. Let paneer surprise you.",
+        "McChicken. Batter & breaded chicken patty containing green peas, carrots, green beans, onion, potatoes, rice and spices, served in a bun with eggless mayonnaise and lettuce.. Quarter bun crown, Veg mayonnaise, Shredded lettuce, McChicken patty, Quarter bun heel. Familiarity breeds confidence.",
+        "Cold Coffee Mcfloat. Rich smooth creamy cold coffee along with sweet vanilla flavoured soft serve mix.",
+        "Chicken Maharaja Mac. A double-decker toasted Maharaja bun sandwiched with one layer of flame-grilled chicken patty; crunchy iceberg lettuce; shredded onion; and a slice of cheese. Topped with another layer of flame-grilled\n                                chicken patty; tomato slices; and crunchy iceberg lettuce infused with harberno sauce.. Maharaja bun crown, Haberno sauce, Shredded lettuce, Shredded onion, Jalapenos, Flame-grilled chicken patty, Sliced cheese, Maharaja bun heel. A royal treat.",
+        "McVeggie. A delectable patty made of green goodness, potatoes, peas, carrots and a selection of Indian spices. Topped with crispy lettuce, mayonnaise, and packed into sesame toasted buns.. Quarter bun crown, Veg mayonnaise, Shredded lettuce, Vegetable patty, Quarter bun heel. Pure taste. Pure veg.",
+        "McSwirl Chocolate. Delightful soft-serve with a delectable chocolate topping.. Soft serve mix (100% diary product), Chocolate dip. Melts in your mouth. Goes to your heart.",
+        "McDouble. The McDouble features two 100% pure beef patties seasoned with just a pinch of salt and pepper. It's topped with tangy pickles, chopped onions, ketchup, mustard and a slice of melty American cheese.. Two 100% beef patties, one slice of cheese, pickles, onions, ketchup, mustard, regular bun. Double the beef, double the taste.",
+        "Apple Pie. McDonald's Baked Apple Pie features 100% American-grown apples, and a lattice crust baked to perfection and topped with sprinkled sugar.. Apples, flour, sugar, palm oil, cinnamon, salt. A warm, sweet classic.",
+        "Orange Juice. The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.. 100% orange juice from concentrate. Start your day with vitamin C.",
+        "Veg Maharaja Mac. A double-decker toasted Maharaja bun sandwiched with one layer of corn & cheese patty; crunchy iceberg lettuce; shredded onion; and a slice of cheese. Topped with another layer of corn & cheese patty;\n                                tomato slices; and crunchy iceberg lettuce infused with harberno sauce.. Maharaja bun crown, Cocktail sauce, Shredded lettuce, Shredded onion, Jalepenos, Corn & cheese patty, club, Sliced cheese, Maharaja bun heel. A feast fit for kings (and queens).",
+        "Big Mac. Mouthwatering perfection starts with two 100% pure beef patties and Big Mac sauce sandwiched between a sesame seed bun. It's topped off with pickles, crisp shredded lettuce, finely chopped onion and American cheese.. Two 100% beef patties, Big Mac sauce, lettuce, cheese, pickles, onions, sesame seed bun. Two all-beef patties, special sauce, lettuce, cheese.",
+        "Caramel Macchiato. Freshly steamed milk with vanilla-flavored syrup marked with espresso and caramel drizzle.. Espresso, steamed milk, vanilla syrup, caramel drizzle. Layered espresso favorite.",
+        "McAloo Tikki Burger. A golden fried vegetarian patty prepared with peas, potato and infused with aromatic spices. Clubbed with sliced tomatoes, shredded red onion, and tangy tomato mayonnaise. Served in a warm toasted bun.. Regular bun crown, Tom-Mayo sauce, Sliced tomatoes, Shredded onion, Aloo tikki patty, Regular bun heel. The one that never goes out of f(l)avour.",
+        "Butter Chicken Grilled Burger. Premium grilled chicken patty topped with makhani sauce and shredded onions placed between freshly toasted sesame seeded buns.. Premium grilled chicken patty, Shredded onion, Sesame seeded buns. Dil se makhani burger.",
+        "Cold Coffee. A rich smooth creamy cold coffee made with coffee powder and milk.",
+        "Crispy Chicken Sandwich. A southern style fried chicken sandwich that's crispy, juicy and tender perfection. It's topped with crinkle-cut pickles and served on a toasted, buttered potato roll.. Crispy chicken fillet, crinkle-cut pickles, butter, potato roll. Crispy, juicy, tender.",
+        "Mocha Frappe. Mocha coffee frappe blended with ice and topped with whipped cream.. Coffee, mocha sauce, ice, whipped cream, milk. Frozen chocolate coffee treat.",
+        "Butter Paneer Grilled Burger. Mildly spiced grilled paneer patty topped with makhani sauce and shredded onions placed between freshly toasted sesame seeded buns.. Mildly spiced grilled paneer patty, Shredded onion, Sesame seeded buns. Dil se makhani burger.",
+        "Sundae (Chocolate Brownie). An iconic premium dessert option. Can be bought as an add-on to make it a \"full meal\" or simply as an indulgence.. Soft serve mix (100% diary), Hazelnut brownie, Hot fudge topping. A global favourite.",
+        "Sundae (Chocolate Brownie). An iconic premium dessert option. Can be bought as an add-on to make it a \"full meal\" or simply as an indulgence.. Soft serve mix (100% diary), Hazelnut brownie, Hot fudge topping. A global favourite.",
+        "Hot Chocolate. Steamed milk with rich chocolate syrup and optional whipped topping.. Steamed milk, chocolate syrup, whipped cream. Warm chocolate comfort.",
+        "Spicy Crispy Chicken Sandwich. A southern style fried chicken sandwich with a spicy pepper sauce. It's crispy, juicy, tender and topped with crinkle-cut pickles on a toasted, buttered potato roll.. Spicy crispy chicken fillet, crinkle-cut pickles, spicy pepper sauce, potato roll. Crispy chicken with a kick.",
+        "Spicy Paneer Wrap. Tender paneer patty with a fiery, crunchy batter coating; dressed with fresh veggies and seasonings; topped with creamy sauce; and a dash of mustard and melted cheese.. Whole wheat flat bread, Spicy paneer patty, Veg mayo, Lettuce, Onion, Tomato, Mustard sauce, Cheese. Unwrap deliciousness.",
+        "Vanilla Shake. Classic vanilla shake — smooth and sweet.. Vanilla soft serve, milk. Simple vanilla bliss.",
+        "Caramel Frappe. Blended coffee drink with buttery caramel and whipped cream.. Coffee, caramel syrup, ice, whipped cream, milk. Sweet frozen coffee.",
+        "Black Coffee. Perfectly brewed for any time of the day.",
+        "Fruit and Yogurt Parfait. Our creamy, low-fat vanilla yogurt layered with strawberries, blueberries and crunchy granola. A delicious snack or treat.. Low-fat vanilla yogurt, strawberries, blueberries, granola. A fresh, fruity treat.",
+        "Cheesy Fries. The all-time favourite fries with a generous dollop of cheesy yet smoky chipotle sauce.. Salted Fries, Smoky Chipotle Sauce. Hi, it’s cheese on this side!",
+        "Sundae (Chocolate). Creamy vanilla soft-serve topped with thick and rich hot fudge.. Soft serve mix (100% diary), Hot fudge topping. Much more than ice-cream.",
+        "Sundae (Chocolate). Creamy vanilla soft-serve topped with thick and rich hot fudge.. Soft serve mix (100% diary), Hot fudge topping. Much more than ice-cream.",
+        "Soft Serve Cone. Creamy vanilla soft-serve on a cone.. Soft serve mix (100% diary product). Delightfully basic.",
+        "Iced Coffee. Chilled premium roast coffee with cream and a touch of sweetness.. Coffee, cream, liquid sugar. Cold and creamy pick-me-up.",
+        "Dosa Masala Burger. Turmeric-spiced mashed potato filling topped with fresh peas. Grilled and placed inside a soft whole wheat bun with a spicy molagapodi chutney mayo.. Whole wheat bun, Rasam mayo, Dosa masala aloo patty. A new taste of India.",
+        "Strawberry Banana Smoothie. Blended strawberry and banana with creamy yogurt.. Strawberry puree, banana puree, low-fat yogurt, ice. Fruit smoothie treat.",
+        "Hamburger. The original burger. A 100% beef patty seasoned with a pinch of salt and pepper, topped with tangy pickles, chopped onions, ketchup and mustard.. 100% beef patty, pickles, onions, ketchup, mustard, regular bun. The classic that started it all.",
+        "Minute Maid Lemonade. Classic lemonade with real lemon flavor.. Water, high fructose corn syrup, lemon juice concentrate. Tart and refreshing.",
+        "Sundae (Strawberry). Creamy vanilla soft-serve with strawberry topping.. Soft serve mix (100% diary), Strawberry topping. A little zing goes a long way.",
+        "Sundae (Strawberry). Creamy vanilla soft-serve with strawberry topping.. Soft serve mix (100% diary), Strawberry topping. A little zing goes a long way.",
+        "Bacon Quarter Pounder with Cheese. A quarter pound of 100% beef with thick-cut applewood smoked bacon, two slices of cheese, pickles, ketchup and mustard.. Quarter pound beef patty, bacon strips, cheese, pickles, ketchup, mustard, sesame bun. Smoky bacon meets quarter pound beef.",
+        "Strawberry Shake. Strawberry-flavored shake blended with vanilla soft serve.. Vanilla soft serve, strawberry syrup, milk. Fruity pink shake.",
+        "Double Quarter Pounder with Cheese. Two quarter pound 100% beef patties with two slices of cheese, pickles, onions, ketchup and mustard on a sesame seed bun.. Two quarter pound beef patties, two cheese slices, pickles, onions, ketchup, mustard, sesame bun. Serious beef appetite.",
+        "Chocolate Shake. Creamy chocolate shake made with vanilla soft serve and chocolate syrup.. Vanilla soft serve, chocolate syrup, milk. Thick and creamy classic.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Veg Surprise Burger. A scrumptious potato patty topped with a delectable Italian herb sauce and shredded onions placed between perfectly toasted buns.. Regular Bun, Italian mayo, Shredded onion, Herb Chilli Potato patty. A surprise that will leave you wide-eyed.",
+        "Cheeseburger. Our simple, classic cheeseburger begins with a 100% pure beef patty seasoned with just a pinch of salt and pepper. It's topped with a tangy pickle, chopped onions, ketchup, mustard, and a slice of melty American cheese.. 100% beef patty, one slice of cheese, pickles, onions, ketchup, mustard, regular bun. A timeless classic with cheese.",
+        "Hash Browns. Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.. Shredded potatoes, salt, pepper, dextrose. Golden and crispy breakfast side.",
+        "Happy Meal (Hamburger). A Happy Meal with a Hamburger, small fries, apple slices, and your choice of a drink. Includes a fun toy!. Hamburger, small fries, apple slices, choice of drink. A classic meal for kids.",
+        "Mango Pineapple Smoothie. Tropical mango and pineapple blended with yogurt.. Mango puree, pineapple juice, low-fat yogurt, ice. Tropical fruit blend.",
+        "French Vanilla Latte. Rich espresso with steamed milk and French vanilla flavor.. Espresso, steamed milk, vanilla syrup. Sweet vanilla espresso drink.",
+        "Double Cheeseburger. The Double Cheeseburger features two 100% pure beef patties seasoned with just a pinch of salt and pepper. It's topped with tangy pickles, chopped onions, ketchup, mustard and two slices of melty American cheese.. Two 100% beef patties, two slices of cheese, pickles, onions, ketchup, mustard, regular bun. Twice the cheese, twice the flavor.",
+        "Chocolate Milk. Fat Free Chocolate Milk Jug is a sweet treat for your Happy Meal.. Reduced fat milk, sugar, cocoa, vitamin A palmitate, vitamin D3. A sweet treat in a jug.",
+        "Milk. 1% Low Fat Milk Jug is a wholesome drink choice for your Happy Meal.. Reduced fat milk, vitamin A palmitate, vitamin D3. A wholesome drink choice.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Diet Coke. Diet Coke with the same great taste and no calories.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Diet Coke. Small Diet Coke — crisp and refreshing.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Side Salad. A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.. Mixed greens, grape tomatoes, shredded carrots. Fresh greens on the side.",
+        "Quarter Pounder with Cheese. Each Quarter Pounder with Cheese burger features a quarter pound of 100% fresh beef that's hot, deliciously juicy and cooked when you order. It's seasoned with just a pinch of salt and pepper, sizzled on a flat iron grill, then topped with slivered onions, tangy pickles and two slices of melty American cheese on a sesame seed bun.. Quarter pound 100% beef patty, two slices of cheese, onions, pickles, mustard, ketchup, sesame seed bun. A quarter pound of 100% fresh beef.",
+        "Fanta Orange. Caffeine-free orange soda with a fruity burst.. Carbonated water, high fructose corn syrup, citric acid, natural flavors. Bright orange soda.",
+        "Sweet Tea. Freshly brewed iced tea sweetened just right.. Brewed tea, sugar, water. Southern-style sweet tea.",
+        "Apple Slices. Fresh, crisp apple slices. A wholesome choice for any meal.. Fresh sliced apples. A fresh, healthy side.",
+        "Masala Chai. Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+        "Masala Chai. Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+        "Iced Tea. A blend of aromatic tea and the fruity flavour of lemon.",
+        "Bottled Water. Refreshing purified drinking water.. Purified water. Hydration on the go.",
+        "Premium Roast Coffee. Small cup of medium-roast Arabica coffee.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Premium Roast Coffee. Medium-roast coffee made from 100% Arabica beans — smooth and balanced.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Dr Pepper. Unique blend of 23 flavors in a bold fountain drink.. Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors. 23 flavors in one drink.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing."
+      ]
+    },
+    {
+      "call": "question_dialog",
+      "question_idx": 36,
+      "step": 1,
+      "client_query": "Can I have a McMuffin without egg?",
+      "event": "rag",
+      "search_query": "McMuffin without egg",
+      "rewrite_model": "qwen3:0.6b",
+      "retrieval_mode": "vector",
+      "full_nutrition_context": false,
+      "rag_json_spec": {
+        "intent": "lookup",
+        "compare_metrics": [],
+        "excluded_lexical": [
+          "egg"
+        ],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [
+          "McMuffin"
+        ],
+        "override_restriction": false,
+        "finalize": true
+      },
+      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "metric": "cosine_distance",
+      "top_k": 101,
+      "distance_threshold": 0.6,
+      "soft_distance_max": 1.15,
+      "allergen_blacklist_tokens": [
+        "Egg"
+      ],
+      "prefer_novel": false,
+      "query_batch": [
+        "McMuffin without egg"
+      ],
+      "utterance_allergen_exclusions": [
+        "Egg"
+      ],
+      "explicit_restrictions": [],
+      "explicit_allergen_exclusions": [],
+      "rag_json_excluded_ignored": [],
+      "rag_json_lexical": [
+        "egg"
+      ],
+      "rag_json_restrictions": [],
+      "rag_json_requested_items": [
+        "McMuffin"
+      ],
+      "rag_json_finalize": true,
+      "rag_json_override_restriction": false,
+      "candidates": [
+        {
+          "name": "Sausage McMuffin",
+          "distance": 0.48216140270233154,
+          "energy": 400.0
+        },
+        {
+          "name": "McFlurry (Oreo)",
+          "distance": 0.5365524291992188,
+          "energy": 116.36
+        },
+        {
+          "name": "McFlurry (Oreo)",
+          "distance": 0.5365524291992188,
+          "energy": 209.39
+        },
+        {
+          "name": "McFlurry (Choco Crunch)",
+          "distance": 0.548281192779541,
+          "energy": 703.17
+        },
+        {
+          "name": "McFlurry (Choco Crunch)",
+          "distance": 0.548281192779541,
+          "energy": 115.19
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.5995864868164062,
+          "energy": 169.68
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.5995864868164062,
+          "energy": 254.52
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.5995864868164062,
+          "energy": 806.1
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.5995864868164062,
+          "energy": 381.77
+        },
+        {
+          "name": "Happy Meal (4pc McNuggets)",
+          "distance": 0.6012642979621887,
+          "energy": 395.0
+        },
+        {
+          "name": "Pizza McPuff",
+          "distance": 0.6120110154151917,
+          "energy": 228.21
+        },
+        {
+          "name": "10pc Chicken McNuggets",
+          "distance": 0.6205238103866577,
+          "energy": 420.0
+        },
+        {
+          "name": "McSpicy Paneer",
+          "distance": 0.6243837475776672,
+          "energy": 652.76
+        },
+        {
+          "name": "McChicken",
+          "distance": 0.6250892281532288,
+          "energy": 400.8
+        },
+        {
+          "name": "Cold Coffee Mcfloat",
+          "distance": 0.6294400095939636,
+          "energy": 270.05
+        },
+        {
+          "name": "Chicken Maharaja Mac",
+          "distance": 0.6366168260574341,
+          "energy": 689.12
+        },
+        {
+          "name": "McVeggie",
+          "distance": 0.6440726518630981,
+          "energy": 402.05
+        },
+        {
+          "name": "McSwirl Chocolate",
+          "distance": 0.6769427061080933,
+          "energy": 160.14
+        },
+        {
+          "name": "McDouble",
+          "distance": 0.6786726713180542,
+          "energy": 400.0
+        },
+        {
+          "name": "Apple Pie",
+          "distance": 0.6799570322036743,
+          "energy": 230.0
+        },
+        {
+          "name": "Orange Juice",
+          "distance": 0.6942718029022217,
+          "energy": 150.0
+        },
+        {
+          "name": "Veg Maharaja Mac",
+          "distance": 0.7239237427711487,
+          "energy": 832.67
+        },
+        {
+          "name": "Big Mac",
+          "distance": 0.7418601512908936,
+          "energy": 550.0
+        },
+        {
+          "name": "Caramel Macchiato",
+          "distance": 0.7513378858566284,
+          "energy": 310.0
+        },
+        {
+          "name": "McAloo Tikki Burger",
+          "distance": 0.7515642046928406,
+          "energy": 339.52
+        },
+        {
+          "name": "Butter Chicken Grilled Burger",
+          "distance": 0.7576770782470703,
+          "energy": 357.01
+        },
+        {
+          "name": "Cold Coffee",
+          "distance": 0.7581243515014648,
+          "energy": 301.1
+        },
+        {
+          "name": "Crispy Chicken Sandwich",
+          "distance": 0.7640430331230164,
+          "energy": 470.0
+        },
+        {
+          "name": "Mocha Frappe",
+          "distance": 0.7645255327224731,
+          "energy": 480.0
+        },
+        {
+          "name": "Butter Paneer Grilled Burger",
+          "distance": 0.7709020376205444,
+          "energy": 382.26
+        },
+        {
+          "name": "Sundae (Chocolate Brownie)",
+          "distance": 0.7730150818824768,
+          "energy": 205.26
+        },
+        {
+          "name": "Sundae (Chocolate Brownie)",
+          "distance": 0.7730150818824768,
+          "energy": 311.39
+        },
+        {
+          "name": "Hot Chocolate",
+          "distance": 0.7921358346939087,
+          "energy": 380.0
+        },
+        {
+          "name": "Spicy Crispy Chicken Sandwich",
+          "distance": 0.7975893020629883,
+          "energy": 530.0
+        },
+        {
+          "name": "Spicy Paneer Wrap",
+          "distance": 0.7996513247489929,
+          "energy": 674.68
+        },
+        {
+          "name": "Vanilla Shake",
+          "distance": 0.8024951815605164,
+          "energy": 480.0
+        },
+        {
+          "name": "Caramel Frappe",
+          "distance": 0.8035460710525513,
+          "energy": 450.0
+        },
+        {
+          "name": "Black Coffee",
+          "distance": 0.8054741621017456,
+          "energy": 6.8
+        },
+        {
+          "name": "Fruit and Yogurt Parfait",
+          "distance": 0.8070836663246155,
+          "energy": 150.0
+        },
+        {
+          "name": "Cheesy Fries",
+          "distance": 0.8122570514678955,
+          "energy": 453.92
+        },
+        {
+          "name": "Sundae (Chocolate)",
+          "distance": 0.8170691132545471,
+          "energy": 197.45
+        },
+        {
+          "name": "Sundae (Chocolate)",
+          "distance": 0.8170691132545471,
+          "energy": 121.64
+        },
+        {
+          "name": "Soft Serve Cone",
+          "distance": 0.8175570964813232,
+          "energy": 85.73
+        },
+        {
+          "name": "Iced Coffee",
+          "distance": 0.8182745575904846,
+          "energy": 180.0
+        },
+        {
+          "name": "Dosa Masala Burger",
+          "distance": 0.8183311223983765,
+          "energy": 340.23
+        },
+        {
+          "name": "Strawberry Banana Smoothie",
+          "distance": 0.8227961659431458,
+          "energy": 210.0
+        },
+        {
+          "name": "Hamburger",
+          "distance": 0.8261439800262451,
+          "energy": 250.0
+        },
+        {
+          "name": "Minute Maid Lemonade",
+          "distance": 0.828585147857666,
+          "energy": 180.0
+        },
+        {
+          "name": "Sundae (Strawberry)",
+          "distance": 0.833732008934021,
+          "energy": 156.14
+        },
+        {
+          "name": "Sundae (Strawberry)",
+          "distance": 0.833732008934021,
+          "energy": 100.99
+        },
+        {
+          "name": "Bacon Quarter Pounder with Cheese",
+          "distance": 0.835466742515564,
+          "energy": 630.0
+        },
+        {
+          "name": "Strawberry Shake",
+          "distance": 0.8382230997085571,
+          "energy": 500.0
+        },
+        {
+          "name": "Double Quarter Pounder with Cheese",
+          "distance": 0.8427555561065674,
+          "energy": 740.0
+        },
+        {
+          "name": "Chocolate Shake",
+          "distance": 0.8443213701248169,
+          "energy": 530.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.8445098400115967,
+          "energy": 210.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.8445098400115967,
+          "energy": 140.0
+        },
+        {
+          "name": "Veg Surprise Burger",
+          "distance": 0.8546696901321411,
+          "energy": 313.44
+        },
+        {
+          "name": "Cheeseburger",
+          "distance": 0.8612082600593567,
+          "energy": 300.0
+        },
+        {
+          "name": "Hash Browns",
+          "distance": 0.8616994023323059,
+          "energy": 140.0
+        },
+        {
+          "name": "Happy Meal (Hamburger)",
+          "distance": 0.8661839365959167,
+          "energy": 475.0
+        },
+        {
+          "name": "Mango Pineapple Smoothie",
+          "distance": 0.8741797208786011,
+          "energy": 220.0
+        },
+        {
+          "name": "French Vanilla Latte",
+          "distance": 0.8754000067710876,
+          "energy": 260.0
+        },
+        {
+          "name": "Double Cheeseburger",
+          "distance": 0.8820526599884033,
+          "energy": 450.0
+        },
+        {
+          "name": "Chocolate Milk",
+          "distance": 0.8823564052581787,
+          "energy": 170.0
+        },
+        {
+          "name": "Milk",
+          "distance": 0.8891398906707764,
+          "energy": 100.0
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.9035801291465759,
+          "energy": 224.59
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.9035801291465759,
+          "energy": 449.17
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.9035801291465759,
+          "energy": 317.92
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.9047974348068237,
+          "energy": 0.0
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.9095180630683899,
+          "energy": 0.0
+        },
+        {
+          "name": "Side Salad",
+          "distance": 0.9103816151618958,
+          "energy": 15.0
+        },
+        {
+          "name": "Quarter Pounder with Cheese",
+          "distance": 0.9111501574516296,
+          "energy": 520.0
+        },
+        {
+          "name": "Fanta Orange",
+          "distance": 0.9127213954925537,
+          "energy": 210.0
+        },
+        {
+          "name": "Sweet Tea",
+          "distance": 0.9226037263870239,
+          "energy": 150.0
+        },
+        {
+          "name": "Apple Slices",
+          "distance": 0.9279568195343018,
+          "energy": 15.0
+        },
+        {
+          "name": "Masala Chai",
+          "distance": 0.9381807446479797,
+          "energy": 94.23
+        },
+        {
+          "name": "Masala Chai",
+          "distance": 0.9381807446479797,
+          "energy": 54.97
+        },
+        {
+          "name": "Iced Tea",
+          "distance": 0.9431707859039307,
+          "energy": 242.52
+        },
+        {
+          "name": "Bottled Water",
+          "distance": 0.9550837874412537,
+          "energy": 0.0
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.9684242606163025,
+          "energy": 0.0
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.9718451499938965,
+          "energy": 5.0
+        },
+        {
+          "name": "Dr Pepper",
+          "distance": 1.0364834070205688,
+          "energy": 200.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 1.0381879806518555,
+          "energy": 200.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 1.0381879806518555,
+          "energy": 140.0
+        }
+      ],
+      "excluded_by_constraints": [
+        {
+          "name": "Egg McMuffin",
+          "distance": 0.3669852018356323,
+          "allergens": [
+            "Egg"
+          ],
+          "mentioned_in_query": true
+        },
+        {
+          "name": "Sausage McMuffin with Egg",
+          "distance": 0.4396005868911743,
+          "allergens": [
+            "Egg"
+          ],
+          "mentioned_in_query": false
+        },
+        {
+          "name": "McEgg",
+          "distance": 0.4895150065422058,
+          "allergens": [
+            "Egg"
+          ],
+          "mentioned_in_query": false
+        }
+      ],
+      "grounding_targets": [
+        "McMuffin",
+        "Sausage McMuffin"
+      ],
+      "grounded_rows": [
+        {
+          "name": "Sausage McMuffin",
+          "distance": 0.48216140270233154
+        }
+      ],
+      "best_distance": 0.48216140270233154,
+      "rag_prompt_line_cap": 15,
+      "rag_prompt_lines_included": 4,
+      "outcome": "injected",
+      "injected_hits": [
+        {
+          "name": "Sausage McMuffin",
+          "distance": 0.48216140270233154
+        },
+        {
+          "name": "McFlurry (Oreo)",
+          "distance": 0.5365524291992188
+        },
+        {
+          "name": "McFlurry (Choco Crunch)",
+          "distance": 0.548281192779541
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.5995864868164062
+        }
+      ],
+      "context_preview": "- Sausage McMuffin (~400.0 kcal, allergens: Cereal containing gluten, Milk; added sugar: ~2.0 g; total sugar: ~2.0 g; ingredients: English muffin, sausage patty, American cheese)\n- McFlurry (Oreo) (~116.4–209.4 kcal, allergens: Cereal containing gluten, Milk, Soya, Sulphites; added sugar: ~10.8–19.2 g; total sugar: ~14.5–25.4 g; ingredients: Milk fat, Oreo)\n- McFlurry (Choco Crunch) (~115.2–703.2 kcal, allergens: Milk, Soya; added sugar: ~13.0–54.5 g; total sugar: ~17.4–66.9 g; ingredients: Milk fat, Chocolate)\n- Chicken McNuggets (~169.7–806.1 kcal, allergens: Cereal containing gluten; added sugar: ~0.0–0.0 g; total sugar: ~0.3–1.7 g; ingredients: Chicken bites)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Egg McMuffin (contains: Egg)\n* Sausage McMuffin with Egg (contains: Egg)\n* McEgg (contains: Egg)\n\nGrounded menu data for named/follow-up items (use these fields; do not guess):\n* Sausage McMuffin: ingredients: English muffin, sausage patty, American cheese; allergens: Cereal containing gluten, Milk; description: A savory sausage patty and melty American cheese on a toasted English muffin."
+    }
+  ],
+  "llm_trace": [
+    {
+      "event": "rag_json_rewrite",
+      "call": "question_dialog",
+      "question_idx": 36,
+      "step": 1,
+      "model": "qwen3:0.6b",
+      "kind": "rag_structured_json",
+      "rag_json_duration_ms": 601.24,
+      "raw_response": "{\n  \"intent\": \"lookup\",\n  \"search_query\": \"McMuffin without egg\",\n  \"compare_metrics\": [],\n  \"excluded_lexical\": [\"egg\"],\n  \"max_kcal\": null,\n  \"min_kcal\": null,\n  \"restrictions\": [],\n  \"requested_items\": [\"McMuffin\"],\n  \"override_restriction\": false,\n  \"finalize\": true\n}",
+      "spec": {
+        "compare_metrics": [],
+        "intent": "lookup",
+        "search_query": "McMuffin without egg",
+        "excluded_allergens": [],
+        "excluded_lexical": [
+          "egg"
+        ],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [
+          "McMuffin"
+        ],
+        "override_restriction": false,
+        "finalize": true
+      }
+    },
+    {
+      "event": "llm_call",
+      "agent": "cashier",
+      "model": "qwen3:4b",
+      "kind": "dialog_llm",
+      "messages_count": 1,
+      "duration_ms": 20085.33,
+      "system": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n\nMENU / RAG:\n- Full-menu JSON mode: the list is long; a requested item may appear far down. Never decide an item is missing after only reading the first few rows — scan by exact product name.\n- DECISION FLOW: (1) If customer names an item that exists in context, first confirm it is added. (2) Give nutrition/allergen numbers only if asked. (3) If item is truly absent from context, say unavailable and suggest 1 nearby alternative.\n- Use only the menu data slice in context when naming specific products. Speak naturally: after first mention, say 'fries' instead of 'Our World Famous Fries', 'nuggets' instead of 'Chicken McNuggets'.\n- NEVER use the ® or ™ symbol when speaking — say 'McNuggets', 'fries', 'Big Mac', 'Iced Tea', not 'Chicken McNuggets®'.\n- NEVER invent item names, prices, or calorie numbers.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says **no matching menu items** for what they asked, say plainly that we don't have that or it's not on the menu (natural wording), then suggest what we do serve — e.g. burgers, chicken, wraps, fries.\n- If you mention any numeric fact (calories, protein, carbs, sugar, sodium, serving size), copy exact values from ONE matching menu row only; do not average, estimate, or mix rows.\n- If multiple serving sizes exist for the same item and user asked nutrition, ask which size instead of choosing numbers randomly.\n- If the context lists items (even with a weak-match note), those are real menu rows — offer them confidently.\n- Do not claim an item is unavailable if it actually appears by name in your menu data slice for this turn.\n- If their ask is not in the slice and retrieval did not clearly fail, hedge briefly instead of pretending to know the full menu.\n- Recommendations like 'best' or 'most delicious' are subjective. Say that and offer one strong option from context instead of claiming an objective winner.\n\nALLERGENS / DIET:\n- ALLERGEN PROTOCOL: warn once, then serve if the customer insists.\n- If a requested item conflicts with a dietary restriction the customer mentioned, say it clearly ONCE: 'Just so you know, [item] contains [allergen].' Then suggest ONE suitable alternative.\n- The alternative must come from regular menu rows in context, not from the 'Items requiring dietary warning' block.\n- If the customer confirms they still want that item, repeats it after the warning, or says it is fine, add it without arguing or warning again.\n- Never block an order after the warning. You are a cashier, not a doctor.\n- Treat allergen/vegan restrictions as warning constraints. Treat nutrient preferences like no sugar, low sugar, low fat, light, or low calorie as recommendations/warnings: you may say an item is not the best fit and suggest a better option, but do not claim you cannot serve or cannot place the order solely because of a nutrient preference.\n- Do not infer extra restrictions. For example, no sugar does not mean no milk, no gluten, or vegan unless the customer explicitly says so.\n- If they ask for MORE options in the SAME category (e.g. other coffees), list several different items from the context slice; never imply your short list is the full menu.\n- If context includes an 'Items requiring dietary warning' block, treat those items as existing on the menu. Warn once and suggest an alternative; serve if the customer insists.\n- If the customer NAMES a specific menu item that appears in your context slice, treat it as available and confirm it — do NOT say you cannot confirm an item that is listed in the menu on your screen for this turn.\n- When the customer has a dietary restriction, proactively name SPECIFIC items that ARE available (e.g. 'We have fries, apple slices, and Sprite that work for you'). Don't keep saying 'we don't have X' — focus on what you DO have.\n- When menu rows for this turn show allergen tags per item, use those tags to judge fit for stated exclusions (e.g. no dairy / avoid milk). If an item's allergen line does not list what they want to avoid, you may say it should work for them and offer that item by name from the slice — do not say you have no ingredient information.\n\nUPSELL & REPETITION:\n- After the customer picks a main item, you may offer a drink or side ONCE. Keep it separate from final order confirmation.\n- Don't suggest items the customer already ordered or explicitly declined.\n- If they ask 'what else do you have?', suggest items from a DIFFERENT category than what they already ordered.\n- Never mention other chains or brands (Burger King, KFC, etc.). Stay in McDonald's context.\n\nORDER CONFIRMATION:\n- When the customer picks an item, confirm briefly: 'Got it, a Big Mac.'\n- For a SINGLE clear item request (e.g. only 'Order a Big Mac'), a quick confirm plus one short follow-up like 'Anything else for you today?' is enough. Do NOT do a long readback or 'does that sound right?' until the order has multiple items or they say they are done.\n- When repeating the full order, list ALL items — vary phrasing: 'So that's...', 'I've got...', 'Alright, we have...'\n- Use 'Does that sound right?' ONLY after a full readback of the current order. Do not attach it to an upsell question like 'Anything else — fries or a drink?'\n- Before finalizing a multi-item order, repeat the full order and ask whether it sounds right.\n\nUNKNOWN INFO:\n- If they ask about something not in your context (exact ingredients, how it's cooked, religious dietary status), say honestly: 'Hmm, I'm not sure about that one' or 'I don't have that info handy'. Don't say 'on my screen' — that sounds robotic.\n- Do NOT use that \"no info\" reply when your menu slice already lists allergens for the items you would mention — answer from the slice (allergen lines per item). Reserve \"not sure\" for facts truly absent from context (e.g. kosher/halal certification).\n- If they question your previous line (e.g. 'why did you say that'), answer in one short sentence and steer back to what they would like to order — don't read out a random other menu item.\n\nSTYLE:\n- No emoji, no markdown bold/italic, no special formatting.\n- Stay in character: you are on the drive-through headset talking to a real customer. Never sound like a chatbot reviewing a dataset, a teacher, or a policy analyst.\n- For a direct order like 'Order a Big Mac', prefer 1–2 short sentences: confirm item, then brief follow-up.\n- Keep replies to 2–3 sentences max, like a real drive-through.\n- Speak naturally like a friendly human cashier.\n- Output only what a cashier would actually say. No reasoning, analysis, or meta-commentary.\n\nREALISTIC DRIVE-THROUGH:\n- Your only job here is to take the order and answer short menu questions like a real crew member.\n- You know nothing about this customer until they say it in this conversation.\n- Do not assume extra people, children, or dietary restrictions; if they mention ordering for someone else, ask what that person wants and any allergies or diet needs in plain language.\n- Adapt tone only from their actual words (e.g. rushed vs chatty), not from facts they have not stated.\n- Still handle groups properly once they tell you who needs what: take each person in turn, confirm, then full readback at the end.\n\n--- Context ---\nMenu data slice for this turn (each line: product name, kcal estimate, allergen tags, approximate added/total sugar, and ingredients when listed — not full nutrition):\n- Sausage McMuffin (allergens: Cereal containing gluten, Milk; added sugar: ~2.0 g; total sugar: ~2.0 g; ingredients: English muffin, sausage patty, American cheese)\n- McFlurry (Oreo) (allergens: Cereal containing gluten, Milk, Soya, Sulphites; added sugar: ~10.8–19.2 g; total sugar: ~14.5–25.4 g; ingredients: Milk fat, Oreo)\n- McFlurry (Choco Crunch) (allergens: Milk, Soya; added sugar: ~13.0–54.5 g; total sugar: ~17.4–66.9 g; ingredients: Milk fat, Chocolate)\n- Chicken McNuggets (allergens: Cereal containing gluten; added sugar: ~0.0–0.0 g; total sugar: ~0.3–1.7 g; ingredients: Chicken bites)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Egg McMuffin (contains: Egg)\n* Sausage McMuffin with Egg (contains: Egg)\n* McEgg (contains: Egg)\n\nGrounded menu data for named/follow-up items (use these fields; do not guess):\n* Sausage McMuffin: ingredients: English muffin, sausage patty, American cheese; allergens: Cereal containing gluten, Milk; description: A savory sausage patty and melty American cheese on a toasted English muffin.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Can I have a McMuffin without egg?"
+        }
+      ],
+      "response": "Sure, we have a Sausage McMuffin without egg. Would you like that?"
+    }
+  ],
+  "metrics": {
+    "success_at_1": false,
+    "success_at_3": false,
+    "success_at_5": false,
+    "hallucination": true,
+    "constraint_violation": false,
+    "constraint_violation_reasons": [],
+    "group_completeness": 0.0,
+    "need_to_specify": false,
+    "empty_response": false
+  },
+  "heuristic_metrics": {
+    "success_at_1": false,
+    "success_at_3": false,
+    "success_at_5": false,
+    "hallucination": false,
+    "constraint_violation": false,
+    "constraint_violation_reasons": [],
+    "group_completeness": null
+  },
+  "metric_sources": {
+    "success_at_1": "judge",
+    "success_at_3": "judge",
+    "success_at_5": "judge",
+    "hallucination": "judge",
+    "constraint_violation": "judge",
+    "need_to_specify": "heuristic_fallback",
+    "empty_response": "heuristic_fallback",
+    "group_completeness": "judge"
+  },
+  "audit": {
+    "expected_item": "Egg McMuffin",
+    "expected_item_in_menu": true,
+    "expected_item_used": false,
+    "context_ignorance": false,
+    "factual_conflicts": [],
+    "critical_error": false,
+    "need_to_specify": false,
+    "heuristic_hallucination": false
+  },
+  "judge": {
+    "raw_response": "{\n  \"success_at_1\": false,\n  \"success_at_3\": false,\n  \"success_at_5\": false,\n  \"hallucination\": true,\n  \"constraint_violation\": false,\n  \"group_completeness\": false,\n  \"short_reason\": \"The cashier claimed an item 'Sausage McMuffin without egg' that is not present in the menu (known_menu_names only includes 'Sausage McMuffin' and 'Sausage McMuffin with Egg').\"\n}",
+    "parsed": {
+      "success_at_1": false,
+      "success_at_3": false,
+      "success_at_5": false,
+      "hallucination": true,
+      "constraint_violation": false,
+      "group_completeness": false,
+      "short_reason": "The cashier claimed an item 'Sausage McMuffin without egg' that is not present in the menu (known_menu_names only includes 'Sausage McMuffin' and 'Sausage McMuffin with Egg')."
+    },
+    "vs_heuristic": {
+      "disagreement_count": 1,
+      "disagreements": [
+        "hallucination"
+      ],
+      "supports_audit_signals": true,
+      "audit_signals": {
+        "context_ignorance": false,
+        "factual_conflicts": [],
+        "critical_error": false
+      }
+    }
+  },
+  "source_file": "/mnt/c/Users/sgrigoryan/Desktop/Ed__/diploma/questions/allergy_questions.json",
+  "source_index": 36,
+  "retrieval_mode": "vector",
+  "question_grounding_enabled": false,
+  "client_nudge_on_miss": false
+}
