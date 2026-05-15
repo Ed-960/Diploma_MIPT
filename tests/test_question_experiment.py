@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 
 from mcd_voice.dialog.question_experiment import (
+    evaluate_retrieval_probe_for_row,
     build_judge_comparison,
     build_metrics_from_judge,
     build_question_grounding_context,
     cashier_named_expected_item,
+    filter_questions_by_categories,
     MenuItem,
     compute_group_completeness,
     detect_constraint_violation,
@@ -16,6 +18,7 @@ from mcd_voice.dialog.question_experiment import (
     evaluate_dialog_audit,
     extract_mentioned_menu_items,
     is_empty_response,
+    parse_category_filter,
     _question_dialog_continue_after_cashier,
     save_incremental_question_row,
     save_dialogs_by_category,
@@ -54,6 +57,25 @@ def _fake_item(
     )
 
 
+def test_parse_category_filter_splits_commas_and_whitespace() -> None:
+    assert parse_category_filter(None) is None
+    assert parse_category_filter("") is None
+    assert parse_category_filter("  ") is None
+    assert parse_category_filter("simple") == ["simple"]
+    assert parse_category_filter("simple,diet") == ["simple", "diet"]
+    assert parse_category_filter(" simple \t lexical ") == ["simple", "lexical"]
+
+
+def test_filter_questions_by_categories_preserves_order() -> None:
+    rows = [
+        {"category": "simple", "question": "a"},
+        {"category": "diet", "question": "b"},
+        {"category": "simple", "question": "c"},
+    ]
+    out = filter_questions_by_categories(rows, ["simple"])
+    assert len(out) == 2 and [r["question"] for r in out] == ["a", "c"]
+
+
 def test_extract_mentioned_menu_items_preserves_order() -> None:
     names = ["Big Mac", "Diet Coke", "Side Salad"]
     text = "I can suggest Side Salad first, then Big Mac and maybe Diet Coke."
@@ -72,6 +94,39 @@ def test_cashier_named_expected_item_vague_affirmative() -> None:
     assert cashier_named_expected_item("Big Mac", response_text="Sure thing!", mentioned_items=["Big Mac"]) is True
     assert cashier_named_expected_item(None, response_text="Hi", mentioned_items=[]) is True
     assert cashier_named_expected_item("", response_text="Hi", mentioned_items=[]) is True
+
+
+def test_retrieval_probe_expected_rank_from_rag_trace() -> None:
+    trace = [
+        {
+            "event": "rag",
+            "search_query": "Big Mac",
+            "outcome": "injected",
+            "best_distance": 0.2,
+            "candidates": [
+                {"name": "Big Mac", "distance": 0.2},
+                {"name": "McDouble", "distance": 0.7},
+            ],
+            "injected_hits": [{"name": "Big Mac", "distance": 0.2}],
+        }
+    ]
+    m, probe = evaluate_retrieval_probe_for_row(
+        {"expected_item": "Big Mac", "expected_constraints": [], "category": "simple"},
+        trace,
+    )
+    assert m["success_at_1"] is True
+    assert m["success_at_3"] is True
+    assert probe["expected_rank"] == 1
+    assert probe["expected_injected_hits"] is True
+
+
+def test_retrieval_probe_missing_rag_event() -> None:
+    m, probe = evaluate_retrieval_probe_for_row(
+        {"expected_item": "Big Mac"},
+        [{"event": "chroma_request"}],
+    )
+    assert m["success_at_1"] is False
+    assert probe.get("error") == "no_rag_event"
 
 
 def test_continue_after_cashier_nudges_when_item_denied() -> None:

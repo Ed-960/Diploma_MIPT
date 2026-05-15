@@ -16,7 +16,9 @@ _bootstrap.ensure_src()
 
 from mcd_voice.llm import ensure_llm_credentials, get_llm_runtime_config
 from mcd_voice.dialog.question_experiment import (
+    filter_questions_by_categories,
     load_question_banks,
+    parse_category_filter,
     run_question_dialog_experiment,
     save_dialogs_by_category,
 )
@@ -116,7 +118,17 @@ def main() -> int:
         "--max_questions",
         type=int,
         default=0,
-        help="Limit total questions (0 = use all).",
+        help="Limit total questions (0 = use all remaining after filters).",
+    )
+    parser.add_argument(
+        "--categories",
+        type=str,
+        default=None,
+        metavar="LIST",
+        help=(
+            "Only run rows with these question categories "
+            '(comma or space separated, matching JSON \"category\", e.g. "simple" or "simple,diet").'
+        ),
     )
     parser.add_argument(
         "--trace_verbose",
@@ -129,13 +141,31 @@ def main() -> int:
         default=4,
         help="Max cashier turns for one question dialog (clarification loop bound).",
     )
+    parser.add_argument(
+        "--client_nudge_on_miss",
+        action="store_true",
+        help=(
+            "Legacy: after each cashier turn, if the expected item was not acknowledged, inject a "
+            "scripted client line to reinforce the order. Default is off: end after cashier unless "
+            "the cashier asks a clarifying question (then the client LLM answers)."
+        ),
+    )
     args = parser.parse_args()
 
     ensure_llm_credentials()
     question_files = _resolve_paths(args.question_files)
     questions = load_question_banks(question_files)
+    category_filter = parse_category_filter(args.categories)
+    if category_filter:
+        before = len(questions)
+        questions = filter_questions_by_categories(questions, category_filter)
+        print(
+            f"[question-experiment] category filter {category_filter!r}: "
+            f"{before} -> {len(questions)} questions",
+            flush=True,
+        )
     if not questions:
-        print("No valid questions loaded.", file=sys.stderr)
+        print("No valid questions loaded (after filters).", file=sys.stderr)
         return 1
 
     total_run = len(questions) if args.max_questions <= 0 else min(len(questions), args.max_questions)
@@ -158,7 +188,9 @@ def main() -> int:
             )
     print(
         f"[question-experiment] loaded {len(questions)} questions; will run {total_run} "
-        f"(max_dialog_turns={max(1, args.max_dialog_turns)}, trace_verbose={args.trace_verbose})",
+        f"(max_dialog_turns={max(1, args.max_dialog_turns)}, trace_verbose={args.trace_verbose}, "
+        f"client_nudge_on_miss={args.client_nudge_on_miss}"
+        f"{f', categories={category_filter!r}' if category_filter else ''})",
         flush=True,
     )
 
@@ -182,6 +214,7 @@ def main() -> int:
         max_dialog_turns=max(1, args.max_dialog_turns),
         trace_verbose=args.trace_verbose,
         incremental_save_dir=str(out_dir),
+        client_nudge_on_miss=args.client_nudge_on_miss,
     )
     artifacts = save_dialogs_by_category(rows, output_dir=str(out_dir))
     summary = artifacts["summary"]
@@ -196,6 +229,8 @@ def main() -> int:
     summary["cashier_model"] = args.cashier_model
     summary["client_model"] = args.client_model
     summary["judge_model"] = args.judge_model
+    summary["client_nudge_on_miss"] = args.client_nudge_on_miss
+    summary["category_filter"] = category_filter if category_filter else None
     summary["generated_at_unix"] = int(time.time())
     summary["elapsed_sec"] = round(time.time() - started, 3)
     with open(artifacts["summary_path"], "w", encoding="utf-8") as f:

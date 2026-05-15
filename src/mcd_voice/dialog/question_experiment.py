@@ -17,7 +17,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 from mcd_voice.dialog.pipeline import build_initial_order_state
 from mcd_voice.config import MCD_JSON_PATH
@@ -125,6 +125,101 @@ def load_question_banks(paths: list[str]) -> list[dict[str, Any]]:
             item["_source_index"] = i
             rows.append(item)
     return rows
+
+
+def parse_category_filter(value: str | None) -> list[str] | None:
+    """
+    CLI helper: comma- or whitespace-separated category labels from question JSON.
+
+    Examples: ``"simple"``, ``"simple, allergy"``.
+    Empty / whitespace-only → no filter (``None``).
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    parts = re.split(r"[\s,]+", s)
+    out = [p.strip() for p in parts if p.strip()]
+    return out or None
+
+
+def filter_questions_by_categories(
+    rows: list[dict[str, Any]],
+    categories: Sequence[str] | None,
+) -> list[dict[str, Any]]:
+    """Keep only rows whose ``category`` field is in ``categories``. Identity match after strip."""
+    if not categories:
+        return rows
+    allow = {str(c).strip() for c in categories if str(c).strip()}
+    if not allow:
+        return rows
+    return [
+        r
+        for r in rows
+        if str(r.get("category") or "").strip() in allow
+    ]
+
+
+def evaluate_retrieval_probe_for_row(
+    question_row: dict[str, Any],
+    rag_trace: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    Offline retrieval metrics from a stored ``rag_trace``: rank of ``expected_item`` in
+    ``candidates`` of the last ``event == 'rag'`` record.
+    """
+    expected = str(question_row.get("expected_item") or "").strip()
+    probe: dict[str, Any] = {}
+    empty_metrics = {
+        "success_at_1": False,
+        "success_at_3": False,
+        "success_at_5": False,
+    }
+    if not rag_trace:
+        probe["error"] = "no_rag_event"
+        return dict(empty_metrics), probe
+
+    rag_ev = None
+    for ev in rag_trace:
+        if isinstance(ev, dict) and ev.get("event") == "rag":
+            rag_ev = ev
+    if rag_ev is None:
+        probe["error"] = "no_rag_event"
+        return dict(empty_metrics), probe
+
+    cands_raw = rag_ev.get("candidates") or []
+    names: list[str] = []
+    for c in cands_raw:
+        if isinstance(c, dict) and str(c.get("name") or "").strip():
+            names.append(str(c["name"]).strip())
+
+    if not expected:
+        probe["error"] = "no_expected_item"
+        return dict(empty_metrics), probe
+
+    rank: int | None = None
+    for i, n in enumerate(names, start=1):
+        if n == expected:
+            rank = i
+            break
+    probe["expected_rank"] = rank
+    probe["candidate_count"] = len(names)
+
+    inj = rag_ev.get("injected_hits") or []
+    inj_names = [
+        str(x.get("name") or "").strip()
+        for x in inj
+        if isinstance(x, dict) and str(x.get("name") or "").strip()
+    ]
+    probe["expected_injected_hits"] = expected in inj_names
+
+    metrics = {
+        "success_at_1": rank is not None and rank <= 1,
+        "success_at_3": rank is not None and rank <= 3,
+        "success_at_5": rank is not None and rank <= 5,
+    }
+    return metrics, probe
 
 
 def build_menu_index() -> tuple[list[str], list[MenuItem]]:
@@ -262,18 +357,26 @@ def run_question_dialog_experiment(
     max_dialog_turns: int = 4,
     trace_verbose: bool = False,
     incremental_save_dir: str | Path | None = None,
+    client_nudge_on_miss: bool = False,
 ) -> list[dict[str, Any]]:
     # Not a "customer profile" experiment: stub dict only for pipeline API + empty order_state.
+    # Client LLM (ClarifyingClient) runs only when the cashier utterance looks like a clarification
+    # request (detect_need_to_specify: "?" and no menu names extracted). Scripted "nudge" follow-ups
+    # when the expected item is not acknowledged happen only if client_nudge_on_miss=True.
     pipeline_stub = neutral_drive_through_profile()
     menu_names, menu_items = build_menu_index()
     menu_by_name = {x.name: x for x in menu_items}
     menu_json_text = _load_menu_json_text()
-    mode = retrieval_mode.strip().lower()
-    if mode not in {"none", "vector"}:
+    retrieval_mode_effective = retrieval_mode.strip().lower()
+    if retrieval_mode_effective not in {"none", "vector"}:
         raise ValueError(f"Unsupported retrieval_mode: {retrieval_mode!r}")
     # Default: grounding only for pure no-RAG mode.
-    grounding_enabled = (mode == "none") if use_question_grounding is None else bool(use_question_grounding)
-    if mode == "vector":
+    grounding_enabled = (
+        (retrieval_mode_effective == "none")
+        if use_question_grounding is None
+        else bool(use_question_grounding)
+    )
+    if retrieval_mode_effective == "vector":
         try:
             # Fail fast with a clear action item instead of crashing mid-run.
             get_menu_collection()
@@ -305,7 +408,8 @@ def run_question_dialog_experiment(
     total = len(questions) if max_questions <= 0 else min(len(questions), max_questions)
     print(
         f"[question-experiment] starting {total} dialogs "
-        f"(retrieval_mode={mode}, grounding={grounding_enabled}, max_dialog_turns={max_dialog_turns})...",
+        f"(retrieval_mode={retrieval_mode_effective}, grounding={grounding_enabled}, "
+        f"max_dialog_turns={max_dialog_turns}, client_nudge_on_miss={client_nudge_on_miss})...",
         file=sys.stderr,
         flush=True,
     )
@@ -346,21 +450,25 @@ def run_question_dialog_experiment(
             history.append(DialogTurn(speaker="cashier", text=cashier_text))
 
             mentions = extract_mentioned_menu_items(cashier_text, menu_names)
-            mode = _question_dialog_continue_after_cashier(
+            continue_mode = _question_dialog_continue_after_cashier(
                 row=row,
                 cashier_text=cashier_text,
                 mentions=mentions,
                 menu_by_name=menu_by_name,
             )
-            if mode == "stop":
+            if continue_mode == "stop":
                 finished_reason = "cashier_direct_answer"
                 break
             if step >= max_dialog_turns:
                 finished_reason = "max_dialog_turns_reached"
                 break
 
+            if continue_mode == "nudge" and not client_nudge_on_miss:
+                finished_reason = "cashier_without_client_nudge"
+                break
+
             t1 = time.perf_counter()
-            if mode == "clarify":
+            if continue_mode == "clarify":
                 client_text = clarifier.answer(
                     original_question=question,
                     expected_constraints=row.get("expected_constraints", []),
@@ -445,8 +553,9 @@ def run_question_dialog_experiment(
             },
             "source_file": row.get("_source_file"),
             "source_index": row.get("_source_index"),
-            "retrieval_mode": mode,
+            "retrieval_mode": retrieval_mode_effective,
             "question_grounding_enabled": grounding_enabled,
+            "client_nudge_on_miss": client_nudge_on_miss,
         }
         rows.append(row_out)
         if incremental_save_dir is not None:

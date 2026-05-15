@@ -45,9 +45,13 @@ AI_EXPORT ?= allProject_forAI_Test.txt
 
 # Эксперимент по готовым вопросам (scripts/run_question_experiment.py): no-RAG, короткий диалог + judge.
 OUT_QUESTIONS ?= experiments/no_rag_questions
+# То же, но --retrieval_mode vector (Chroma); каталог по умолчанию отдельный.
+OUT_QUESTIONS_VECTOR ?= experiments/vector_rag_questions
 MAX_QUESTIONS ?= 0
 MAX_DIALOG_TURNS ?= 4
 JUDGE_MODEL ?=
+# Непустое — ограничить эксперимент по полю JSON category перечнем через запятую/пробел (передаётся в --categories).
+QUESTION_CATEGORY ?=
 
 # Визуал графа меню (scripts/visualize_menu_graph.py): FOCUS, FOCUS_HOPS, FOCUS_STYLE, MENU_GRAPH_MAX_EDGES
 FOCUS ?= Big Mac
@@ -59,7 +63,34 @@ MENU_GRAPH_MAX_EDGES ?=
 _LLM_API := $(PY) scripts/apply_llm_mode.py api $(PY)
 _LLM_OLLAMA := $(PY) scripts/apply_llm_mode.py ollama $(PY)
 
-.PHONY: help install install-dev test test-v chroma \
+# Категории банка (поле JSON category в questions/*.json) — цели question-experiment-*-<cat>.
+question_bank_cats := simple allergy diet lexical mixed group
+
+define _question_experiment_cat_rules
+question-experiment-norag-$(1):
+	$$(MAKE) question-experiment-norag QUESTION_CATEGORY=$(1)
+
+question-experiment-norag-api-$(1):
+	$$(MAKE) question-experiment-norag-api QUESTION_CATEGORY=$(1)
+
+question-experiment-norag-ollama-$(1):
+	$$(MAKE) question-experiment-norag-ollama QUESTION_CATEGORY=$(1)
+
+question-experiment-vector-$(1):
+	$$(MAKE) question-experiment-vector QUESTION_CATEGORY=$(1)
+
+question-experiment-vector-api-$(1):
+	$$(MAKE) question-experiment-vector-api QUESTION_CATEGORY=$(1)
+
+question-experiment-vector-ollama-$(1):
+	$$(MAKE) question-experiment-vector-ollama QUESTION_CATEGORY=$(1)
+
+endef
+$(foreach c,$(question_bank_cats),$(eval $(call _question_experiment_cat_rules,$(c))))
+
+_question_cat_targets := $(foreach c,$(question_bank_cats),question-experiment-norag-$(c) question-experiment-norag-api-$(c) question-experiment-norag-ollama-$(c) question-experiment-vector-$(c) question-experiment-vector-api-$(c) question-experiment-vector-ollama-$(c)))
+
+.PHONY: help init init-minimal init-fast install install-dev test test-v chroma chroma-fast \
 	demo-profile demo-dialog demo-dialog-api demo-dialog-ollama demo-dialog-trace \
 	demo-dialog-trace-api demo-dialog-trace-ollama \
 	demo-agents demo-agents-api demo-agents-ollama demo-menu-search \
@@ -80,6 +111,9 @@ _LLM_OLLAMA := $(PY) scripts/apply_llm_mode.py ollama $(PY)
 	dataset-rag-graph-from-profiles dataset-rag-graph-from-profiles-api dataset-rag-graph-from-profiles-ollama \
 	question-experiment-norag question-experiment-norag-api question-experiment-norag-ollama \
 	question-experiment-norag-smoke question-experiment-norag-smoke-api question-experiment-norag-smoke-ollama \
+	question-experiment-vector question-experiment-vector-api question-experiment-vector-ollama \
+	question-experiment-vector-smoke question-experiment-vector-smoke-api question-experiment-vector-smoke-ollama \
+	$(_question_cat_targets) \
 	visualize-menu-graph visualize-menu-graph-open \
 	visualize-menu-graph-full visualize-menu-graph-full-open \
 	visualize-menu-graph-focus visualize-menu-graph-focus-open \
@@ -87,6 +121,12 @@ _LLM_OLLAMA := $(PY) scripts/apply_llm_mode.py ollama $(PY)
 
 help:
 	@echo "mcd-voice-diploma — make targets"
+	@echo ""
+	@echo "Быстрый старт (из корня репо, нужен python в PATH):"
+	@echo "  make init            venv + install-dev + загрузка меню в Chroma"
+	@echo "  make init-minimal    venv + install-dev (без Chroma; нужен перед vector-RAG)"
+	@echo "  make init-fast       как init, но load_chroma.py --no-demo"
+	@echo "  make chroma-fast     только переиндексация без демо-поиска в конце"
 	@echo ""
 	@echo "  make install-dev     pip install -e .[dev]  (нужен существующий venv)"
 	@echo "  make venv            создать .venv (python -m venv), затем: make install-dev"
@@ -150,12 +190,22 @@ help:
 	@echo ""
 	@echo "  make compare-rag         RAG_DIR=$(OUT_RAG) NORAG_DIR=$(OUT_NORAG)"
 	@echo ""
-	@echo "Эксперимент по вопросам (no-RAG, полный mcd.json у кассира; OUT_QUESTIONS, MAX_QUESTIONS, MAX_DIALOG_TURNS):"
-	@echo "  make question-experiment-norag         OUT_QUESTIONS=$(OUT_QUESTIONS) MAX_QUESTIONS=$(MAX_QUESTIONS) MAX_DIALOG_TURNS=$(MAX_DIALOG_TURNS)"
-	@echo "  make question-experiment-norag-api / question-experiment-norag-ollama   # -ollama = локальный Ollama: в .env LLM_BASE_URL=http://127.0.0.1:11434/v1"
-	@echo "  make question-experiment-norag-smoke   # MAX_QUESTIONS=60 -> experiments/no_rag_questions_smoke"
-	@echo "  make question-experiment-norag-smoke-api / question-experiment-norag-smoke-ollama"
-	@echo "  + модели: CASHIER_MODEL=... CLIENT_MODEL=... JUDGE_MODEL=...  (трассы --trace_verbose всегда)"
+	@echo "Эксперимент по вопросам (MAX_QUESTIONS, MAX_DIALOG_TURNS; трассы --trace_verbose всегда):"
+	@echo "  no-RAG (retrieval_mode=none; OUT_QUESTIONS=$(OUT_QUESTIONS)):"
+	@echo "    make question-experiment-norag / question-experiment-norag-api / question-experiment-norag-ollama"
+	@echo "    make question-experiment-norag-smoke   # MAX_QUESTIONS=60 -> experiments/no_rag_questions_smoke"
+	@echo "    make question-experiment-norag-smoke-api / question-experiment-norag-smoke-ollama"
+	@echo "  vector RAG (retrieval_mode=vector, нужна Chroma — make chroma; OUT_QUESTIONS_VECTOR=$(OUT_QUESTIONS_VECTOR)):"
+	@echo "    make question-experiment-vector / question-experiment-vector-api / question-experiment-vector-ollama"
+	@echo "    make question-experiment-vector-smoke   # MAX_QUESTIONS=60 -> experiments/vector_rag_questions_smoke"
+	@echo "    make question-experiment-vector-smoke-api / question-experiment-vector-smoke-ollama"
+	@echo "  + модели: CASHIER_MODEL=... CLIENT_MODEL=... JUDGE_MODEL=..."
+	@echo "  + legacy push клиента, если expected_item не признан кассиром: QUESTION_CLIENT_NUDGE=1"
+	@echo "  + только категории банка (поле category): QUESTION_CATEGORY=simple  или  simple,diet"
+	@echo "    либо отдельная цель: question-experiment-vector-ollama-<cat> и question-experiment-norag(-api|-ollama)-<cat>"
+	@echo "    <cat> = simple | allergy | diet | lexical | mixed | group"
+	@echo "      пример: make question-experiment-vector-ollama-simple OUT_QUESTIONS_VECTOR=experiments/vec_simple"
+	@echo "  -ollama = локальный Ollama: в .env LLM_BASE_URL=http://127.0.0.1:11434/v1"
 	@echo ""
 	@echo "Экспорт кода в один файл (для ИИ / ревью):"
 	@echo "  make export-ai           -> $(AI_EXPORT)  (скрипт scripts/export_all_project_for_ai.py)"
@@ -165,6 +215,12 @@ help:
 
 venv:
 	python -m venv .venv
+
+init: venv install-dev chroma
+
+init-minimal: venv install-dev
+
+init-fast: venv install-dev chroma-fast
 
 install-dev:
 	$(PY) -m pip install -U pip
@@ -180,6 +236,9 @@ test-v:
 
 chroma:
 	$(PY) scripts/load_chroma.py
+
+chroma-fast:
+	$(PY) scripts/load_chroma.py --no-demo
 
 demo-profile:
 	$(PY) scripts/profile_demo.py
@@ -351,6 +410,19 @@ _QUESTION_EXP_ARGS = scripts/run_question_experiment.py --output_dir $(OUT_QUEST
 	$(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) \
 	$(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) \
 	$(if $(JUDGE_MODEL),--judge_model $(JUDGE_MODEL),) \
+	$(if $(QUESTION_CLIENT_NUDGE),--client_nudge_on_miss,) \
+	$(if $(QUESTION_CATEGORY),--categories $(QUESTION_CATEGORY),) \
+	--trace_verbose
+
+_QUESTION_EXP_VECTOR_ARGS = scripts/run_question_experiment.py --output_dir $(OUT_QUESTIONS_VECTOR) \
+	--retrieval_mode vector \
+	$(if $(filter-out 0,$(strip $(MAX_QUESTIONS))),--max_questions $(MAX_QUESTIONS),) \
+	--max_dialog_turns $(MAX_DIALOG_TURNS) \
+	$(if $(CASHIER_MODEL),--cashier_model $(CASHIER_MODEL),) \
+	$(if $(CLIENT_MODEL),--client_model $(CLIENT_MODEL),) \
+	$(if $(JUDGE_MODEL),--judge_model $(JUDGE_MODEL),) \
+	$(if $(QUESTION_CLIENT_NUDGE),--client_nudge_on_miss,) \
+	$(if $(QUESTION_CATEGORY),--categories $(QUESTION_CATEGORY),) \
 	--trace_verbose
 
 question-experiment-norag:
@@ -370,6 +442,24 @@ question-experiment-norag-smoke-api:
 
 question-experiment-norag-smoke-ollama:
 	@$(MAKE) question-experiment-norag-ollama MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4 OUT_QUESTIONS=experiments/no_rag_questions_smoke
+
+question-experiment-vector:
+	$(PY) $(_QUESTION_EXP_VECTOR_ARGS)
+
+question-experiment-vector-api:
+	$(_LLM_API) $(_QUESTION_EXP_VECTOR_ARGS)
+
+question-experiment-vector-ollama:
+	$(_LLM_OLLAMA) $(_QUESTION_EXP_VECTOR_ARGS)
+
+question-experiment-vector-smoke:
+	@$(MAKE) question-experiment-vector MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4 OUT_QUESTIONS_VECTOR=experiments/vector_rag_questions_smoke
+
+question-experiment-vector-smoke-api:
+	@$(MAKE) question-experiment-vector-api MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4 OUT_QUESTIONS_VECTOR=experiments/vector_rag_questions_smoke
+
+question-experiment-vector-smoke-ollama:
+	@$(MAKE) question-experiment-vector-ollama MAX_QUESTIONS=60 MAX_DIALOG_TURNS=4 OUT_QUESTIONS_VECTOR=experiments/vector_rag_questions_smoke
 
 visualize-menu-graph:
 	$(PY) scripts/visualize_menu_graph.py
