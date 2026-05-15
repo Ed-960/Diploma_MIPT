@@ -7,6 +7,7 @@ import json
 import re
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from mcd_voice.dialog.pipeline import build_initial_order_state
@@ -53,6 +54,26 @@ _ALLERGEN_ALIASES: dict[str, str] = {
     "sesame": "sesame",
     "soya": "soya",
     "soy": "soya",
+}
+_UNAVAILABLE_PATTERNS = (
+    r"(?:don't|do not|cannot|can't)\s+(?:have|offer|serve|find|see|confirm)",
+    r"(?:not|isn't|is not)\s+(?:available|on(?:\s+the)?\s+menu|in(?:\s+our)?\s+menu)",
+    r"(?:no|none)\s+(?:of\s+)?(?:that|this|such)?\s*(?:item|option)?",
+)
+_ALLERGEN_TOKEN_ALIASES: dict[str, str] = {
+    "milk": "milk",
+    "dairy": "milk",
+    "egg": "egg",
+    "eggs": "egg",
+    "fish": "fish",
+    "sesame": "sesame",
+    "soy": "soya",
+    "soya": "soya",
+    "gluten": "cereal containing gluten",
+    "wheat": "cereal containing gluten",
+    "nut": "nuts",
+    "nuts": "nuts",
+    "peanut": "nuts",
 }
 
 
@@ -142,6 +163,27 @@ def build_menu_index() -> tuple[list[str], list[MenuItem]]:
     return ordered_names, [by_name[name] for name in ordered_names]
 
 
+def save_incremental_question_row(output_dir: str | Path, row: dict[str, Any]) -> None:
+    """
+    Persist one question-dialog result as soon as it is finished.
+
+    Writes:
+    - ``incremental/question_XXXX.json`` — full row (same shape as in ``rows.json`` later);
+    - appends one JSON line to ``incremental/rows_partial.jsonl`` (crash-safe progress log).
+    """
+    base = Path(output_dir)
+    inc = base / "incremental"
+    inc.mkdir(parents=True, exist_ok=True)
+    qid = int(row.get("question_id") or 0)
+    path = inc / f"question_{qid:04d}.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(row, f, ensure_ascii=False, indent=2)
+    jsonl = inc / "rows_partial.jsonl"
+    with open(jsonl, "a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        f.flush()
+
+
 def run_question_dialog_experiment(
     questions: list[dict[str, Any]],
     *,
@@ -151,6 +193,7 @@ def run_question_dialog_experiment(
     max_questions: int = 0,
     max_dialog_turns: int = 4,
     trace_verbose: bool = False,
+    incremental_save_dir: str | Path | None = None,
 ) -> list[dict[str, Any]]:
     profile = neutral_drive_through_profile()
     menu_names, menu_items = build_menu_index()
@@ -234,11 +277,28 @@ def run_question_dialog_experiment(
             menu_by_name=menu_by_name,
             all_menu_names=menu_names,
         )
+        audit = evaluate_dialog_audit(
+            question_row=row,
+            response_text=final_cashier_text,
+            mentioned_items=mentioned_items,
+            menu_by_name=menu_by_name,
+            heuristic_metrics=metrics,
+            need_to_specify=need_to_specify,
+        )
         judge_raw, judge_json = judge.evaluate(
             menu_json=menu_json_text,
             question_row=row,
             history=[{"speaker": t.speaker, "text": t.text} for t in history],
             heuristic_metrics=metrics,
+        )
+        final_metrics, metric_sources = build_metrics_from_judge(
+            judge_parsed=judge_json,
+            heuristic_metrics=metrics,
+        )
+        judge_vs_heuristic = build_judge_comparison(
+            final_metrics=final_metrics,
+            heuristic_metrics=metrics,
+            audit=audit,
         )
         history_with_judge = [
             {"speaker": t.speaker, "text": t.text}
@@ -263,15 +323,21 @@ def run_question_dialog_experiment(
             "turn_timings_ms": turn_timings_ms,
             "rag_trace": rag_trace,
             "llm_trace": llm_trace,
-            "metrics": metrics,
+            "metrics": final_metrics,
+            "heuristic_metrics": metrics,
+            "metric_sources": metric_sources,
+            "audit": audit,
             "judge": {
                 "raw_response": judge_raw,
                 "parsed": judge_json,
+                "vs_heuristic": judge_vs_heuristic,
             },
             "source_file": row.get("_source_file"),
             "source_index": row.get("_source_index"),
         }
         rows.append(row_out)
+        if incremental_save_dir is not None:
+            save_incremental_question_row(incremental_save_dir, row_out)
     return rows
 
 
@@ -380,8 +446,6 @@ def save_dialogs_by_category(
     *,
     output_dir: str,
 ) -> dict[str, Any]:
-    from pathlib import Path
-
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     by_cat_root = root / "by_category"
@@ -531,6 +595,217 @@ def detect_hallucination(
         if len(clean.split()) >= 2:
             return True
     return False
+
+
+def evaluate_dialog_audit(
+    *,
+    question_row: dict[str, Any],
+    response_text: str,
+    mentioned_items: list[str],
+    menu_by_name: dict[str, MenuItem],
+    heuristic_metrics: dict[str, Any],
+    need_to_specify: bool,
+) -> dict[str, Any]:
+    expected_item = str(question_row.get("expected_item") or "").strip()
+    expected_exists = expected_item in menu_by_name if expected_item else False
+    denied_expected = False
+    if expected_item and expected_exists:
+        denied_expected = _claims_item_unavailable(response_text, expected_item)
+
+    fact_conflicts: list[str] = []
+    target_item = None
+    if expected_item and expected_exists and expected_item in mentioned_items:
+        target_item = expected_item
+    elif len(mentioned_items) == 1 and mentioned_items[0] in menu_by_name:
+        target_item = mentioned_items[0]
+    if target_item:
+        fact_conflicts = _detect_item_fact_conflicts(response_text, menu_by_name[target_item], target_item)
+
+    context_ignorance = bool(expected_item and expected_exists and denied_expected)
+    critical_error = context_ignorance or bool(fact_conflicts)
+    expected_item_used = bool(expected_item and expected_item in mentioned_items and not denied_expected)
+
+    return {
+        "expected_item": expected_item or None,
+        "expected_item_in_menu": expected_exists,
+        "expected_item_used": expected_item_used,
+        "context_ignorance": context_ignorance,
+        "factual_conflicts": fact_conflicts,
+        "critical_error": critical_error,
+        "need_to_specify": bool(need_to_specify),
+        "heuristic_hallucination": bool(heuristic_metrics.get("hallucination")),
+    }
+
+
+def build_metrics_from_judge(
+    *,
+    judge_parsed: dict[str, Any],
+    heuristic_metrics: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """
+    Build final metrics with judge-first priority.
+
+    Heuristics remain a fallback when judge output is missing/invalid for a key.
+    """
+    out = dict(heuristic_metrics)
+    sources: dict[str, str] = {}
+    keys = (
+        "success_at_1",
+        "success_at_3",
+        "success_at_5",
+        "hallucination",
+        "constraint_violation",
+        "need_to_specify",
+        "empty_response",
+    )
+    for key in keys:
+        if key in judge_parsed:
+            out[key] = _coerce_bool(judge_parsed.get(key))
+            sources[key] = "judge"
+        else:
+            out[key] = _coerce_bool(heuristic_metrics.get(key))
+            sources[key] = "heuristic_fallback"
+
+    if "group_completeness" in judge_parsed and judge_parsed.get("group_completeness") is not None:
+        out["group_completeness"] = _as_float(judge_parsed.get("group_completeness"))
+        sources["group_completeness"] = "judge"
+    elif heuristic_metrics.get("group_completeness") is not None:
+        out["group_completeness"] = heuristic_metrics.get("group_completeness")
+        sources["group_completeness"] = "heuristic_fallback"
+    else:
+        out["group_completeness"] = None
+        sources["group_completeness"] = "none"
+    return out, sources
+
+
+def build_judge_comparison(
+    *,
+    final_metrics: dict[str, Any],
+    heuristic_metrics: dict[str, Any],
+    audit: dict[str, Any],
+) -> dict[str, Any]:
+    compared_keys = (
+        "success_at_1",
+        "success_at_3",
+        "success_at_5",
+        "hallucination",
+        "constraint_violation",
+        "need_to_specify",
+        "empty_response",
+    )
+    disagreements: list[str] = []
+    for key in compared_keys:
+        if _coerce_bool(final_metrics.get(key)) != _coerce_bool(heuristic_metrics.get(key)):
+            disagreements.append(key)
+    context_ignorance = bool(audit.get("context_ignorance"))
+    factual_conflicts = [str(x) for x in (audit.get("factual_conflicts") or []) if str(x).strip()]
+    judge_hallucination = _coerce_bool(final_metrics.get("hallucination"))
+    supports_audit = (not context_ignorance and not factual_conflicts) or judge_hallucination
+    return {
+        "disagreement_count": len(disagreements),
+        "disagreements": disagreements,
+        "supports_audit_signals": supports_audit,
+        "audit_signals": {
+            "context_ignorance": context_ignorance,
+            "factual_conflicts": factual_conflicts,
+            "critical_error": bool(audit.get("critical_error")),
+        },
+    }
+
+
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"true", "yes", "1"}:
+            return True
+        if v in {"false", "no", "0", ""}:
+            return False
+    return False
+
+
+def _claims_item_unavailable(text: str, item_name: str) -> bool:
+    txt = (text or "").strip()
+    if not txt:
+        return False
+    item_pat = _name_pattern(item_name)
+    for unavailable_pat in _UNAVAILABLE_PATTERNS:
+        pattern = rf"{unavailable_pat}[\s,:-]{{0,30}}(?:the\s+)?{item_pat}|{item_pat}[\s,:-]{{0,30}}{unavailable_pat}"
+        if re.search(pattern, txt, flags=re.IGNORECASE):
+            return True
+    return False
+
+
+def _detect_item_fact_conflicts(response_text: str, item: MenuItem, item_name: str) -> list[str]:
+    txt = (response_text or "").strip()
+    if not txt:
+        return []
+    conflicts: list[str] = []
+    lower = txt.lower()
+    if normalize_name(item_name) not in normalize_name(lower):
+        return conflicts
+
+    stated_allergens = _extract_stated_allergens(lower)
+    if stated_allergens:
+        expected = {_normalize_allergen_token(x) for x in item.allergens if _normalize_allergen_token(x)}
+        extra = sorted(x for x in stated_allergens if x not in expected)
+        missing = sorted(x for x in expected if x not in stated_allergens)
+        if extra:
+            conflicts.append(
+                f"Allergen list mismatch for {item_name}: extra={', '.join(extra)}."
+            )
+        if missing and len(expected) <= 6:
+            conflicts.append(
+                f"Allergen list mismatch for {item_name}: missing={', '.join(missing)}."
+            )
+
+    for nutrient, pattern, tol in (
+        ("energy", r"(?:calories?|kcal|energy)\s*[:\-]?\s*(\d+(?:\.\d+)?)", 25.0),
+        ("protein", r"protein\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*g", 4.0),
+        ("carbs", r"carb(?:s|ohydrates?)?\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*g", 6.0),
+        ("total_sugar", r"(?:sugar|total sugar)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*g", 4.0),
+        ("sodium", r"sodium\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*mg", 100.0),
+    ):
+        m = re.search(pattern, lower, flags=re.IGNORECASE)
+        if not m:
+            continue
+        stated = _as_float(m.group(1))
+        expected_val = _as_float(item.nutrients.get(nutrient))
+        if expected_val <= 0:
+            continue
+        if abs(stated - expected_val) > tol:
+            conflicts.append(
+                f"{item_name} {nutrient} mismatch: stated={stated:.1f}, menu={expected_val:.1f}."
+            )
+    return conflicts
+
+
+def _extract_stated_allergens(lower_text: str) -> set[str]:
+    m = re.search(r"allerg(?:en|ies)\s*[:\-]?\s*([^\n.!?]{1,120})", lower_text, flags=re.IGNORECASE)
+    if not m:
+        return set()
+    chunk = m.group(1)
+    tokens = re.findall(r"[a-z][a-z\s]{1,24}", chunk)
+    out: set[str] = set()
+    for token in tokens:
+        key = _normalize_allergen_token(token)
+        if key:
+            out.add(key)
+    return out
+
+
+def _normalize_allergen_token(token: str) -> str:
+    raw = normalize_name(token)
+    if not raw:
+        return ""
+    if raw in _ALLERGEN_TOKEN_ALIASES:
+        return _ALLERGEN_TOKEN_ALIASES[raw]
+    if raw.endswith("s") and raw[:-1] in _ALLERGEN_TOKEN_ALIASES:
+        return _ALLERGEN_TOKEN_ALIASES[raw[:-1]]
+    return raw
 
 
 def detect_constraint_violation(
@@ -764,7 +1039,12 @@ class DialogJudge:
             "success_at_1, success_at_3, success_at_5, hallucination, "
             "constraint_violation, need_to_specify, empty_response, "
             "group_completeness, short_analysis, risks, final_label. "
-            "Include risks as an array of short strings."
+            "Include risks as an array of short strings. "
+            "CRITICAL: If cashier says an item is unavailable while that item is present in menu_json, "
+            "set hallucination=true and all success_at_* to false. "
+            "CRITICAL: If cashier provides item facts (allergens/nutrition) that conflict with menu_json, "
+            "set hallucination=true and final_label='fail'. "
+            "Do not reward retrieval presence; score only what cashier actually said."
         )
         payload = {
             "question_row": question_row,

@@ -72,19 +72,21 @@ def run_cashier_turn(
     )
 
     composer = ResponseComposer()
-    deterministic = composer.compose_deterministic(
-        agent=agent,
-        facts=facts,
-        profile=ctx.profile,
-        order_state=ctx.order_state,
-        client_text=ctx.client_text,
-        history=ctx.history,
-        llm_trace=llm_trace,
-        rag_meta=rag_meta,
-        trace_fn=_trace,
-        nutrition_reply_fn=_deterministic_full_catalog_nutrition_reply,
-        wants_menu_item_details_fn=_wants_menu_item_details,
-    )
+    deterministic = None
+    if not getattr(agent, "_disable_deterministic_shortcuts", False):
+        deterministic = composer.compose_deterministic(
+            agent=agent,
+            facts=facts,
+            profile=ctx.profile,
+            order_state=ctx.order_state,
+            client_text=ctx.client_text,
+            history=ctx.history,
+            llm_trace=llm_trace,
+            rag_meta=rag_meta,
+            trace_fn=_trace,
+            nutrition_reply_fn=_deterministic_full_catalog_nutrition_reply,
+            wants_menu_item_details_fn=_wants_menu_item_details,
+        )
     if deterministic:
         return deterministic
 

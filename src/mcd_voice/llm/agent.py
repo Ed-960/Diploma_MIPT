@@ -1634,6 +1634,10 @@ class CashierAgent:
     По умолчанию в системный промпт попадают психотип и состав группы из profile
     (удобно для симуляции). При realistic_cashier=True кассир видит только общие
     правила и реплики из диалога; фильтр аллергенов в RAG по профилю отключается.
+
+    По умолчанию ``disable_deterministic_shortcuts=True``: ответ кассира всегда через
+    ``_call_llm`` (без шаблонных compare/menu/nutrition/menu-browse обходов). Передайте
+    ``False``, если нужны старые детерминированные ветки (латентность/тесты).
     """
 
     def __init__(
@@ -1649,6 +1653,7 @@ class CashierAgent:
         realistic_cashier: bool = True,
         rag_max_prompt_lines: int | None = None,
         full_menu_context: bool = False,
+        disable_deterministic_shortcuts: bool = True,
     ) -> None:
         self.model = _resolve_model(model)
         # Always query broad vector slice by default; very small top_k leads
@@ -1671,6 +1676,7 @@ class CashierAgent:
         self._trace_verbose = trace_verbose
         self._realistic_cashier = realistic_cashier
         self._full_menu_context = bool(full_menu_context)
+        self._disable_deterministic_shortcuts = bool(disable_deterministic_shortcuts)
         # Mini-LLM для query rewriting: используем REWRITE_MODEL из .env.
         # Параметр rewrite_model оставлен для обратной совместимости, но не применяется.
         _ = rewrite_model
@@ -1723,78 +1729,79 @@ class CashierAgent:
             or (rag_spec or {}).get("min_kcal") is not None
         )
         allow_full_nutrition = _wants_full_nutrition_context(client_text, rag_spec)
-        macro_reply = (
-            self._deterministic_compare_reply(profile, client_text, rag_spec)
-            if intent == "compare"
-            else None
-        )
-        if macro_reply:
-            _trace(
-                llm_trace,
-                {
-                    "event": "deterministic_compare_reply",
-                    **(rag_meta or {}),
-                },
+        if not self._disable_deterministic_shortcuts:
+            macro_reply = (
+                self._deterministic_compare_reply(profile, client_text, rag_spec)
+                if intent == "compare"
+                else None
             )
-            return macro_reply
-        meal_details = (
-            self._deterministic_meal_details_reply(client_text, rag_context)
-            if intent == "details" and _wants_menu_item_details(client_text)
-            else None
-        )
-        if meal_details:
-            _trace(
-                llm_trace,
-                {
-                    "event": "deterministic_meal_details_reply",
-                    **(rag_meta or {}),
-                },
+            if macro_reply:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "deterministic_compare_reply",
+                        **(rag_meta or {}),
+                    },
+                )
+                return macro_reply
+            meal_details = (
+                self._deterministic_meal_details_reply(client_text, rag_context)
+                if intent == "details" and _wants_menu_item_details(client_text)
+                else None
             )
-            return meal_details
-        tune_reply = (
-            self._deterministic_calorie_tuning_reply(profile, order_state, client_text)
-            if intent == "calorie_tune" and not self._realistic_cashier
-            else None
-        )
-        if tune_reply:
-            _trace(
-                llm_trace,
-                {
-                    "event": "deterministic_calorie_tuning_reply",
-                    **(rag_meta or {}),
-                    **(
-                        {"target_kcal": profile.get("calApprValue")}
-                        if not self._realistic_cashier
-                        else {}
-                    ),
-                },
+            if meal_details:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "deterministic_meal_details_reply",
+                        **(rag_meta or {}),
+                    },
+                )
+                return meal_details
+            tune_reply = (
+                self._deterministic_calorie_tuning_reply(profile, order_state, client_text)
+                if intent == "calorie_tune" and not self._realistic_cashier
+                else None
             )
-            return tune_reply
-        nutrition_reply = _deterministic_full_catalog_nutrition_reply(client_text, history)
-        if nutrition_reply:
-            _trace(
-                llm_trace,
-                {
-                    "event": "deterministic_full_catalog_nutrition_reply",
-                    **(rag_meta or {}),
-                },
+            if tune_reply:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "deterministic_calorie_tuning_reply",
+                        **(rag_meta or {}),
+                        **(
+                            {"target_kcal": profile.get("calApprValue")}
+                            if not self._realistic_cashier
+                            else {}
+                        ),
+                    },
+                )
+                return tune_reply
+            nutrition_reply = _deterministic_full_catalog_nutrition_reply(client_text, history)
+            if nutrition_reply:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "deterministic_full_catalog_nutrition_reply",
+                        **(rag_meta or {}),
+                    },
+                )
+                return nutrition_reply
+            menu_browse_reply = self._deterministic_menu_browse_reply(
+                client_text,
+                history,
+                rag_context,
+                rag_spec,
             )
-            return nutrition_reply
-        menu_browse_reply = self._deterministic_menu_browse_reply(
-            client_text,
-            history,
-            rag_context,
-            rag_spec,
-        )
-        if menu_browse_reply:
-            _trace(
-                llm_trace,
-                {
-                    "event": "deterministic_menu_browse_reply",
-                    **(rag_meta or {}),
-                },
-            )
-            return menu_browse_reply
+            if menu_browse_reply:
+                _trace(
+                    llm_trace,
+                    {
+                        "event": "deterministic_menu_browse_reply",
+                        **(rag_meta or {}),
+                    },
+                )
+                return menu_browse_reply
         system = self._build_system(
             profile,
             order_state,

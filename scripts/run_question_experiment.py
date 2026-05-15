@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -127,6 +128,17 @@ def main() -> int:
         f"provider={cfg['provider']} model={cfg['model']} base_url={cfg['base_url']}",
         flush=True,
     )
+    if (cfg.get("provider") or "").strip().lower() == "ollama":
+        bu = (cfg.get("base_url") or "").lower()
+        if bu and "127.0.0.1" not in bu and "localhost" not in bu:
+            print(
+                "[question-experiment] WARN: API_PROVIDER=ollama, но LLM_BASE_URL не указывает на локальный "
+                "Ollama (ожидается что-то вроде http://127.0.0.1:11434/v1). Сейчас запросы всё равно идут на "
+                f"{cfg.get('base_url')!r}. Для OpenRouter в .env используйте "
+                "`make question-experiment-norag-api` или выставьте API_PROVIDER=openai.",
+                file=sys.stderr,
+                flush=True,
+            )
     print(
         f"[question-experiment] loaded {len(questions)} questions; will run {total_run} "
         f"(max_dialog_turns={max(1, args.max_dialog_turns)}, trace_verbose={args.trace_verbose})",
@@ -147,6 +159,7 @@ def main() -> int:
         max_questions=args.max_questions,
         max_dialog_turns=max(1, args.max_dialog_turns),
         trace_verbose=args.trace_verbose,
+        incremental_save_dir=str(out_dir),
     )
     artifacts = save_dialogs_by_category(rows, output_dir=str(out_dir))
     summary = artifacts["summary"]

@@ -180,11 +180,10 @@ def test_rag_json_allergen_filters_are_ignored_for_safety(
 
 def test_utterance_allergen_parser_keeps_supported_filters(monkeypatch) -> None:
     """Explicit allergen language in utterance still becomes a hard filter."""
-    captured: dict[str, object] = {}
+    calls: list[dict[str, object]] = []
 
     def fake_search(query: str, allergens_blacklist=None, **_kwargs):
-        captured["query"] = query
-        captured["allergens_blacklist"] = allergens_blacklist
+        calls.append({"query": query, "allergens_blacklist": allergens_blacklist})
         return [
             {
                 "name": "Hash Browns",
@@ -216,7 +215,7 @@ def test_utterance_allergen_parser_keeps_supported_filters(monkeypatch) -> None:
         rag_meta={"call": "turn", "turn": 1},
     )
 
-    assert captured["allergens_blacklist"] == ["Milk"]
+    assert any(c["allergens_blacklist"] == ["Milk"] for c in calls)
     rag_ev = [e for e in trace if e.get("event") == "rag"]
     assert rag_ev[0]["allergen_blacklist_tokens"] == ["Milk"]
     assert rag_ev[0]["utterance_allergen_exclusions"] == ["Milk"]
@@ -272,7 +271,8 @@ def test_realistic_cashier_prompt_does_not_expose_profile(monkeypatch) -> None:
     assert "Customer personality" not in system
     assert "impatient" not in system
     assert "child_1" not in system
-    assert "restrictions" not in system
+    # Prompt rules mention "restrictions" in general policy text; profile JSON must stay out.
+    assert '"noMilk"' not in system and '"calApprValue"' not in system
     assert "noMilk" not in system
     assert "1234" not in system
     assert "Big Mac" in system

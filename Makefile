@@ -152,7 +152,7 @@ help:
 	@echo ""
 	@echo "Эксперимент по вопросам (no-RAG, полный mcd.json у кассира; OUT_QUESTIONS, MAX_QUESTIONS, MAX_DIALOG_TURNS):"
 	@echo "  make question-experiment-norag         OUT_QUESTIONS=$(OUT_QUESTIONS) MAX_QUESTIONS=$(MAX_QUESTIONS) MAX_DIALOG_TURNS=$(MAX_DIALOG_TURNS)"
-	@echo "  make question-experiment-norag-api / question-experiment-norag-ollama"
+	@echo "  make question-experiment-norag-api / question-experiment-norag-ollama   # -ollama = локальный Ollama: в .env LLM_BASE_URL=http://127.0.0.1:11434/v1"
 	@echo "  make question-experiment-norag-smoke   # MAX_QUESTIONS=60 -> experiments/no_rag_questions_smoke"
 	@echo "  make question-experiment-norag-smoke-api / question-experiment-norag-smoke-ollama"
 	@echo "  + модели: CASHIER_MODEL=... CLIENT_MODEL=... JUDGE_MODEL=...  (трассы --trace_verbose всегда)"
