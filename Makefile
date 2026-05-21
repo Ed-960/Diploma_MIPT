@@ -117,7 +117,7 @@ _question_cat_targets := $(foreach c,$(question_bank_cats),question-experiment-n
 	visualize-menu-graph visualize-menu-graph-open \
 	visualize-menu-graph-full visualize-menu-graph-full-open \
 	visualize-menu-graph-focus visualize-menu-graph-focus-open \
-	visualize-profile-graph compare-rag export-ai venv
+	visualize-profile-graph compare-rag analyze-question-experiments analyze-question-experiments-rows repair-group-experiment-nulls repair-group-rescore rejudge-group ragas-question-metrics ragas-reports ragas-question-metrics-sum ragas-reports-sum sum-experiment-tables reports reports-rows export-ai venv
 
 help:
 	@echo "mcd-voice-diploma — make targets"
@@ -189,6 +189,18 @@ help:
 	@echo "  make visualize-profile-graph  # граф семплинга профилей -> docs/profile_decision_graph.mmd"
 	@echo ""
 	@echo "  make compare-rag         RAG_DIR=$(OUT_RAG) NORAG_DIR=$(OUT_NORAG)"
+	@echo "  make analyze-question-experiments   JSON/MD из experiments/no-rag vs experiments/rag (incremental + rows)"
+	@echo "  make analyze-question-experiments-rows   то же, только rows.json → experiments/analysis_rows/"
+	@echo "  make repair-group-experiment-nulls   expected_item из group_questions.json в norag_group/vec_rag_group (без LLM)"
+	@echo "  make repair-group-rescore            пересчёт metrics group (CV эвристика + group_completeness)"
+	@echo "  make rejudge-group                   только judge по сохранённым group-диалогам (без перегенерации)"
+	@echo "  make ragas-question-metrics   RAGAS (faithfulness, answer_relevancy) по experiments/rag → analysis/ragas_scores_rag.json + ragas_summary.* и charts/ (pip install -e '.[ragas]')"
+	@echo "  make ragas-reports            только ragas_summary.md/html и charts из уже посчитанного ragas_scores_rag.json (без LLM)"
+	@echo "  make ragas-question-metrics-sum  то же, вывод в experiments/analysis_sum/ (рядом с sum_boost отчётами)"
+	@echo "  make ragas-reports-sum           --reports-only для experiments/analysis_sum/ragas_scores_rag.json"
+	@echo "  make sum-experiment-tables    сводные таблицы analysis → analysis_sum/ (см. sum_boost…)"
+	@echo "  make reports              все отчёты по уже собранным данным (вопросы + compare_rag если есть summary)"
+	@echo "  make reports-rows         как reports, но метрики только из rows.json → experiments/analysis_rows/"
 	@echo ""
 	@echo "Эксперимент по вопросам (MAX_QUESTIONS, MAX_DIALOG_TURNS; трассы --trace_verbose всегда):"
 	@echo "  no-RAG (retrieval_mode=none; OUT_QUESTIONS=$(OUT_QUESTIONS)):"
@@ -484,6 +496,52 @@ visualize-profile-graph:
 
 compare-rag:
 	$(PY) scripts/compare_rag.py --rag_dir $(RAG_DIR) --norag_dir $(NORAG_DIR)
+
+# Агрегация incremental/question_*.json из experiments/no-rag/norag_* и experiments/rag/vec_rag_* → experiments/analysis/
+analyze-question-experiments:
+	$(PY) scripts/analyze_question_experiments.py --output-dir experiments/analysis
+
+# Только rows.json в корне прогонов (без incremental) → experiments/analysis_rows/
+analyze-question-experiments-rows:
+	$(PY) scripts/analyze_question_experiments.py --rows-only --output-dir experiments/analysis_rows
+
+# Починка expected_item=null в сохранённых group-прогонах (без перегенерации диалогов).
+repair-group-experiment-nulls:
+	$(PY) scripts/repair_group_experiment_nulls.py
+
+# Offline-пересчёт метрик group: heuristic CV + group_completeness (без LLM-диалогов).
+repair-group-rescore:
+	$(PY) scripts/repair_group_experiment_nulls.py --rescore-group
+
+# Только DialogJudge по history в norag_group / vec_rag_group (кассир не вызывается).
+rejudge-group:
+	$(PY) scripts/rejudge_group_experiments.py
+
+# RAGAS: нужен pip install -e ".[ragas]" ; LLM — из .env (LLM_BASE_URL, API_MODEL); эмбеддинги — HF локально.
+ragas-question-metrics:
+	$(PY) scripts/run_ragas_question_metrics.py --run-root experiments/rag --output experiments/analysis/ragas_scores_rag.json
+
+# Пересборка отчётов RAGAS из JSON (matplotlib для PNG — как в analyze-question-experiments).
+ragas-reports:
+	$(PY) scripts/run_ragas_question_metrics.py --reports-only --output experiments/analysis/ragas_scores_rag.json
+
+ragas-question-metrics-sum:
+	$(PY) scripts/run_ragas_question_metrics.py --run-root experiments/rag --output experiments/analysis_sum/ragas_scores_rag.json
+
+ragas-reports-sum:
+	$(PY) scripts/run_ragas_question_metrics.py --reports-only --output experiments/analysis_sum/ragas_scores_rag.json
+
+# Сводные таблицы (sum_boost): пропуск категорий с исходным no-rag>85%; иначе N≥101, RAG≤95% → analysis_sum/
+sum-experiment-tables:
+	$(PY) scripts/sum_boost_experiment_tables.py
+
+# Все отчёты без LLM: question-анализ + compare_rag при наличии dialogs_*/summary.json + pytest.
+reports:
+	$(PY) scripts/run_all_reports.py
+
+# Как reports, но только rows.json из experiments/no-rag и experiments/rag → analysis_rows/
+reports-rows:
+	$(PY) scripts/run_all_reports.py --rows-only
 
 export-ai:
 	$(PY) scripts/export_all_project_for_ai.py --output $(AI_EXPORT)

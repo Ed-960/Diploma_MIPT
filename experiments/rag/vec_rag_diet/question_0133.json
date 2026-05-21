@@ -1,0 +1,2217 @@
+{
+  "question_id": 133,
+  "category": "diet",
+  "question": "Whole30 compliant – no grains, dairy, legumes, sugar, or alcohol. Any suggestions?",
+  "expected_item": null,
+  "expected_constraints": [
+    {
+      "type": "diet",
+      "value": "whole30"
+    }
+  ],
+  "dialog_finished_reason": "cashier_direct_answer",
+  "dialog_turns": 4,
+  "history": [
+    {
+      "speaker": "client",
+      "text": "Whole30 compliant – no grains, dairy, legumes, sugar, or alcohol. Any suggestions?"
+    },
+    {
+      "speaker": "cashier",
+      "text": "We have lemonade, but it contains sugar and isn't Whole30 compliant. We don't have any other items that meet your requirements right now. Would you like to try something else?"
+    },
+    {
+      "speaker": "client",
+      "text": "No, I don't need anything else."
+    },
+    {
+      "speaker": "cashier",
+      "text": "Okay, no problem. Have a great day!"
+    },
+    {
+      "speaker": "judge",
+      "text": "{\n  \"success_at_1\": false,\n  \"success_at_3\": false,\n  \"success_at_5\": false,\n  \"hallucination\": false,\n  \"constraint_violation\": false,\n  \"final_label\": \"pass\"\n}"
+    }
+  ],
+  "final_cashier_response": "Okay, no problem. Have a great day!",
+  "mentioned_items": [],
+  "need_to_specify": false,
+  "empty_response": false,
+  "response_time_ms": 113478.17,
+  "turn_timings_ms": [
+    {
+      "cashier_step": 1.0,
+      "duration_ms": 65508.86
+    },
+    {
+      "client_step": 1.0,
+      "duration_ms": 23897.25
+    },
+    {
+      "cashier_step": 2.0,
+      "duration_ms": 24072.06
+    }
+  ],
+  "rag_trace": [
+    {
+      "event": "chroma_request",
+      "query_texts": [
+        "Whole30 compliant beverages or food items"
+      ],
+      "n_results": 101,
+      "where": {
+        "allergens": {
+          "$not_contains": "Milk"
+        }
+      }
+    },
+    {
+      "event": "chroma_response",
+      "query_duration_ms": 26.57,
+      "ids": [
+        "93",
+        "89",
+        "58",
+        "52",
+        "54",
+        "55",
+        "64",
+        "63",
+        "94",
+        "88",
+        "56",
+        "57",
+        "78",
+        "91",
+        "13",
+        "90",
+        "92",
+        "77",
+        "51",
+        "46",
+        "0",
+        "5",
+        "6",
+        "7",
+        "8",
+        "50",
+        "27",
+        "28",
+        "29",
+        "53"
+      ],
+      "distances": [
+        0.585369348526001,
+        0.6645042300224304,
+        0.6653170585632324,
+        0.6801412105560303,
+        0.6870459318161011,
+        0.6870459318161011,
+        0.689659595489502,
+        0.6917632818222046,
+        0.6925042867660522,
+        0.6997645497322083,
+        0.7035089731216431,
+        0.7035089731216431,
+        0.7065245509147644,
+        0.7106846570968628,
+        0.7116172909736633,
+        0.7257800698280334,
+        0.7378191351890564,
+        0.7480489015579224,
+        0.7529921531677246,
+        0.7560439109802246,
+        0.7629439830780029,
+        0.7930412888526917,
+        0.7930412888526917,
+        0.7930412888526917,
+        0.7930412888526917,
+        0.8142497539520264,
+        0.8182608485221863,
+        0.8182608485221863,
+        0.8182608485221863,
+        0.863090991973877
+      ],
+      "metadatas": [
+        {
+          "tag": "Tart and refreshing.",
+          "allergens": [
+            "__none__"
+          ],
+          "energy": 180.0,
+          "sodium": 25.0,
+          "carbs": 46.0,
+          "total_sugar": 45.0,
+          "category": "",
+          "sat_fat": 0.0,
+          "name": "Minute Maid Lemonade",
+          "protein": 0.0,
+          "trans_fat": 0.0,
+          "serving_size": "500ml",
+          "added_sugar": 45.0,
+          "description": "Classic lemonade with real lemon flavor.",
+          "ingredients": "Water, high fructose corn syrup, lemon juice concentrate",
+          "total_fat": 0.0,
+          "chol": 0.0
+        },
+        {
+          "tag": "Zero-calorie cola.",
+          "total_fat": 0.0,
+          "carbs": 0.0,
+          "energy": 0.0,
+          "serving_size": "300ml",
+          "allergens": [
+            "__none__"
+          ],
+          "protein": 0.0,
+          "category": "",
+          "description": "Small Diet Coke — crisp and refreshing.",
+          "added_sugar": 0.0,
+          "name": "Diet Coke",
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine",
+          "trans_fat": 0.0,
+          "total_sugar": 0.0,
+          "chol": 0.0,
+          "sat_fat": 0.0,
+          "sodium": 25.0
+        },
+        {
+          "tag": "Start your day with vitamin C.",
+          "sodium": 0.0,
+          "ingredients": "100% orange juice from concentrate",
+          "category": "",
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "name": "Orange Juice",
+          "description": "The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.",
+          "trans_fat": 0.0,
+          "serving_size": "355ml",
+          "total_sugar": 30.0,
+          "energy": 150.0,
+          "carbs": 34.0,
+          "total_fat": 0.0,
+          "added_sugar": 0.0,
+          "protein": 2.0,
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "tag": "Fresh greens on the side.",
+          "serving_size": "87g",
+          "chol": 0.0,
+          "energy": 15.0,
+          "trans_fat": 0.0,
+          "total_sugar": 2.0,
+          "sodium": 10.0,
+          "protein": 1.0,
+          "total_fat": 0.0,
+          "added_sugar": 0.0,
+          "description": "A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.",
+          "ingredients": "Mixed greens, grape tomatoes, shredded carrots",
+          "allergens": [
+            "__none__"
+          ],
+          "carbs": 3.0,
+          "category": "",
+          "name": "Side Salad",
+          "sat_fat": 0.0
+        },
+        {
+          "protein": 0.0,
+          "added_sugar": 58.0,
+          "allergens": [
+            "__none__"
+          ],
+          "chol": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "carbs": 58.0,
+          "sodium": 45.0,
+          "sat_fat": 0.0,
+          "category": "",
+          "name": "Coca-Cola",
+          "tag": "The classic refreshment.",
+          "total_sugar": 58.0,
+          "energy": 210.0,
+          "total_fat": 0.0,
+          "serving_size": "500ml",
+          "trans_fat": 0.0
+        },
+        {
+          "category": "",
+          "total_fat": 0.0,
+          "energy": 140.0,
+          "name": "Coca-Cola",
+          "allergens": [
+            "__none__"
+          ],
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "total_sugar": 39.0,
+          "protein": 0.0,
+          "trans_fat": 0.0,
+          "added_sugar": 39.0,
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "sodium": 30.0,
+          "chol": 0.0,
+          "serving_size": "300ml",
+          "carbs": 39.0,
+          "tag": "The classic refreshment.",
+          "sat_fat": 0.0
+        },
+        {
+          "trans_fat": 0.5,
+          "tag": "A classic meal for kids.",
+          "sat_fat": 5.0,
+          "chol": 35.0,
+          "description": "A Happy Meal with a Hamburger, small fries, apple slices, and your choice of a drink. Includes a fun toy!",
+          "energy": 475.0,
+          "name": "Happy Meal (Hamburger)",
+          "added_sugar": 4.0,
+          "total_fat": 17.0,
+          "carbs": 60.0,
+          "category": "",
+          "sodium": 680.0,
+          "total_sugar": 12.0,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "serving_size": "260g",
+          "ingredients": "Hamburger, small fries, apple slices, choice of drink",
+          "protein": 17.0
+        },
+        {
+          "protein": 15.0,
+          "serving_size": "250g",
+          "sodium": 500.0,
+          "category": "",
+          "name": "Happy Meal (4pc McNuggets)",
+          "tag": "A meal that makes kids smile.",
+          "ingredients": "4pc Chicken McNuggets, small fries, apple slices, choice of drink",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "total_fat": 18.0,
+          "chol": 30.0,
+          "trans_fat": 0.0,
+          "added_sugar": 0.0,
+          "description": "A Happy Meal with 4 Chicken McNuggets, small fries, apple slices, and your choice of a drink. Includes a fun toy!",
+          "total_sugar": 5.0,
+          "energy": 395.0,
+          "carbs": 42.0,
+          "sat_fat": 3.0
+        },
+        {
+          "energy": 0.0,
+          "category": "",
+          "name": "Bottled Water",
+          "carbs": 0.0,
+          "serving_size": "500ml",
+          "trans_fat": 0.0,
+          "description": "Refreshing purified drinking water.",
+          "ingredients": "Purified water",
+          "tag": "Hydration on the go.",
+          "protein": 0.0,
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "sodium": 0.0,
+          "total_sugar": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "total_fat": 0.0
+        },
+        {
+          "sodium": 40.0,
+          "energy": 0.0,
+          "total_fat": 0.0,
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "tag": "Zero-calorie cola.",
+          "sat_fat": 0.0,
+          "carbs": 0.0,
+          "name": "Diet Coke",
+          "serving_size": "500ml",
+          "description": "Diet Coke with the same great taste and no calories.",
+          "protein": 0.0,
+          "trans_fat": 0.0,
+          "total_sugar": 0.0,
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine",
+          "allergens": [
+            "__none__"
+          ],
+          "category": ""
+        },
+        {
+          "total_sugar": 54.0,
+          "carbs": 54.0,
+          "name": "Sprite",
+          "sat_fat": 0.0,
+          "energy": 200.0,
+          "chol": 0.0,
+          "sodium": 65.0,
+          "added_sugar": 54.0,
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "category": "",
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "serving_size": "500ml",
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "protein": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "tag": "Crisp and refreshing."
+        },
+        {
+          "category": "",
+          "serving_size": "300ml",
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "total_fat": 0.0,
+          "protein": 0.0,
+          "sodium": 45.0,
+          "tag": "Crisp and refreshing.",
+          "added_sugar": 38.0,
+          "trans_fat": 0.0,
+          "energy": 140.0,
+          "total_sugar": 38.0,
+          "carbs": 38.0,
+          "chol": 0.0,
+          "sat_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "name": "Sprite"
+        },
+        {
+          "sat_fat": 0.0,
+          "carbs": 0.0,
+          "sodium": 5.0,
+          "tag": "Freshly brewed every day.",
+          "ingredients": "100% Arabica coffee, water",
+          "allergens": [
+            "__none__"
+          ],
+          "serving_size": "296ml",
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "total_fat": 0.0,
+          "category": "",
+          "energy": 0.0,
+          "name": "Premium Roast Coffee",
+          "total_sugar": 0.0,
+          "description": "Small cup of medium-roast Arabica coffee.",
+          "trans_fat": 0.0,
+          "protein": 0.0
+        },
+        {
+          "serving_size": "500ml",
+          "description": "Caffeine-free orange soda with a fruity burst.",
+          "chol": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors",
+          "sodium": 55.0,
+          "trans_fat": 0.0,
+          "name": "Fanta Orange",
+          "allergens": [
+            "__none__"
+          ],
+          "sat_fat": 0.0,
+          "total_fat": 0.0,
+          "added_sugar": 57.0,
+          "total_sugar": 57.0,
+          "energy": 210.0,
+          "carbs": 57.0,
+          "protein": 0.0,
+          "category": "",
+          "tag": "Bright orange soda."
+        },
+        {
+          "sat_fat": 0.0,
+          "serving_size": "400ml",
+          "total_sugar": 58.08,
+          "sodium": 16.68,
+          "description": "A blend of aromatic tea and the fruity flavour of lemon.",
+          "total_fat": 0.12,
+          "name": "Iced Tea",
+          "trans_fat": 0.0,
+          "carbs": 59.28,
+          "chol": 0.0,
+          "ingredients": "",
+          "allergens": [
+            "__none__"
+          ],
+          "protein": 1.08,
+          "tag": "",
+          "added_sugar": 55.16,
+          "category": "",
+          "energy": 242.52
+        },
+        {
+          "total_sugar": 54.0,
+          "sat_fat": 0.0,
+          "name": "Dr Pepper",
+          "total_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "protein": 0.0,
+          "sodium": 60.0,
+          "tag": "23 flavors in one drink.",
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors",
+          "trans_fat": 0.0,
+          "carbs": 54.0,
+          "added_sugar": 54.0,
+          "category": "",
+          "description": "Unique blend of 23 flavors in a bold fountain drink.",
+          "chol": 0.0,
+          "energy": 200.0,
+          "serving_size": "500ml"
+        },
+        {
+          "serving_size": "500ml",
+          "chol": 0.0,
+          "sat_fat": 0.0,
+          "category": "",
+          "protein": 0.0,
+          "description": "Freshly brewed iced tea sweetened just right.",
+          "total_fat": 0.0,
+          "sodium": 10.0,
+          "name": "Sweet Tea",
+          "energy": 150.0,
+          "added_sugar": 38.0,
+          "carbs": 38.0,
+          "trans_fat": 0.0,
+          "total_sugar": 38.0,
+          "tag": "Southern-style sweet tea.",
+          "ingredients": "Brewed tea, sugar, water",
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "energy": 5.0,
+          "sodium": 10.0,
+          "allergens": [
+            "__none__"
+          ],
+          "category": "",
+          "ingredients": "100% Arabica coffee, water",
+          "total_sugar": 0.0,
+          "tag": "Freshly brewed every day.",
+          "chol": 0.0,
+          "sat_fat": 0.0,
+          "total_fat": 0.0,
+          "name": "Premium Roast Coffee",
+          "added_sugar": 0.0,
+          "trans_fat": 0.0,
+          "serving_size": "473ml",
+          "description": "Medium-roast coffee made from 100% Arabica beans — smooth and balanced.",
+          "carbs": 0.0,
+          "protein": 0.0
+        },
+        {
+          "carbs": 4.0,
+          "serving_size": "34g",
+          "energy": 15.0,
+          "ingredients": "Fresh sliced apples",
+          "category": "",
+          "total_fat": 0.0,
+          "protein": 0.0,
+          "description": "Fresh, crisp apple slices. A wholesome choice for any meal.",
+          "total_sugar": 3.0,
+          "allergens": [
+            "__none__"
+          ],
+          "tag": "A fresh, healthy side.",
+          "name": "Apple Slices",
+          "added_sugar": 0.0,
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "trans_fat": 0.0,
+          "sodium": 0.0
+        },
+        {
+          "sat_fat": 3.5,
+          "energy": 250.0,
+          "total_sugar": 6.0,
+          "protein": 12.0,
+          "total_fat": 9.0,
+          "carbs": 31.0,
+          "tag": "The classic that started it all.",
+          "description": "The original burger. A 100% beef patty seasoned with a pinch of salt and pepper, topped with tangy pickles, chopped onions, ketchup and mustard.",
+          "added_sugar": 4.0,
+          "category": "",
+          "ingredients": "100% beef patty, pickles, onions, ketchup, mustard, regular bun",
+          "chol": 30.0,
+          "serving_size": "105g",
+          "name": "Hamburger",
+          "trans_fat": 0.5,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "sodium": 510.0
+        },
+        {
+          "description": "Perfectly brewed for any time of the day.",
+          "protein": 0.0,
+          "total_sugar": 0.0,
+          "carbs": 1.7,
+          "sat_fat": 0.0,
+          "total_fat": 0.0,
+          "added_sugar": 0.0,
+          "name": "Black Coffee",
+          "category": "",
+          "energy": 6.8,
+          "serving_size": "200ml",
+          "trans_fat": 0.0,
+          "sodium": 0.0,
+          "tag": "",
+          "ingredients": "",
+          "chol": 0.0,
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "serving_size": "64g",
+          "trans_fat": 0.06,
+          "total_fat": 9.544,
+          "category": "",
+          "protein": 10.03,
+          "name": "Chicken McNuggets",
+          "tag": "Each bite is better than the last.",
+          "carbs": 10.5,
+          "ingredients": "Chicken bites",
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "energy": 169.68,
+          "chol": 24.66,
+          "sodium": 313.25,
+          "sat_fat": 4.45,
+          "added_sugar": 0.0,
+          "total_sugar": 0.32,
+          "allergens": [
+            "Cereal containing gluten"
+          ]
+        },
+        {
+          "chol": 36.99,
+          "total_fat": 14.3,
+          "energy": 254.52,
+          "trans_fat": 0.1,
+          "ingredients": "Chicken bites",
+          "protein": 15.04,
+          "serving_size": "96g",
+          "name": "Chicken McNuggets",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "sodium": 469.87,
+          "category": "",
+          "total_sugar": 0.48,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "added_sugar": 0.0,
+          "sat_fat": 6.68,
+          "carbs": 15.74,
+          "tag": "Each bite is better than the last."
+        },
+        {
+          "chol": 115.0,
+          "total_fat": 46.9,
+          "carbs": 49.88,
+          "sodium": 1490.0,
+          "category": "",
+          "name": "Chicken McNuggets",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "protein": 47.6,
+          "added_sugar": 0.0,
+          "trans_fat": 0.3,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "energy": 806.1,
+          "sat_fat": 21.11,
+          "ingredients": "Chicken bites",
+          "tag": "Each bite is better than the last.",
+          "serving_size": "320g",
+          "total_sugar": 1.7
+        },
+        {
+          "total_fat": 21.46,
+          "added_sugar": 0.0,
+          "sat_fat": 10.02,
+          "protein": 22.56,
+          "trans_fat": 0.14,
+          "energy": 381.77,
+          "serving_size": "144g",
+          "carbs": 23.62,
+          "chol": 55.48,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "name": "Chicken McNuggets",
+          "sodium": 704.81,
+          "total_sugar": 0.72,
+          "category": "",
+          "ingredients": "Chicken bites",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "tag": "Each bite is better than the last."
+        },
+        {
+          "added_sugar": 0.0,
+          "serving_size": "162g",
+          "protein": 25.0,
+          "sat_fat": 4.0,
+          "total_fat": 25.0,
+          "total_sugar": 0.0,
+          "trans_fat": 0.0,
+          "carbs": 25.0,
+          "tag": "The perfect shareable snack.",
+          "ingredients": "Chicken bites with tempura batter",
+          "energy": 420.0,
+          "name": "10pc Chicken McNuggets",
+          "sodium": 900.0,
+          "category": "",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "chol": 65.0,
+          "description": "Our tender, juicy Chicken McNuggets are made with 100% white meat chicken and no artificial colors, flavors or preservatives."
+        },
+        {
+          "category": "",
+          "energy": 224.59,
+          "allergens": [
+            "__none__"
+          ],
+          "protein": 3.38,
+          "total_sugar": 0.39,
+          "serving_size": "77g",
+          "ingredients": "Potato and salt",
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "total_fat": 10.39,
+          "tag": "The legend among legends.",
+          "name": "Our World Famous Fries",
+          "trans_fat": 0.08,
+          "chol": 0.77,
+          "carbs": 27.08,
+          "sodium": 153.15,
+          "added_sugar": 0.0,
+          "sat_fat": 4.97
+        },
+        {
+          "tag": "The legend among legends.",
+          "sodium": 306.29,
+          "trans_fat": 0.15,
+          "total_fat": 20.77,
+          "category": "",
+          "protein": 6.76,
+          "total_sugar": 0.77,
+          "allergens": [
+            "__none__"
+          ],
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "name": "Our World Famous Fries",
+          "ingredients": "Potato and salt",
+          "added_sugar": 0.0,
+          "chol": 1.54,
+          "carbs": 54.16,
+          "sat_fat": 9.95,
+          "energy": 449.17,
+          "serving_size": "154g"
+        },
+        {
+          "trans_fat": 0.11,
+          "serving_size": "109g",
+          "carbs": 38.34,
+          "allergens": [
+            "__none__"
+          ],
+          "energy": 317.92,
+          "sat_fat": 7.04,
+          "sodium": 216.79,
+          "added_sugar": 0.0,
+          "ingredients": "Potato and salt",
+          "name": "Our World Famous Fries",
+          "category": "",
+          "protein": 4.79,
+          "total_sugar": 0.55,
+          "tag": "The legend among legends.",
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "chol": 1.09,
+          "total_fat": 14.7
+        },
+        {
+          "energy": 140.0,
+          "total_sugar": 0.0,
+          "category": "",
+          "name": "Hash Browns",
+          "protein": 1.0,
+          "sat_fat": 1.0,
+          "total_fat": 8.0,
+          "allergens": [
+            "__none__"
+          ],
+          "added_sugar": 0.0,
+          "trans_fat": 0.0,
+          "carbs": 15.0,
+          "ingredients": "Shredded potatoes, salt, pepper, dextrose",
+          "description": "Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.",
+          "chol": 0.0,
+          "sodium": 310.0,
+          "serving_size": "56g",
+          "tag": "Golden and crispy breakfast side."
+        }
+      ],
+      "documents": [
+        "Minute Maid Lemonade. Classic lemonade with real lemon flavor.. Water, high fructose corn syrup, lemon juice concentrate. Tart and refreshing.",
+        "Diet Coke. Small Diet Coke — crisp and refreshing.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Orange Juice. The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.. 100% orange juice from concentrate. Start your day with vitamin C.",
+        "Side Salad. A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.. Mixed greens, grape tomatoes, shredded carrots. Fresh greens on the side.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Happy Meal (Hamburger). A Happy Meal with a Hamburger, small fries, apple slices, and your choice of a drink. Includes a fun toy!. Hamburger, small fries, apple slices, choice of drink. A classic meal for kids.",
+        "Happy Meal (4pc McNuggets). A Happy Meal with 4 Chicken McNuggets, small fries, apple slices, and your choice of a drink. Includes a fun toy!. 4pc Chicken McNuggets, small fries, apple slices, choice of drink. A meal that makes kids smile.",
+        "Bottled Water. Refreshing purified drinking water.. Purified water. Hydration on the go.",
+        "Diet Coke. Diet Coke with the same great taste and no calories.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing.",
+        "Premium Roast Coffee. Small cup of medium-roast Arabica coffee.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Fanta Orange. Caffeine-free orange soda with a fruity burst.. Carbonated water, high fructose corn syrup, citric acid, natural flavors. Bright orange soda.",
+        "Iced Tea. A blend of aromatic tea and the fruity flavour of lemon.",
+        "Dr Pepper. Unique blend of 23 flavors in a bold fountain drink.. Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors. 23 flavors in one drink.",
+        "Sweet Tea. Freshly brewed iced tea sweetened just right.. Brewed tea, sugar, water. Southern-style sweet tea.",
+        "Premium Roast Coffee. Medium-roast coffee made from 100% Arabica beans — smooth and balanced.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Apple Slices. Fresh, crisp apple slices. A wholesome choice for any meal.. Fresh sliced apples. A fresh, healthy side.",
+        "Hamburger. The original burger. A 100% beef patty seasoned with a pinch of salt and pepper, topped with tangy pickles, chopped onions, ketchup and mustard.. 100% beef patty, pickles, onions, ketchup, mustard, regular bun. The classic that started it all.",
+        "Black Coffee. Perfectly brewed for any time of the day.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "10pc Chicken McNuggets. Our tender, juicy Chicken McNuggets are made with 100% white meat chicken and no artificial colors, flavors or preservatives.. Chicken bites with tempura batter. The perfect shareable snack.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Hash Browns. Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.. Shredded potatoes, salt, pepper, dextrose. Golden and crispy breakfast side."
+      ]
+    },
+    {
+      "call": "question_dialog",
+      "question_idx": 133,
+      "step": 1,
+      "client_query": "Whole30 compliant – no grains, dairy, legumes, sugar, or alcohol. Any suggestions?",
+      "event": "rag",
+      "search_query": "Whole30 compliant beverages or food items",
+      "rewrite_model": "qwen3:0.6b",
+      "retrieval_mode": "vector",
+      "full_nutrition_context": true,
+      "rag_json_spec": {
+        "intent": "details",
+        "compare_metrics": [],
+        "excluded_lexical": [
+          "grains",
+          "dairy",
+          "legumes",
+          "sugar",
+          "alcohol"
+        ],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [
+          "beverages"
+        ],
+        "override_restriction": false,
+        "finalize": true
+      },
+      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "metric": "cosine_distance",
+      "top_k": 101,
+      "distance_threshold": 0.6,
+      "soft_distance_max": 1.15,
+      "allergen_blacklist_tokens": [
+        "Milk"
+      ],
+      "prefer_novel": false,
+      "query_batch": [
+        "Whole30 compliant beverages or food items",
+        "Whole30 compliant – no grains dairy legumes sugar or alcohol",
+        "Any suggestions"
+      ],
+      "utterance_allergen_exclusions": [
+        "Milk"
+      ],
+      "explicit_restrictions": [],
+      "explicit_allergen_exclusions": [],
+      "rag_json_excluded_ignored": [],
+      "rag_json_lexical": [
+        "grains",
+        "dairy",
+        "legumes",
+        "sugar",
+        "alcohol"
+      ],
+      "rag_json_restrictions": [],
+      "rag_json_requested_items": [
+        "beverages"
+      ],
+      "rag_json_finalize": true,
+      "rag_json_override_restriction": false,
+      "candidates": [
+        {
+          "name": "Minute Maid Lemonade",
+          "distance": 0.585369348526001,
+          "energy": 180.0
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.6645042300224304,
+          "energy": 0.0
+        },
+        {
+          "name": "Orange Juice",
+          "distance": 0.6653170585632324,
+          "energy": 150.0
+        },
+        {
+          "name": "Side Salad",
+          "distance": 0.6801412105560303,
+          "energy": 15.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.6870459318161011,
+          "energy": 210.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.6870459318161011,
+          "energy": 140.0
+        },
+        {
+          "name": "Happy Meal (Hamburger)",
+          "distance": 0.689659595489502,
+          "energy": 475.0
+        },
+        {
+          "name": "Happy Meal (4pc McNuggets)",
+          "distance": 0.6917632818222046,
+          "energy": 395.0
+        },
+        {
+          "name": "Bottled Water",
+          "distance": 0.6925042867660522,
+          "energy": 0.0
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.6997645497322083,
+          "energy": 0.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 0.7035089731216431,
+          "energy": 200.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 0.7035089731216431,
+          "energy": 140.0
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.7065245509147644,
+          "energy": 0.0
+        },
+        {
+          "name": "Fanta Orange",
+          "distance": 0.7106846570968628,
+          "energy": 210.0
+        },
+        {
+          "name": "Iced Tea",
+          "distance": 0.7116172909736633,
+          "energy": 242.52
+        },
+        {
+          "name": "Dr Pepper",
+          "distance": 0.7257800698280334,
+          "energy": 200.0
+        },
+        {
+          "name": "Sweet Tea",
+          "distance": 0.7378191351890564,
+          "energy": 150.0
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.7480489015579224,
+          "energy": 5.0
+        },
+        {
+          "name": "Apple Slices",
+          "distance": 0.7529921531677246,
+          "energy": 15.0
+        },
+        {
+          "name": "Hamburger",
+          "distance": 0.7560439109802246,
+          "energy": 250.0
+        },
+        {
+          "name": "Black Coffee",
+          "distance": 0.7629439830780029,
+          "energy": 6.8
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.7930412888526917,
+          "energy": 169.68
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.7930412888526917,
+          "energy": 254.52
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.7930412888526917,
+          "energy": 806.1
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.7930412888526917,
+          "energy": 381.77
+        },
+        {
+          "name": "10pc Chicken McNuggets",
+          "distance": 0.8142497539520264,
+          "energy": 420.0
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.8182608485221863,
+          "energy": 224.59
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.8182608485221863,
+          "energy": 449.17
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.8182608485221863,
+          "energy": 317.92
+        },
+        {
+          "name": "Hash Browns",
+          "distance": 0.8241395950317383,
+          "energy": 140.0
+        }
+      ],
+      "excluded_by_constraints": [
+        {
+          "name": "Milk",
+          "distance": 0.5578230619430542,
+          "allergens": [
+            "Milk"
+          ],
+          "mentioned_in_query": false
+        },
+        {
+          "name": "Chocolate Milk",
+          "distance": 0.6768637895584106,
+          "allergens": [
+            "Milk"
+          ],
+          "mentioned_in_query": false
+        },
+        {
+          "name": "Big Mac",
+          "distance": 0.6826180219650269,
+          "allergens": [
+            "Milk"
+          ],
+          "mentioned_in_query": false
+        }
+      ],
+      "grounding_targets": [
+        "beverages"
+      ],
+      "grounded_rows": [],
+      "best_distance": 0.585369348526001,
+      "rag_prompt_line_cap": 15,
+      "rag_prompt_lines_included": 1,
+      "outcome": "injected",
+      "injected_hits": [
+        {
+          "name": "Minute Maid Lemonade",
+          "distance": 0.585369348526001
+        }
+      ],
+      "context_preview": "- Minute Maid Lemonade (~180.0 kcal, allergens: none listed; added sugar: ~45.0 g; total sugar: ~45.0 g; protein: ~0.0 g; fat: ~0.0 g; sat fat: ~0.0 g; trans fat: ~0.0 g; cholesterol: ~0.0 mg; carbs: ~46.0 g; sodium: ~25.0 mg; ingredients: Water, high fructose corn syrup, lemon juice concentrate)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Milk (contains: Milk)\n* Chocolate Milk (contains: Milk)\n* Big Mac (contains: Milk)"
+    },
+    {
+      "event": "chroma_request",
+      "query_texts": [
+        "popular menu items burgers chicken sandwiches sides drinks dessert"
+      ],
+      "n_results": 101,
+      "where": {
+        "allergens": {
+          "$not_contains": "Milk"
+        }
+      }
+    },
+    {
+      "event": "chroma_response",
+      "query_duration_ms": 21.88,
+      "ids": [
+        "46",
+        "64",
+        "5",
+        "6",
+        "7",
+        "8",
+        "63",
+        "50",
+        "53",
+        "58",
+        "52",
+        "27",
+        "28",
+        "29",
+        "51",
+        "54",
+        "55",
+        "93",
+        "13",
+        "91",
+        "89",
+        "92",
+        "78",
+        "88",
+        "0",
+        "77",
+        "90",
+        "94",
+        "56",
+        "57"
+      ],
+      "distances": [
+        0.43399953842163086,
+        0.43782299757003784,
+        0.46006476879119873,
+        0.46006476879119873,
+        0.46006476879119873,
+        0.46006476879119873,
+        0.47953522205352783,
+        0.5491393208503723,
+        0.616391122341156,
+        0.6178184747695923,
+        0.6303236484527588,
+        0.6309837102890015,
+        0.6309837102890015,
+        0.6309837102890015,
+        0.6568004488945007,
+        0.6594393849372864,
+        0.6594393849372864,
+        0.6694881916046143,
+        0.758796751499176,
+        0.7723241448402405,
+        0.7734153866767883,
+        0.7813260555267334,
+        0.818175733089447,
+        0.8264963626861572,
+        0.8274965882301331,
+        0.8284154534339905,
+        0.8548117876052856,
+        0.8611479997634888,
+        0.8674612045288086,
+        0.8674612045288086
+      ],
+      "metadatas": [
+        {
+          "energy": 250.0,
+          "protein": 12.0,
+          "added_sugar": 4.0,
+          "category": "",
+          "name": "Hamburger",
+          "sodium": 510.0,
+          "carbs": 31.0,
+          "tag": "The classic that started it all.",
+          "serving_size": "105g",
+          "total_sugar": 6.0,
+          "total_fat": 9.0,
+          "sat_fat": 3.5,
+          "trans_fat": 0.5,
+          "description": "The original burger. A 100% beef patty seasoned with a pinch of salt and pepper, topped with tangy pickles, chopped onions, ketchup and mustard.",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "chol": 30.0,
+          "ingredients": "100% beef patty, pickles, onions, ketchup, mustard, regular bun"
+        },
+        {
+          "sat_fat": 5.0,
+          "category": "",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "protein": 17.0,
+          "total_sugar": 12.0,
+          "sodium": 680.0,
+          "energy": 475.0,
+          "added_sugar": 4.0,
+          "total_fat": 17.0,
+          "tag": "A classic meal for kids.",
+          "carbs": 60.0,
+          "trans_fat": 0.5,
+          "name": "Happy Meal (Hamburger)",
+          "ingredients": "Hamburger, small fries, apple slices, choice of drink",
+          "serving_size": "260g",
+          "chol": 35.0,
+          "description": "A Happy Meal with a Hamburger, small fries, apple slices, and your choice of a drink. Includes a fun toy!"
+        },
+        {
+          "sat_fat": 4.45,
+          "added_sugar": 0.0,
+          "energy": 169.68,
+          "chol": 24.66,
+          "total_sugar": 0.32,
+          "ingredients": "Chicken bites",
+          "category": "",
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "sodium": 313.25,
+          "carbs": 10.5,
+          "serving_size": "64g",
+          "protein": 10.03,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "total_fat": 9.544,
+          "name": "Chicken McNuggets",
+          "tag": "Each bite is better than the last.",
+          "trans_fat": 0.06
+        },
+        {
+          "sat_fat": 6.68,
+          "serving_size": "96g",
+          "carbs": 15.74,
+          "chol": 36.99,
+          "category": "",
+          "energy": 254.52,
+          "ingredients": "Chicken bites",
+          "name": "Chicken McNuggets",
+          "tag": "Each bite is better than the last.",
+          "sodium": 469.87,
+          "protein": 15.04,
+          "total_sugar": 0.48,
+          "added_sugar": 0.0,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "total_fat": 14.3,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "trans_fat": 0.1
+        },
+        {
+          "added_sugar": 0.0,
+          "energy": 806.1,
+          "trans_fat": 0.3,
+          "sat_fat": 21.11,
+          "sodium": 1490.0,
+          "chol": 115.0,
+          "total_fat": 46.9,
+          "serving_size": "320g",
+          "category": "",
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "protein": 47.6,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "ingredients": "Chicken bites",
+          "total_sugar": 1.7,
+          "tag": "Each bite is better than the last.",
+          "name": "Chicken McNuggets",
+          "carbs": 49.88
+        },
+        {
+          "tag": "Each bite is better than the last.",
+          "category": "",
+          "sodium": 704.81,
+          "energy": 381.77,
+          "serving_size": "144g",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "total_fat": 21.46,
+          "trans_fat": 0.14,
+          "carbs": 23.62,
+          "description": "Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.",
+          "ingredients": "Chicken bites",
+          "name": "Chicken McNuggets",
+          "protein": 22.56,
+          "sat_fat": 10.02,
+          "chol": 55.48,
+          "added_sugar": 0.0,
+          "total_sugar": 0.72
+        },
+        {
+          "name": "Happy Meal (4pc McNuggets)",
+          "trans_fat": 0.0,
+          "description": "A Happy Meal with 4 Chicken McNuggets, small fries, apple slices, and your choice of a drink. Includes a fun toy!",
+          "category": "",
+          "total_fat": 18.0,
+          "total_sugar": 5.0,
+          "sat_fat": 3.0,
+          "protein": 15.0,
+          "serving_size": "250g",
+          "chol": 30.0,
+          "ingredients": "4pc Chicken McNuggets, small fries, apple slices, choice of drink",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "tag": "A meal that makes kids smile.",
+          "energy": 395.0,
+          "sodium": 500.0,
+          "carbs": 42.0,
+          "added_sugar": 0.0
+        },
+        {
+          "sodium": 900.0,
+          "trans_fat": 0.0,
+          "total_fat": 25.0,
+          "tag": "The perfect shareable snack.",
+          "added_sugar": 0.0,
+          "chol": 65.0,
+          "ingredients": "Chicken bites with tempura batter",
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "description": "Our tender, juicy Chicken McNuggets are made with 100% white meat chicken and no artificial colors, flavors or preservatives.",
+          "category": "",
+          "total_sugar": 0.0,
+          "energy": 420.0,
+          "name": "10pc Chicken McNuggets",
+          "carbs": 25.0,
+          "sat_fat": 4.0,
+          "protein": 25.0,
+          "serving_size": "162g"
+        },
+        {
+          "added_sugar": 0.0,
+          "chol": 0.0,
+          "protein": 1.0,
+          "name": "Hash Browns",
+          "serving_size": "56g",
+          "category": "",
+          "total_fat": 8.0,
+          "carbs": 15.0,
+          "tag": "Golden and crispy breakfast side.",
+          "sat_fat": 1.0,
+          "allergens": [
+            "__none__"
+          ],
+          "energy": 140.0,
+          "total_sugar": 0.0,
+          "description": "Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.",
+          "sodium": 310.0,
+          "ingredients": "Shredded potatoes, salt, pepper, dextrose",
+          "trans_fat": 0.0
+        },
+        {
+          "allergens": [
+            "__none__"
+          ],
+          "sodium": 0.0,
+          "name": "Orange Juice",
+          "tag": "Start your day with vitamin C.",
+          "added_sugar": 0.0,
+          "chol": 0.0,
+          "serving_size": "355ml",
+          "energy": 150.0,
+          "total_sugar": 30.0,
+          "trans_fat": 0.0,
+          "description": "The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.",
+          "category": "",
+          "sat_fat": 0.0,
+          "ingredients": "100% orange juice from concentrate",
+          "protein": 2.0,
+          "carbs": 34.0,
+          "total_fat": 0.0
+        },
+        {
+          "serving_size": "87g",
+          "chol": 0.0,
+          "ingredients": "Mixed greens, grape tomatoes, shredded carrots",
+          "total_sugar": 2.0,
+          "allergens": [
+            "__none__"
+          ],
+          "total_fat": 0.0,
+          "added_sugar": 0.0,
+          "carbs": 3.0,
+          "description": "A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.",
+          "energy": 15.0,
+          "tag": "Fresh greens on the side.",
+          "sodium": 10.0,
+          "trans_fat": 0.0,
+          "name": "Side Salad",
+          "category": "",
+          "protein": 1.0,
+          "sat_fat": 0.0
+        },
+        {
+          "category": "",
+          "total_fat": 10.39,
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "ingredients": "Potato and salt",
+          "allergens": [
+            "__none__"
+          ],
+          "sat_fat": 4.97,
+          "added_sugar": 0.0,
+          "trans_fat": 0.08,
+          "total_sugar": 0.39,
+          "chol": 0.77,
+          "carbs": 27.08,
+          "name": "Our World Famous Fries",
+          "sodium": 153.15,
+          "tag": "The legend among legends.",
+          "protein": 3.38,
+          "energy": 224.59,
+          "serving_size": "77g"
+        },
+        {
+          "total_sugar": 0.77,
+          "trans_fat": 0.15,
+          "total_fat": 20.77,
+          "name": "Our World Famous Fries",
+          "added_sugar": 0.0,
+          "protein": 6.76,
+          "sat_fat": 9.95,
+          "carbs": 54.16,
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "allergens": [
+            "__none__"
+          ],
+          "chol": 1.54,
+          "energy": 449.17,
+          "serving_size": "154g",
+          "ingredients": "Potato and salt",
+          "sodium": 306.29,
+          "category": "",
+          "tag": "The legend among legends."
+        },
+        {
+          "total_sugar": 0.55,
+          "energy": 317.92,
+          "name": "Our World Famous Fries",
+          "tag": "The legend among legends.",
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "trans_fat": 0.11,
+          "sodium": 216.79,
+          "carbs": 38.34,
+          "chol": 1.09,
+          "total_fat": 14.7,
+          "ingredients": "Potato and salt",
+          "protein": 4.79,
+          "added_sugar": 0.0,
+          "category": "",
+          "serving_size": "109g",
+          "allergens": [
+            "__none__"
+          ],
+          "sat_fat": 7.04
+        },
+        {
+          "name": "Apple Slices",
+          "category": "",
+          "energy": 15.0,
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "carbs": 4.0,
+          "tag": "A fresh, healthy side.",
+          "description": "Fresh, crisp apple slices. A wholesome choice for any meal.",
+          "added_sugar": 0.0,
+          "protein": 0.0,
+          "ingredients": "Fresh sliced apples",
+          "chol": 0.0,
+          "serving_size": "34g",
+          "sodium": 0.0,
+          "sat_fat": 0.0,
+          "total_sugar": 3.0
+        },
+        {
+          "protein": 0.0,
+          "carbs": 58.0,
+          "allergens": [
+            "__none__"
+          ],
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "category": "",
+          "name": "Coca-Cola",
+          "sat_fat": 0.0,
+          "trans_fat": 0.0,
+          "total_fat": 0.0,
+          "added_sugar": 58.0,
+          "energy": 210.0,
+          "sodium": 45.0,
+          "total_sugar": 58.0,
+          "serving_size": "500ml",
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "tag": "The classic refreshment.",
+          "chol": 0.0
+        },
+        {
+          "allergens": [
+            "__none__"
+          ],
+          "serving_size": "300ml",
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "energy": 140.0,
+          "tag": "The classic refreshment.",
+          "name": "Coca-Cola",
+          "trans_fat": 0.0,
+          "sodium": 30.0,
+          "protein": 0.0,
+          "total_fat": 0.0,
+          "carbs": 39.0,
+          "added_sugar": 39.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "chol": 0.0,
+          "total_sugar": 39.0,
+          "category": "",
+          "sat_fat": 0.0
+        },
+        {
+          "ingredients": "Water, high fructose corn syrup, lemon juice concentrate",
+          "sat_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "description": "Classic lemonade with real lemon flavor.",
+          "tag": "Tart and refreshing.",
+          "trans_fat": 0.0,
+          "carbs": 46.0,
+          "sodium": 25.0,
+          "name": "Minute Maid Lemonade",
+          "total_fat": 0.0,
+          "chol": 0.0,
+          "added_sugar": 45.0,
+          "protein": 0.0,
+          "total_sugar": 45.0,
+          "serving_size": "500ml",
+          "category": "",
+          "energy": 180.0
+        },
+        {
+          "allergens": [
+            "__none__"
+          ],
+          "added_sugar": 55.16,
+          "description": "A blend of aromatic tea and the fruity flavour of lemon.",
+          "protein": 1.08,
+          "serving_size": "400ml",
+          "energy": 242.52,
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "tag": "",
+          "category": "",
+          "name": "Iced Tea",
+          "total_fat": 0.12,
+          "trans_fat": 0.0,
+          "ingredients": "",
+          "sodium": 16.68,
+          "carbs": 59.28,
+          "total_sugar": 58.08
+        },
+        {
+          "sat_fat": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors",
+          "trans_fat": 0.0,
+          "tag": "Bright orange soda.",
+          "allergens": [
+            "__none__"
+          ],
+          "chol": 0.0,
+          "description": "Caffeine-free orange soda with a fruity burst.",
+          "added_sugar": 57.0,
+          "total_fat": 0.0,
+          "carbs": 57.0,
+          "total_sugar": 57.0,
+          "serving_size": "500ml",
+          "category": "",
+          "protein": 0.0,
+          "sodium": 55.0,
+          "name": "Fanta Orange",
+          "energy": 210.0
+        },
+        {
+          "serving_size": "300ml",
+          "total_sugar": 0.0,
+          "total_fat": 0.0,
+          "name": "Diet Coke",
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine",
+          "sodium": 25.0,
+          "allergens": [
+            "__none__"
+          ],
+          "description": "Small Diet Coke — crisp and refreshing.",
+          "energy": 0.0,
+          "sat_fat": 0.0,
+          "tag": "Zero-calorie cola.",
+          "chol": 0.0,
+          "added_sugar": 0.0,
+          "protein": 0.0,
+          "carbs": 0.0,
+          "category": "",
+          "trans_fat": 0.0
+        },
+        {
+          "serving_size": "500ml",
+          "category": "",
+          "carbs": 38.0,
+          "trans_fat": 0.0,
+          "protein": 0.0,
+          "total_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "ingredients": "Brewed tea, sugar, water",
+          "total_sugar": 38.0,
+          "name": "Sweet Tea",
+          "energy": 150.0,
+          "sodium": 10.0,
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "tag": "Southern-style sweet tea.",
+          "description": "Freshly brewed iced tea sweetened just right.",
+          "added_sugar": 38.0
+        },
+        {
+          "trans_fat": 0.0,
+          "sodium": 5.0,
+          "added_sugar": 0.0,
+          "description": "Small cup of medium-roast Arabica coffee.",
+          "serving_size": "296ml",
+          "total_sugar": 0.0,
+          "protein": 0.0,
+          "tag": "Freshly brewed every day.",
+          "energy": 0.0,
+          "category": "",
+          "allergens": [
+            "__none__"
+          ],
+          "name": "Premium Roast Coffee",
+          "ingredients": "100% Arabica coffee, water",
+          "total_fat": 0.0,
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "carbs": 0.0
+        },
+        {
+          "energy": 0.0,
+          "serving_size": "500ml",
+          "protein": 0.0,
+          "chol": 0.0,
+          "description": "Diet Coke with the same great taste and no calories.",
+          "carbs": 0.0,
+          "trans_fat": 0.0,
+          "category": "",
+          "sodium": 40.0,
+          "name": "Diet Coke",
+          "sat_fat": 0.0,
+          "added_sugar": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "total_sugar": 0.0,
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine",
+          "total_fat": 0.0,
+          "tag": "Zero-calorie cola."
+        },
+        {
+          "added_sugar": 0.0,
+          "total_sugar": 0.0,
+          "protein": 0.0,
+          "description": "Perfectly brewed for any time of the day.",
+          "category": "",
+          "energy": 6.8,
+          "tag": "",
+          "carbs": 1.7,
+          "name": "Black Coffee",
+          "sat_fat": 0.0,
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "serving_size": "200ml",
+          "chol": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "sodium": 0.0,
+          "ingredients": ""
+        },
+        {
+          "total_sugar": 0.0,
+          "sat_fat": 0.0,
+          "category": "",
+          "chol": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "added_sugar": 0.0,
+          "trans_fat": 0.0,
+          "tag": "Freshly brewed every day.",
+          "ingredients": "100% Arabica coffee, water",
+          "energy": 5.0,
+          "total_fat": 0.0,
+          "serving_size": "473ml",
+          "sodium": 10.0,
+          "carbs": 0.0,
+          "protein": 0.0,
+          "description": "Medium-roast coffee made from 100% Arabica beans — smooth and balanced.",
+          "name": "Premium Roast Coffee"
+        },
+        {
+          "category": "",
+          "energy": 200.0,
+          "total_sugar": 54.0,
+          "allergens": [
+            "__none__"
+          ],
+          "protein": 0.0,
+          "name": "Dr Pepper",
+          "trans_fat": 0.0,
+          "sat_fat": 0.0,
+          "sodium": 60.0,
+          "added_sugar": 54.0,
+          "chol": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors",
+          "serving_size": "500ml",
+          "tag": "23 flavors in one drink.",
+          "description": "Unique blend of 23 flavors in a bold fountain drink.",
+          "total_fat": 0.0,
+          "carbs": 54.0
+        },
+        {
+          "sat_fat": 0.0,
+          "sodium": 0.0,
+          "tag": "Hydration on the go.",
+          "ingredients": "Purified water",
+          "chol": 0.0,
+          "description": "Refreshing purified drinking water.",
+          "allergens": [
+            "__none__"
+          ],
+          "total_fat": 0.0,
+          "total_sugar": 0.0,
+          "protein": 0.0,
+          "energy": 0.0,
+          "serving_size": "500ml",
+          "category": "",
+          "trans_fat": 0.0,
+          "added_sugar": 0.0,
+          "carbs": 0.0,
+          "name": "Bottled Water"
+        },
+        {
+          "total_fat": 0.0,
+          "total_sugar": 54.0,
+          "carbs": 54.0,
+          "chol": 0.0,
+          "trans_fat": 0.0,
+          "energy": 200.0,
+          "serving_size": "500ml",
+          "allergens": [
+            "__none__"
+          ],
+          "added_sugar": 54.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "tag": "Crisp and refreshing.",
+          "category": "",
+          "sat_fat": 0.0,
+          "protein": 0.0,
+          "name": "Sprite",
+          "sodium": 65.0
+        },
+        {
+          "sodium": 45.0,
+          "sat_fat": 0.0,
+          "tag": "Crisp and refreshing.",
+          "category": "",
+          "trans_fat": 0.0,
+          "name": "Sprite",
+          "added_sugar": 38.0,
+          "carbs": 38.0,
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "total_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "energy": 140.0,
+          "protein": 0.0,
+          "chol": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "total_sugar": 38.0,
+          "serving_size": "300ml"
+        }
+      ],
+      "documents": [
+        "Hamburger. The original burger. A 100% beef patty seasoned with a pinch of salt and pepper, topped with tangy pickles, chopped onions, ketchup and mustard.. 100% beef patty, pickles, onions, ketchup, mustard, regular bun. The classic that started it all.",
+        "Happy Meal (Hamburger). A Happy Meal with a Hamburger, small fries, apple slices, and your choice of a drink. Includes a fun toy!. Hamburger, small fries, apple slices, choice of drink. A classic meal for kids.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Chicken McNuggets. Bite-sized pieces of breaded, boneless chicken formed in various shapes (Ball, Boot, Bell & Bone) fried and served hot with smoky Barbeque Sauce or Mustard Sauce.. Chicken bites. Each bite is better than the last.",
+        "Happy Meal (4pc McNuggets). A Happy Meal with 4 Chicken McNuggets, small fries, apple slices, and your choice of a drink. Includes a fun toy!. 4pc Chicken McNuggets, small fries, apple slices, choice of drink. A meal that makes kids smile.",
+        "10pc Chicken McNuggets. Our tender, juicy Chicken McNuggets are made with 100% white meat chicken and no artificial colors, flavors or preservatives.. Chicken bites with tempura batter. The perfect shareable snack.",
+        "Hash Browns. Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.. Shredded potatoes, salt, pepper, dextrose. Golden and crispy breakfast side.",
+        "Orange Juice. The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.. 100% orange juice from concentrate. Start your day with vitamin C.",
+        "Side Salad. A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.. Mixed greens, grape tomatoes, shredded carrots. Fresh greens on the side.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Apple Slices. Fresh, crisp apple slices. A wholesome choice for any meal.. Fresh sliced apples. A fresh, healthy side.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Minute Maid Lemonade. Classic lemonade with real lemon flavor.. Water, high fructose corn syrup, lemon juice concentrate. Tart and refreshing.",
+        "Iced Tea. A blend of aromatic tea and the fruity flavour of lemon.",
+        "Fanta Orange. Caffeine-free orange soda with a fruity burst.. Carbonated water, high fructose corn syrup, citric acid, natural flavors. Bright orange soda.",
+        "Diet Coke. Small Diet Coke — crisp and refreshing.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Sweet Tea. Freshly brewed iced tea sweetened just right.. Brewed tea, sugar, water. Southern-style sweet tea.",
+        "Premium Roast Coffee. Small cup of medium-roast Arabica coffee.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Diet Coke. Diet Coke with the same great taste and no calories.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Black Coffee. Perfectly brewed for any time of the day.",
+        "Premium Roast Coffee. Medium-roast coffee made from 100% Arabica beans — smooth and balanced.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Dr Pepper. Unique blend of 23 flavors in a bold fountain drink.. Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors. 23 flavors in one drink.",
+        "Bottled Water. Refreshing purified drinking water.. Purified water. Hydration on the go.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing."
+      ]
+    },
+    {
+      "call": "question_dialog",
+      "question_idx": 133,
+      "step": 2,
+      "client_query": "No, I don't need anything else.",
+      "event": "rag",
+      "search_query": "popular menu items burgers chicken sandwiches sides drinks dessert",
+      "rewrite_model": "qwen3:0.6b",
+      "retrieval_mode": "vector",
+      "full_nutrition_context": false,
+      "rag_json_spec": {
+        "intent": "lookup",
+        "compare_metrics": [],
+        "excluded_lexical": [],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [],
+        "override_restriction": false,
+        "finalize": true
+      },
+      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "metric": "cosine_distance",
+      "top_k": 101,
+      "distance_threshold": 0.6,
+      "soft_distance_max": 1.15,
+      "allergen_blacklist_tokens": [
+        "Milk"
+      ],
+      "prefer_novel": false,
+      "query_batch": [
+        "popular menu items burgers chicken sandwiches sides drinks dessert"
+      ],
+      "utterance_allergen_exclusions": [
+        "Milk"
+      ],
+      "explicit_restrictions": [],
+      "explicit_allergen_exclusions": [],
+      "rag_json_excluded_ignored": [],
+      "rag_json_lexical": [],
+      "rag_json_restrictions": [],
+      "rag_json_requested_items": [],
+      "rag_json_finalize": true,
+      "rag_json_override_restriction": false,
+      "candidates": [
+        {
+          "name": "Hamburger",
+          "distance": 0.43399953842163086,
+          "energy": 250.0
+        },
+        {
+          "name": "Happy Meal (Hamburger)",
+          "distance": 0.43782299757003784,
+          "energy": 475.0
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.46006476879119873,
+          "energy": 169.68
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.46006476879119873,
+          "energy": 254.52
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.46006476879119873,
+          "energy": 806.1
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.46006476879119873,
+          "energy": 381.77
+        },
+        {
+          "name": "Happy Meal (4pc McNuggets)",
+          "distance": 0.47953522205352783,
+          "energy": 395.0
+        },
+        {
+          "name": "10pc Chicken McNuggets",
+          "distance": 0.5491393208503723,
+          "energy": 420.0
+        },
+        {
+          "name": "Hash Browns",
+          "distance": 0.616391122341156,
+          "energy": 140.0
+        },
+        {
+          "name": "Orange Juice",
+          "distance": 0.6178184747695923,
+          "energy": 150.0
+        },
+        {
+          "name": "Side Salad",
+          "distance": 0.6303236484527588,
+          "energy": 15.0
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.6309837102890015,
+          "energy": 224.59
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.6309837102890015,
+          "energy": 449.17
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.6309837102890015,
+          "energy": 317.92
+        },
+        {
+          "name": "Apple Slices",
+          "distance": 0.6568004488945007,
+          "energy": 15.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.6594393849372864,
+          "energy": 210.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.6594393849372864,
+          "energy": 140.0
+        },
+        {
+          "name": "Minute Maid Lemonade",
+          "distance": 0.6694881916046143,
+          "energy": 180.0
+        },
+        {
+          "name": "Iced Tea",
+          "distance": 0.758796751499176,
+          "energy": 242.52
+        },
+        {
+          "name": "Fanta Orange",
+          "distance": 0.7723241448402405,
+          "energy": 210.0
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.7734153866767883,
+          "energy": 0.0
+        },
+        {
+          "name": "Sweet Tea",
+          "distance": 0.7813260555267334,
+          "energy": 150.0
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.818175733089447,
+          "energy": 0.0
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.8264963626861572,
+          "energy": 0.0
+        },
+        {
+          "name": "Black Coffee",
+          "distance": 0.8274965882301331,
+          "energy": 6.8
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.8284154534339905,
+          "energy": 5.0
+        },
+        {
+          "name": "Dr Pepper",
+          "distance": 0.8548117876052856,
+          "energy": 200.0
+        },
+        {
+          "name": "Bottled Water",
+          "distance": 0.8611479997634888,
+          "energy": 0.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 0.8674612045288086,
+          "energy": 200.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 0.8674612045288086,
+          "energy": 140.0
+        }
+      ],
+      "excluded_by_constraints": [
+        {
+          "name": "Chicken Maharaja Mac",
+          "distance": 0.45710742473602295,
+          "allergens": [
+            "Milk"
+          ],
+          "mentioned_in_query": false
+        },
+        {
+          "name": "Butter Chicken Grilled Burger",
+          "distance": 0.46841681003570557,
+          "allergens": [
+            "Milk"
+          ],
+          "mentioned_in_query": false
+        },
+        {
+          "name": "Crispy Chicken Sandwich",
+          "distance": 0.4759167432785034,
+          "allergens": [
+            "Milk"
+          ],
+          "mentioned_in_query": false
+        }
+      ],
+      "grounding_targets": [],
+      "grounded_rows": [],
+      "best_distance": 0.43399953842163086,
+      "rag_prompt_line_cap": 15,
+      "rag_prompt_lines_included": 5,
+      "outcome": "injected",
+      "injected_hits": [
+        {
+          "name": "Hamburger",
+          "distance": 0.43399953842163086
+        },
+        {
+          "name": "Happy Meal (Hamburger)",
+          "distance": 0.43782299757003784
+        },
+        {
+          "name": "Chicken McNuggets",
+          "distance": 0.46006476879119873
+        },
+        {
+          "name": "Happy Meal (4pc McNuggets)",
+          "distance": 0.47953522205352783
+        },
+        {
+          "name": "10pc Chicken McNuggets",
+          "distance": 0.5491393208503723
+        }
+      ],
+      "context_preview": "- Hamburger (~250.0 kcal, allergens: Cereal containing gluten; added sugar: ~4.0 g; total sugar: ~6.0 g; ingredients: 100% beef patty, pickles, onions, ketchup, mustard, regular bun)\n- Happy Meal (Hamburger) (~475.0 kcal, allergens: Cereal containing gluten; added sugar: ~4.0 g; total sugar: ~12.0 g; ingredients: Hamburger, small fries, apple slices, choice of drink)\n- Chicken McNuggets (~169.7–806.1 kcal, allergens: Cereal containing gluten; added sugar: ~0.0–0.0 g; total sugar: ~0.3–1.7 g; ingredients: Chicken bites)\n- Happy Meal (4pc McNuggets) (~395.0 kcal, allergens: Cereal containing gluten; added sugar: ~0.0 g; total sugar: ~5.0 g; ingredients: 4pc Chicken McNuggets, small fries, apple slices, choice of drink)\n- 10pc Chicken McNuggets (~420.0 kcal, allergens: Cereal containing gluten; added sugar: ~0.0 g; total sugar: ~0.0 g; ingredients: Chicken bites with tempura batter)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Chicken Maharaja Mac (contains: Milk)\n* Butter Chicken Grilled Burger (contains: Milk)\n* Crispy Chicken Sandwich (contains: Milk)"
+    }
+  ],
+  "llm_trace": [
+    {
+      "event": "rag_json_rewrite",
+      "call": "question_dialog",
+      "question_idx": 133,
+      "step": 1,
+      "model": "qwen3:0.6b",
+      "kind": "rag_structured_json",
+      "rag_json_duration_ms": 13208.03,
+      "raw_response": "{\n  \"intent\": \"details\",\n  \"search_query\": \"Whole30 compliant beverages or food items\",\n  \"compare_metrics\": [],\n  \"excluded_lexical\": [\"grains\", \"dairy\", \"legumes\", \"sugar\", \"alcohol\"],\n  \"max_kcal\": null,\n  \"min_kcal\": null,\n  \"restrictions\": [],\n  \"requested_items\": [\"beverages\"],\n  \"override_restriction\": false,\n  \"finalize\": true\n}",
+      "spec": {
+        "compare_metrics": [],
+        "intent": "details",
+        "search_query": "Whole30 compliant beverages or food items",
+        "excluded_allergens": [],
+        "excluded_lexical": [
+          "grains",
+          "dairy",
+          "legumes",
+          "sugar",
+          "alcohol"
+        ],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [
+          "beverages"
+        ],
+        "override_restriction": false,
+        "finalize": true
+      }
+    },
+    {
+      "event": "llm_call",
+      "agent": "cashier",
+      "model": "qwen3:4b",
+      "kind": "dialog_llm",
+      "messages_count": 1,
+      "duration_ms": 52172.69,
+      "system": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n\nMENU / RAG:\n- Full-menu JSON mode: the list is long; a requested item may appear far down. Never decide an item is missing after only reading the first few rows — scan by exact product name.\n- DECISION FLOW: (1) If customer names an item that exists in context, first confirm it is added. (2) Give nutrition/allergen numbers only if asked. (3) If item is truly absent from context, say unavailable and suggest 1 nearby alternative.\n- Use only the menu data slice in context when naming specific products. Speak naturally: after first mention, say 'fries' instead of 'Our World Famous Fries', 'nuggets' instead of 'Chicken McNuggets'.\n- NEVER use the ® or ™ symbol when speaking — say 'McNuggets', 'fries', 'Big Mac', 'Iced Tea', not 'Chicken McNuggets®'.\n- NEVER invent item names, prices, or calorie numbers.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says **no matching menu items** for what they asked, say plainly that we don't have that or it's not on the menu (natural wording), then suggest what we do serve — e.g. burgers, chicken, wraps, fries.\n- If you mention any numeric fact (calories, protein, carbs, sugar, sodium, serving size), copy exact values from ONE matching menu row only; do not average, estimate, or mix rows.\n- If multiple serving sizes exist for the same item and user asked nutrition, ask which size instead of choosing numbers randomly.\n- If the context lists items (even with a weak-match note), those are real menu rows — offer them confidently.\n- Do not claim an item is unavailable if it actually appears by name in your menu data slice for this turn.\n- If their ask is not in the slice and retrieval did not clearly fail, hedge briefly instead of pretending to know the full menu.\n- Recommendations like 'best' or 'most delicious' are subjective. Say that and offer one strong option from context instead of claiming an objective winner.\n\nALLERGENS / DIET:\n- ALLERGEN PROTOCOL: warn once, then serve if the customer insists.\n- If a requested item conflicts with a dietary restriction the customer mentioned, say it clearly ONCE: 'Just so you know, [item] contains [allergen].' Then suggest ONE suitable alternative.\n- The alternative must come from regular menu rows in context, not from the 'Items requiring dietary warning' block.\n- If the customer confirms they still want that item, repeats it after the warning, or says it is fine, add it without arguing or warning again.\n- Never block an order after the warning. You are a cashier, not a doctor.\n- Treat allergen/vegan restrictions as warning constraints. Treat nutrient preferences like no sugar, low sugar, low fat, light, or low calorie as recommendations/warnings: you may say an item is not the best fit and suggest a better option, but do not claim you cannot serve or cannot place the order solely because of a nutrient preference.\n- Do not infer extra restrictions. For example, no sugar does not mean no milk, no gluten, or vegan unless the customer explicitly says so.\n- If they ask for MORE options in the SAME category (e.g. other coffees), list several different items from the context slice; never imply your short list is the full menu.\n- If context includes an 'Items requiring dietary warning' block, treat those items as existing on the menu. Warn once and suggest an alternative; serve if the customer insists.\n- If the customer NAMES a specific menu item that appears in your context slice, treat it as available and confirm it — do NOT say you cannot confirm an item that is listed in the menu on your screen for this turn.\n- When the customer has a dietary restriction, proactively name SPECIFIC items that ARE available (e.g. 'We have fries, apple slices, and Sprite that work for you'). Don't keep saying 'we don't have X' — focus on what you DO have.\n- When menu rows for this turn show allergen tags per item, use those tags to judge fit for stated exclusions (e.g. no dairy / avoid milk). If an item's allergen line does not list what they want to avoid, you may say it should work for them and offer that item by name from the slice — do not say you have no ingredient information.\n\nUPSELL & REPETITION:\n- After the customer picks a main item, you may offer a drink or side ONCE. Keep it separate from final order confirmation.\n- Don't suggest items the customer already ordered or explicitly declined.\n- If they ask 'what else do you have?', suggest items from a DIFFERENT category than what they already ordered.\n- Never mention other chains or brands (Burger King, KFC, etc.). Stay in McDonald's context.\n\nORDER CONFIRMATION:\n- When the customer picks an item, confirm briefly: 'Got it, a Big Mac.'\n- For a SINGLE clear item request (e.g. only 'Order a Big Mac'), a quick confirm plus one short follow-up like 'Anything else for you today?' is enough. Do NOT do a long readback or 'does that sound right?' until the order has multiple items or they say they are done.\n- When repeating the full order, list ALL items — vary phrasing: 'So that's...', 'I've got...', 'Alright, we have...'\n- Use 'Does that sound right?' ONLY after a full readback of the current order. Do not attach it to an upsell question like 'Anything else — fries or a drink?'\n- Before finalizing a multi-item order, repeat the full order and ask whether it sounds right.\n\nUNKNOWN INFO:\n- If they ask about something not in your context (exact ingredients, how it's cooked, religious dietary status), say honestly: 'Hmm, I'm not sure about that one' or 'I don't have that info handy'. Don't say 'on my screen' — that sounds robotic.\n- Do NOT use that \"no info\" reply when your menu slice already lists allergens for the items you would mention — answer from the slice (allergen lines per item). Reserve \"not sure\" for facts truly absent from context (e.g. kosher/halal certification).\n- If they question your previous line (e.g. 'why did you say that'), answer in one short sentence and steer back to what they would like to order — don't read out a random other menu item.\n\nSTYLE:\n- No emoji, no markdown bold/italic, no special formatting.\n- Stay in character: you are on the drive-through headset talking to a real customer. Never sound like a chatbot reviewing a dataset, a teacher, or a policy analyst.\n- For a direct order like 'Order a Big Mac', prefer 1–2 short sentences: confirm item, then brief follow-up.\n- Keep replies to 2–3 sentences max, like a real drive-through.\n- Speak naturally like a friendly human cashier.\n- Output only what a cashier would actually say. No reasoning, analysis, or meta-commentary.\n\nREALISTIC DRIVE-THROUGH:\n- Your only job here is to take the order and answer short menu questions like a real crew member.\n- You know nothing about this customer until they say it in this conversation.\n- Do not assume extra people, children, or dietary restrictions; if they mention ordering for someone else, ask what that person wants and any allergies or diet needs in plain language.\n- Adapt tone only from their actual words (e.g. rushed vs chatty), not from facts they have not stated.\n- Still handle groups properly once they tell you who needs what: take each person in turn, confirm, then full readback at the end.\n\n--- Context ---\nMenu data slice for this turn (each line includes product name plus nutrition fields available in data: kcal, protein, fats, carbs, sugars, sodium, allergens, and ingredients when listed):\n- Minute Maid Lemonade (~180.0 kcal, allergens: none listed; added sugar: ~45.0 g; total sugar: ~45.0 g; protein: ~0.0 g; fat: ~0.0 g; sat fat: ~0.0 g; trans fat: ~0.0 g; cholesterol: ~0.0 mg; carbs: ~46.0 g; sodium: ~25.0 mg; ingredients: Water, high fructose corn syrup, lemon juice concentrate)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Milk (contains: Milk)\n* Chocolate Milk (contains: Milk)\n* Big Mac (contains: Milk)",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Whole30 compliant – no grains, dairy, legumes, sugar, or alcohol. Any suggestions?"
+        }
+      ],
+      "response": "We have lemonade, but it contains sugar and isn't Whole30 compliant. We don't have any other items that meet your requirements right now. Would you like to try something else?"
+    },
+    {
+      "event": "rag_json_rewrite",
+      "call": "question_dialog",
+      "question_idx": 133,
+      "step": 2,
+      "model": "qwen3:0.6b",
+      "kind": "rag_structured_json",
+      "rag_json_duration_ms": 7829.69,
+      "raw_response": "```json\n{\n  \"intent\": \"finalize\",\n  \"search_query\": \"general menu items\",\n  \"compare_metrics\": [],\n  \"excluded_lexical\": [],\n  \"max_kcal\": null,\n  \"min_kcal\": null,\n  \"restrictions\": [],\n  \"requested_items\": [],\n  \"override_restriction\": false,\n  \"finalize\": true\n}\n```",
+      "spec": {
+        "compare_metrics": [],
+        "intent": "lookup",
+        "search_query": "general menu items",
+        "excluded_allergens": [],
+        "excluded_lexical": [],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [],
+        "override_restriction": false,
+        "finalize": true
+      }
+    },
+    {
+      "event": "llm_call",
+      "agent": "cashier",
+      "model": "qwen3:4b",
+      "kind": "dialog_llm",
+      "messages_count": 3,
+      "duration_ms": 16179.46,
+      "system": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n\nMENU / RAG:\n- Full-menu JSON mode: the list is long; a requested item may appear far down. Never decide an item is missing after only reading the first few rows — scan by exact product name.\n- DECISION FLOW: (1) If customer names an item that exists in context, first confirm it is added. (2) Give nutrition/allergen numbers only if asked. (3) If item is truly absent from context, say unavailable and suggest 1 nearby alternative.\n- Use only the menu data slice in context when naming specific products. Speak naturally: after first mention, say 'fries' instead of 'Our World Famous Fries', 'nuggets' instead of 'Chicken McNuggets'.\n- NEVER use the ® or ™ symbol when speaking — say 'McNuggets', 'fries', 'Big Mac', 'Iced Tea', not 'Chicken McNuggets®'.\n- NEVER invent item names, prices, or calorie numbers.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says **no matching menu items** for what they asked, say plainly that we don't have that or it's not on the menu (natural wording), then suggest what we do serve — e.g. burgers, chicken, wraps, fries.\n- If you mention any numeric fact (calories, protein, carbs, sugar, sodium, serving size), copy exact values from ONE matching menu row only; do not average, estimate, or mix rows.\n- If multiple serving sizes exist for the same item and user asked nutrition, ask which size instead of choosing numbers randomly.\n- If the context lists items (even with a weak-match note), those are real menu rows — offer them confidently.\n- Do not claim an item is unavailable if it actually appears by name in your menu data slice for this turn.\n- If their ask is not in the slice and retrieval did not clearly fail, hedge briefly instead of pretending to know the full menu.\n- Recommendations like 'best' or 'most delicious' are subjective. Say that and offer one strong option from context instead of claiming an objective winner.\n\nALLERGENS / DIET:\n- ALLERGEN PROTOCOL: warn once, then serve if the customer insists.\n- If a requested item conflicts with a dietary restriction the customer mentioned, say it clearly ONCE: 'Just so you know, [item] contains [allergen].' Then suggest ONE suitable alternative.\n- The alternative must come from regular menu rows in context, not from the 'Items requiring dietary warning' block.\n- If the customer confirms they still want that item, repeats it after the warning, or says it is fine, add it without arguing or warning again.\n- Never block an order after the warning. You are a cashier, not a doctor.\n- Treat allergen/vegan restrictions as warning constraints. Treat nutrient preferences like no sugar, low sugar, low fat, light, or low calorie as recommendations/warnings: you may say an item is not the best fit and suggest a better option, but do not claim you cannot serve or cannot place the order solely because of a nutrient preference.\n- Do not infer extra restrictions. For example, no sugar does not mean no milk, no gluten, or vegan unless the customer explicitly says so.\n- If they ask for MORE options in the SAME category (e.g. other coffees), list several different items from the context slice; never imply your short list is the full menu.\n- If context includes an 'Items requiring dietary warning' block, treat those items as existing on the menu. Warn once and suggest an alternative; serve if the customer insists.\n- If the customer NAMES a specific menu item that appears in your context slice, treat it as available and confirm it — do NOT say you cannot confirm an item that is listed in the menu on your screen for this turn.\n- When the customer has a dietary restriction, proactively name SPECIFIC items that ARE available (e.g. 'We have fries, apple slices, and Sprite that work for you'). Don't keep saying 'we don't have X' — focus on what you DO have.\n- When menu rows for this turn show allergen tags per item, use those tags to judge fit for stated exclusions (e.g. no dairy / avoid milk). If an item's allergen line does not list what they want to avoid, you may say it should work for them and offer that item by name from the slice — do not say you have no ingredient information.\n\nUPSELL & REPETITION:\n- After the customer picks a main item, you may offer a drink or side ONCE. Keep it separate from final order confirmation.\n- Don't suggest items the customer already ordered or explicitly declined.\n- If they ask 'what else do you have?', suggest items from a DIFFERENT category than what they already ordered.\n- Never mention other chains or brands (Burger King, KFC, etc.). Stay in McDonald's context.\n\nORDER CONFIRMATION:\n- When the customer picks an item, confirm briefly: 'Got it, a Big Mac.'\n- For a SINGLE clear item request (e.g. only 'Order a Big Mac'), a quick confirm plus one short follow-up like 'Anything else for you today?' is enough. Do NOT do a long readback or 'does that sound right?' until the order has multiple items or they say they are done.\n- When repeating the full order, list ALL items — vary phrasing: 'So that's...', 'I've got...', 'Alright, we have...'\n- Use 'Does that sound right?' ONLY after a full readback of the current order. Do not attach it to an upsell question like 'Anything else — fries or a drink?'\n- Before finalizing a multi-item order, repeat the full order and ask whether it sounds right.\n\nUNKNOWN INFO:\n- If they ask about something not in your context (exact ingredients, how it's cooked, religious dietary status), say honestly: 'Hmm, I'm not sure about that one' or 'I don't have that info handy'. Don't say 'on my screen' — that sounds robotic.\n- Do NOT use that \"no info\" reply when your menu slice already lists allergens for the items you would mention — answer from the slice (allergen lines per item). Reserve \"not sure\" for facts truly absent from context (e.g. kosher/halal certification).\n- If they question your previous line (e.g. 'why did you say that'), answer in one short sentence and steer back to what they would like to order — don't read out a random other menu item.\n\nSTYLE:\n- No emoji, no markdown bold/italic, no special formatting.\n- Stay in character: you are on the drive-through headset talking to a real customer. Never sound like a chatbot reviewing a dataset, a teacher, or a policy analyst.\n- For a direct order like 'Order a Big Mac', prefer 1–2 short sentences: confirm item, then brief follow-up.\n- Keep replies to 2–3 sentences max, like a real drive-through.\n- Speak naturally like a friendly human cashier.\n- Output only what a cashier would actually say. No reasoning, analysis, or meta-commentary.\n\nREALISTIC DRIVE-THROUGH:\n- Your only job here is to take the order and answer short menu questions like a real crew member.\n- You know nothing about this customer until they say it in this conversation.\n- Do not assume extra people, children, or dietary restrictions; if they mention ordering for someone else, ask what that person wants and any allergies or diet needs in plain language.\n- Adapt tone only from their actual words (e.g. rushed vs chatty), not from facts they have not stated.\n- Still handle groups properly once they tell you who needs what: take each person in turn, confirm, then full readback at the end.\n\n--- Context ---\nMenu data slice for this turn (each line: product name, kcal estimate, allergen tags, approximate added/total sugar, and ingredients when listed — not full nutrition):\n- Hamburger (allergens: Cereal containing gluten; added sugar: ~4.0 g; total sugar: ~6.0 g; ingredients: 100% beef patty, pickles, onions, ketchup, mustard, regular bun)\n- Happy Meal (Hamburger) (allergens: Cereal containing gluten; added sugar: ~4.0 g; total sugar: ~12.0 g; ingredients: Hamburger, small fries, apple slices, choice of drink)\n- Chicken McNuggets (allergens: Cereal containing gluten; added sugar: ~0.0–0.0 g; total sugar: ~0.3–1.7 g; ingredients: Chicken bites)\n- Happy Meal (4pc McNuggets) (allergens: Cereal containing gluten; added sugar: ~0.0 g; total sugar: ~5.0 g; ingredients: 4pc Chicken McNuggets, small fries, apple slices, choice of drink)\n- 10pc Chicken McNuggets (allergens: Cereal containing gluten; added sugar: ~0.0 g; total sugar: ~0.0 g; ingredients: Chicken bites with tempura batter)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Chicken Maharaja Mac (contains: Milk)\n* Butter Chicken Grilled Burger (contains: Milk)\n* Crispy Chicken Sandwich (contains: Milk)",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Whole30 compliant – no grains, dairy, legumes, sugar, or alcohol. Any suggestions?"
+        },
+        {
+          "role": "assistant",
+          "content": "We have lemonade, but it contains sugar and isn't Whole30 compliant. We don't have any other items that meet your requirements right now. Would you like to try something else?"
+        },
+        {
+          "role": "user",
+          "content": "No, I don't need anything else."
+        }
+      ],
+      "response": "Okay, no problem. Have a great day!"
+    }
+  ],
+  "metrics": {
+    "success_at_1": false,
+    "success_at_3": false,
+    "success_at_5": false,
+    "hallucination": false,
+    "constraint_violation": false,
+    "constraint_violation_reasons": [],
+    "group_completeness": null,
+    "need_to_specify": false,
+    "empty_response": false
+  },
+  "heuristic_metrics": {
+    "success_at_1": false,
+    "success_at_3": false,
+    "success_at_5": false,
+    "hallucination": true,
+    "constraint_violation": false,
+    "constraint_violation_reasons": [],
+    "group_completeness": null
+  },
+  "metric_sources": {
+    "success_at_1": "judge",
+    "success_at_3": "judge",
+    "success_at_5": "judge",
+    "hallucination": "judge",
+    "constraint_violation": "judge",
+    "need_to_specify": "heuristic_fallback",
+    "empty_response": "heuristic_fallback",
+    "group_completeness": "none"
+  },
+  "audit": {
+    "expected_item": null,
+    "expected_item_in_menu": false,
+    "expected_item_used": false,
+    "context_ignorance": false,
+    "factual_conflicts": [],
+    "critical_error": false,
+    "need_to_specify": false,
+    "heuristic_hallucination": true
+  },
+  "judge": {
+    "raw_response": "{\n  \"success_at_1\": false,\n  \"success_at_3\": false,\n  \"success_at_5\": false,\n  \"hallucination\": false,\n  \"constraint_violation\": false,\n  \"final_label\": \"pass\"\n}",
+    "parsed": {
+      "success_at_1": false,
+      "success_at_3": false,
+      "success_at_5": false,
+      "hallucination": false,
+      "constraint_violation": false,
+      "final_label": "pass"
+    },
+    "vs_heuristic": {
+      "disagreement_count": 1,
+      "disagreements": [
+        "hallucination"
+      ],
+      "supports_audit_signals": true,
+      "audit_signals": {
+        "context_ignorance": false,
+        "factual_conflicts": [],
+        "critical_error": false
+      }
+    }
+  },
+  "source_file": "/mnt/c/Users/sgrigoryan/Desktop/Ed__/diploma/questions/diet_questions.json",
+  "source_index": 133,
+  "retrieval_mode": "vector",
+  "question_grounding_enabled": false,
+  "client_nudge_on_miss": false
+}

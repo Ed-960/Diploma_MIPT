@@ -310,10 +310,11 @@ def try_plot(
         offsets = [p + i * bar_w for p in positions]
         ax.bar(offsets, vals, bar_w, label=labels[i])
 
-    ax.set_ylabel("% диалогов")
+    ax.set_ylabel("Доля диалогов с событием, %")
     ax.set_title("RAG vs non-RAG: доля ошибок")
     ax.set_xticks([p + bar_w / 2 for p in positions])
     ax.set_xticklabels(x_labels)
+    ax.set_xlabel("Метрика (тип ошибки / индикатор)")
     ax.legend()
     ax.set_ylim(0, 100)
     fig.tight_layout()

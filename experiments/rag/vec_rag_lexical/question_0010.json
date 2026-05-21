@@ -1,0 +1,1610 @@
+{
+  "question_id": 10,
+  "category": "lexical",
+  "question": "No croutons in my Caesar salad, please. I'm gluten-free (not allergy, just preference)",
+  "expected_item": "Side Caesar Salad",
+  "expected_constraints": [
+    {
+      "type": "exclude",
+      "value": "croutons"
+    }
+  ],
+  "dialog_finished_reason": "cashier_without_client_nudge",
+  "dialog_turns": 2,
+  "history": [
+    {
+      "speaker": "client",
+      "text": "No croutons in my Caesar salad, please. I'm gluten-free (not allergy, just preference)"
+    },
+    {
+      "speaker": "cashier",
+      "text": "I see you want a gluten-free Caesar salad without croutons. Our regular Caesar salads contain gluten from croutons, so we don't have a gluten-free version. But we do have a Side Salad that's naturally gluten-free and perfect for your preference—no croutons, just fresh greens and veggies. Would you like that instead?"
+    },
+    {
+      "speaker": "judge",
+      "text": "{\n  \"hallucination\": false,\n  \"final_label\": \"success\"\n}"
+    }
+  ],
+  "final_cashier_response": "I see you want a gluten-free Caesar salad without croutons. Our regular Caesar salads contain gluten from croutons, so we don't have a gluten-free version. But we do have a Side Salad that's naturally gluten-free and perfect for your preference—no croutons, just fresh greens and veggies. Would you like that instead?",
+  "mentioned_items": [
+    "Side Salad"
+  ],
+  "need_to_specify": false,
+  "empty_response": false,
+  "response_time_ms": 12997.38,
+  "turn_timings_ms": [
+    {
+      "cashier_step": 1.0,
+      "duration_ms": 12997.38
+    }
+  ],
+  "rag_trace": [
+    {
+      "event": "chroma_request",
+      "query_texts": [
+        "gluten-free Caesar salad"
+      ],
+      "n_results": 101,
+      "where": {
+        "allergens": {
+          "$not_contains": "Cereal containing gluten"
+        }
+      }
+    },
+    {
+      "event": "chroma_response",
+      "query_duration_ms": 21.06,
+      "ids": [
+        "52",
+        "19",
+        "20",
+        "58",
+        "93",
+        "59",
+        "60",
+        "91",
+        "90",
+        "96",
+        "3",
+        "88",
+        "89",
+        "54",
+        "55",
+        "86",
+        "53",
+        "85",
+        "14",
+        "15",
+        "56",
+        "57",
+        "38",
+        "39",
+        "81",
+        "9",
+        "13",
+        "84",
+        "94",
+        "95",
+        "51",
+        "87",
+        "36",
+        "37",
+        "27",
+        "28",
+        "29",
+        "82",
+        "92",
+        "83",
+        "80",
+        "0",
+        "78",
+        "77",
+        "79",
+        "10"
+      ],
+      "distances": [
+        0.5475811958312988,
+        0.6921619176864624,
+        0.6921619176864624,
+        0.6975119113922119,
+        0.7272948622703552,
+        0.7570222616195679,
+        0.7738685011863708,
+        0.7855231761932373,
+        0.8135391473770142,
+        0.8241965174674988,
+        0.83003830909729,
+        0.8339385986328125,
+        0.8355594873428345,
+        0.8491122126579285,
+        0.8491122126579285,
+        0.8528857231140137,
+        0.8684542179107666,
+        0.8735343813896179,
+        0.8748233318328857,
+        0.8748233318328857,
+        0.8775249719619751,
+        0.8775249719619751,
+        0.8791418075561523,
+        0.8791418075561523,
+        0.8797813057899475,
+        0.8811621069908142,
+        0.8843756318092346,
+        0.8866520524024963,
+        0.8885335326194763,
+        0.8904334306716919,
+        0.8930777311325073,
+        0.8959484100341797,
+        0.9023627638816833,
+        0.9023627638816833,
+        0.9043676257133484,
+        0.9043676257133484,
+        0.9043676257133484,
+        0.9194310903549194,
+        0.9254595637321472,
+        0.926159679889679,
+        0.9447181224822998,
+        0.9661790728569031,
+        0.9822998642921448,
+        0.9896430373191833,
+        0.9998382329940796,
+        1.0045826435089111
+      ],
+      "metadatas": [
+        {
+          "sodium": 10.0,
+          "protein": 1.0,
+          "total_sugar": 2.0,
+          "tag": "Fresh greens on the side.",
+          "category": "",
+          "allergens": [
+            "__none__"
+          ],
+          "description": "A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.",
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "serving_size": "87g",
+          "sat_fat": 0.0,
+          "added_sugar": 0.0,
+          "ingredients": "Mixed greens, grape tomatoes, shredded carrots",
+          "chol": 0.0,
+          "name": "Side Salad",
+          "carbs": 3.0,
+          "energy": 15.0
+        },
+        {
+          "protein": 10.99,
+          "added_sugar": 54.51,
+          "tag": "Burgers aren't the only things we're good at.",
+          "name": "McFlurry (Choco Crunch)",
+          "sodium": 295.89,
+          "allergens": [
+            "Milk",
+            "Soya"
+          ],
+          "energy": 703.17,
+          "carbs": 117.78,
+          "description": "Milk-based frozen dessert with chocolate crispies and chocolate dip.",
+          "trans_fat": 0.21,
+          "chol": 11.06,
+          "serving_size": "167.38g",
+          "ingredients": "Milk fat, Chocolate",
+          "category": "",
+          "total_sugar": 66.93,
+          "sat_fat": 13.8,
+          "total_fat": 19.68
+        },
+        {
+          "category": "",
+          "trans_fat": 0.07,
+          "description": "Milk-based frozen dessert with chocolate crispies and chocolate dip.",
+          "serving_size": "94.29g",
+          "added_sugar": 13.04,
+          "chol": 5.37,
+          "allergens": [
+            "Milk",
+            "Soya"
+          ],
+          "sodium": 57.8,
+          "sat_fat": 3.91,
+          "carbs": 23.67,
+          "total_fat": 5.39,
+          "total_sugar": 17.36,
+          "name": "McFlurry (Choco Crunch)",
+          "tag": "Burgers aren't the only things we're good at.",
+          "energy": 115.19,
+          "protein": 2.62,
+          "ingredients": "Milk fat, Chocolate"
+        },
+        {
+          "tag": "Start your day with vitamin C.",
+          "description": "The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.",
+          "carbs": 34.0,
+          "chol": 0.0,
+          "serving_size": "355ml",
+          "added_sugar": 0.0,
+          "trans_fat": 0.0,
+          "protein": 2.0,
+          "energy": 150.0,
+          "category": "",
+          "total_fat": 0.0,
+          "sodium": 0.0,
+          "sat_fat": 0.0,
+          "ingredients": "100% orange juice from concentrate",
+          "allergens": [
+            "__none__"
+          ],
+          "name": "Orange Juice",
+          "total_sugar": 30.0
+        },
+        {
+          "trans_fat": 0.0,
+          "carbs": 46.0,
+          "name": "Minute Maid Lemonade",
+          "protein": 0.0,
+          "sodium": 25.0,
+          "chol": 0.0,
+          "energy": 180.0,
+          "tag": "Tart and refreshing.",
+          "added_sugar": 45.0,
+          "total_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "description": "Classic lemonade with real lemon flavor.",
+          "category": "",
+          "serving_size": "500ml",
+          "total_sugar": 45.0,
+          "sat_fat": 0.0,
+          "ingredients": "Water, high fructose corn syrup, lemon juice concentrate"
+        },
+        {
+          "energy": 100.0,
+          "allergens": [
+            "Milk"
+          ],
+          "added_sugar": 0.0,
+          "category": "",
+          "tag": "A wholesome drink choice.",
+          "total_sugar": 12.0,
+          "chol": 10.0,
+          "total_fat": 2.5,
+          "ingredients": "Reduced fat milk, vitamin A palmitate, vitamin D3",
+          "sodium": 105.0,
+          "trans_fat": 0.0,
+          "description": "1% Low Fat Milk Jug is a wholesome drink choice for your Happy Meal.",
+          "name": "Milk",
+          "sat_fat": 1.5,
+          "protein": 8.0,
+          "serving_size": "236ml",
+          "carbs": 12.0
+        },
+        {
+          "trans_fat": 0.0,
+          "total_sugar": 24.0,
+          "energy": 170.0,
+          "sat_fat": 1.5,
+          "category": "",
+          "serving_size": "236ml",
+          "description": "Fat Free Chocolate Milk Jug is a sweet treat for your Happy Meal.",
+          "name": "Chocolate Milk",
+          "sodium": 150.0,
+          "chol": 10.0,
+          "tag": "A sweet treat in a jug.",
+          "added_sugar": 12.0,
+          "carbs": 26.0,
+          "total_fat": 2.5,
+          "ingredients": "Reduced fat milk, sugar, cocoa, vitamin A palmitate, vitamin D3",
+          "allergens": [
+            "Milk"
+          ],
+          "protein": 8.0
+        },
+        {
+          "protein": 0.0,
+          "description": "Caffeine-free orange soda with a fruity burst.",
+          "carbs": 57.0,
+          "added_sugar": 57.0,
+          "name": "Fanta Orange",
+          "total_sugar": 57.0,
+          "allergens": [
+            "__none__"
+          ],
+          "serving_size": "500ml",
+          "total_fat": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors",
+          "category": "",
+          "chol": 0.0,
+          "sodium": 55.0,
+          "tag": "Bright orange soda.",
+          "trans_fat": 0.0,
+          "sat_fat": 0.0,
+          "energy": 210.0
+        },
+        {
+          "chol": 0.0,
+          "description": "Unique blend of 23 flavors in a bold fountain drink.",
+          "total_sugar": 54.0,
+          "tag": "23 flavors in one drink.",
+          "sat_fat": 0.0,
+          "name": "Dr Pepper",
+          "category": "",
+          "allergens": [
+            "__none__"
+          ],
+          "sodium": 60.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors",
+          "protein": 0.0,
+          "energy": 200.0,
+          "serving_size": "500ml",
+          "added_sugar": 54.0,
+          "trans_fat": 0.0,
+          "carbs": 54.0,
+          "total_fat": 0.0
+        },
+        {
+          "tag": "Tropical fruit blend.",
+          "sat_fat": 1.0,
+          "serving_size": "415ml",
+          "sodium": 40.0,
+          "total_fat": 1.5,
+          "name": "Mango Pineapple Smoothie",
+          "protein": 3.0,
+          "chol": 5.0,
+          "description": "Tropical mango and pineapple blended with yogurt.",
+          "energy": 220.0,
+          "added_sugar": 38.0,
+          "trans_fat": 0.0,
+          "category": "",
+          "carbs": 50.0,
+          "ingredients": "Mango puree, pineapple juice, low-fat yogurt, ice",
+          "allergens": [
+            "Milk"
+          ],
+          "total_sugar": 46.0
+        },
+        {
+          "total_fat": 21.1,
+          "energy": 453.92,
+          "carbs": 41.94,
+          "trans_fat": 0.59,
+          "allergens": [
+            "Milk"
+          ],
+          "sodium": 430.79,
+          "ingredients": "Salted Fries, Smoky Chipotle Sauce",
+          "name": "Cheesy Fries",
+          "category": "",
+          "protein": 7.19,
+          "serving_size": "150g",
+          "chol": 3.89,
+          "added_sugar": 0.4,
+          "total_sugar": 0.95,
+          "sat_fat": 10.64,
+          "tag": "Hi, it’s cheese on this side!",
+          "description": "The all-time favourite fries with a generous dollop of cheesy yet smoky chipotle sauce."
+        },
+        {
+          "name": "Diet Coke",
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine",
+          "description": "Diet Coke with the same great taste and no calories.",
+          "category": "",
+          "added_sugar": 0.0,
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "total_sugar": 0.0,
+          "sodium": 40.0,
+          "total_fat": 0.0,
+          "tag": "Zero-calorie cola.",
+          "serving_size": "500ml",
+          "allergens": [
+            "__none__"
+          ],
+          "protein": 0.0,
+          "energy": 0.0,
+          "trans_fat": 0.0,
+          "carbs": 0.0
+        },
+        {
+          "name": "Diet Coke",
+          "ingredients": "Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine",
+          "total_sugar": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "category": "",
+          "serving_size": "300ml",
+          "chol": 0.0,
+          "tag": "Zero-calorie cola.",
+          "total_fat": 0.0,
+          "carbs": 0.0,
+          "added_sugar": 0.0,
+          "description": "Small Diet Coke — crisp and refreshing.",
+          "sodium": 25.0,
+          "protein": 0.0,
+          "trans_fat": 0.0,
+          "sat_fat": 0.0,
+          "energy": 0.0
+        },
+        {
+          "total_fat": 0.0,
+          "chol": 0.0,
+          "name": "Coca-Cola",
+          "serving_size": "500ml",
+          "carbs": 58.0,
+          "sodium": 45.0,
+          "trans_fat": 0.0,
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "added_sugar": 58.0,
+          "allergens": [
+            "__none__"
+          ],
+          "sat_fat": 0.0,
+          "energy": 210.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "total_sugar": 58.0,
+          "category": "",
+          "tag": "The classic refreshment.",
+          "protein": 0.0
+        },
+        {
+          "serving_size": "300ml",
+          "total_fat": 0.0,
+          "tag": "The classic refreshment.",
+          "added_sugar": 39.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine",
+          "category": "",
+          "protein": 0.0,
+          "name": "Coca-Cola",
+          "sat_fat": 0.0,
+          "total_sugar": 39.0,
+          "energy": 140.0,
+          "allergens": [
+            "__none__"
+          ],
+          "carbs": 39.0,
+          "sodium": 30.0,
+          "chol": 0.0,
+          "description": "Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.",
+          "trans_fat": 0.0
+        },
+        {
+          "total_sugar": 75.0,
+          "added_sugar": 62.0,
+          "energy": 500.0,
+          "carbs": 84.0,
+          "sodium": 290.0,
+          "protein": 11.0,
+          "chol": 50.0,
+          "category": "",
+          "description": "Strawberry-flavored shake blended with vanilla soft serve.",
+          "name": "Strawberry Shake",
+          "serving_size": "400ml",
+          "ingredients": "Vanilla soft serve, strawberry syrup, milk",
+          "total_fat": 13.0,
+          "sat_fat": 8.0,
+          "allergens": [
+            "Milk"
+          ],
+          "trans_fat": 0.0,
+          "tag": "Fruity pink shake."
+        },
+        {
+          "sodium": 310.0,
+          "added_sugar": 0.0,
+          "ingredients": "Shredded potatoes, salt, pepper, dextrose",
+          "description": "Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.",
+          "serving_size": "56g",
+          "carbs": 15.0,
+          "tag": "Golden and crispy breakfast side.",
+          "trans_fat": 0.0,
+          "name": "Hash Browns",
+          "energy": 140.0,
+          "total_fat": 8.0,
+          "category": "",
+          "total_sugar": 0.0,
+          "protein": 1.0,
+          "allergens": [
+            "__none__"
+          ],
+          "chol": 0.0,
+          "sat_fat": 1.0
+        },
+        {
+          "chol": 50.0,
+          "allergens": [
+            "Milk"
+          ],
+          "serving_size": "400ml",
+          "tag": "Simple vanilla bliss.",
+          "total_sugar": 70.0,
+          "name": "Vanilla Shake",
+          "energy": 480.0,
+          "category": "",
+          "added_sugar": 58.0,
+          "protein": 11.0,
+          "description": "Classic vanilla shake — smooth and sweet.",
+          "total_fat": 13.0,
+          "sat_fat": 8.0,
+          "trans_fat": 0.0,
+          "carbs": 79.0,
+          "ingredients": "Vanilla soft serve, milk",
+          "sodium": 280.0
+        },
+        {
+          "carbs": 18.9,
+          "serving_size": "150ml",
+          "energy": 94.23,
+          "tag": "",
+          "name": "Masala Chai",
+          "ingredients": "",
+          "category": "",
+          "added_sugar": 13.68,
+          "sodium": 7.08,
+          "total_fat": 1.46,
+          "sat_fat": 0.87,
+          "chol": 0.0,
+          "total_sugar": 15.06,
+          "description": "Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+          "trans_fat": 0.04,
+          "protein": 1.37,
+          "allergens": [
+            "Milk"
+          ]
+        },
+        {
+          "name": "Masala Chai",
+          "protein": 0.8,
+          "carbs": 11.02,
+          "total_sugar": 8.79,
+          "chol": 0.0,
+          "allergens": [
+            "Milk"
+          ],
+          "trans_fat": 0.02,
+          "sodium": 4.13,
+          "serving_size": "90ml",
+          "energy": 54.97,
+          "added_sugar": 7.98,
+          "ingredients": "",
+          "tag": "",
+          "total_fat": 0.85,
+          "description": "Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+          "sat_fat": 0.51,
+          "category": ""
+        },
+        {
+          "chol": 0.0,
+          "serving_size": "500ml",
+          "carbs": 54.0,
+          "trans_fat": 0.0,
+          "sat_fat": 0.0,
+          "energy": 200.0,
+          "added_sugar": 54.0,
+          "name": "Sprite",
+          "total_fat": 0.0,
+          "sodium": 65.0,
+          "category": "",
+          "protein": 0.0,
+          "tag": "Crisp and refreshing.",
+          "allergens": [
+            "__none__"
+          ],
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "total_sugar": 54.0
+        },
+        {
+          "name": "Sprite",
+          "chol": 0.0,
+          "ingredients": "Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate",
+          "tag": "Crisp and refreshing.",
+          "sodium": 45.0,
+          "serving_size": "300ml",
+          "category": "",
+          "sat_fat": 0.0,
+          "energy": 140.0,
+          "total_fat": 0.0,
+          "protein": 0.0,
+          "total_sugar": 38.0,
+          "trans_fat": 0.0,
+          "carbs": 38.0,
+          "description": "Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.",
+          "allergens": [
+            "__none__"
+          ],
+          "added_sugar": 38.0
+        },
+        {
+          "added_sugar": 20.32,
+          "total_fat": 2.36,
+          "serving_size": "132.08g",
+          "chol": 6.55,
+          "total_sugar": 28.2,
+          "sat_fat": 1.74,
+          "category": "",
+          "protein": 2.05,
+          "allergens": [
+            "Milk"
+          ],
+          "energy": 156.14,
+          "carbs": 31.77,
+          "description": "Creamy vanilla soft-serve with strawberry topping.",
+          "sodium": 48.28,
+          "tag": "A little zing goes a long way.",
+          "name": "Sundae (Strawberry)",
+          "trans_fat": 0.1,
+          "ingredients": "Soft serve mix (100% diary), Strawberry topping"
+        },
+        {
+          "category": "",
+          "total_sugar": 17.66,
+          "chol": 4.85,
+          "allergens": [
+            "Milk"
+          ],
+          "serving_size": "91.79g",
+          "sodium": 34.51,
+          "total_fat": 1.77,
+          "tag": "A little zing goes a long way.",
+          "protein": 1.54,
+          "name": "Sundae (Strawberry)",
+          "ingredients": "Soft serve mix (100% diary), Strawberry topping",
+          "carbs": 19.78,
+          "energy": 100.99,
+          "description": "Creamy vanilla soft-serve with strawberry topping.",
+          "added_sugar": 12.49,
+          "trans_fat": 0.06,
+          "sat_fat": 1.3
+        },
+        {
+          "added_sugar": 38.0,
+          "serving_size": "355ml",
+          "total_fat": 8.0,
+          "ingredients": "Espresso, steamed milk, vanilla syrup, caramel drizzle",
+          "protein": 10.0,
+          "trans_fat": 0.0,
+          "total_sugar": 44.0,
+          "allergens": [
+            "Milk"
+          ],
+          "sat_fat": 4.5,
+          "name": "Caramel Macchiato",
+          "carbs": 48.0,
+          "chol": 30.0,
+          "description": "Freshly steamed milk with vanilla-flavored syrup marked with espresso and caramel drizzle.",
+          "energy": 310.0,
+          "tag": "Layered espresso favorite.",
+          "sodium": 120.0,
+          "category": ""
+        },
+        {
+          "sat_fat": 4.89,
+          "category": "",
+          "total_fat": 7.18,
+          "allergens": [
+            "Milk"
+          ],
+          "tag": "",
+          "description": "Rich smooth creamy cold coffee along with sweet vanilla flavoured soft serve mix.",
+          "total_sugar": 36.18,
+          "protein": 5.91,
+          "chol": 15.81,
+          "trans_fat": 0.0,
+          "serving_size": "270ml",
+          "carbs": 45.44,
+          "energy": 270.05,
+          "name": "Cold Coffee Mcfloat",
+          "added_sugar": 19.98,
+          "sodium": 173.59,
+          "ingredients": ""
+        },
+        {
+          "chol": 0.0,
+          "serving_size": "400ml",
+          "sat_fat": 0.0,
+          "category": "",
+          "energy": 242.52,
+          "added_sugar": 55.16,
+          "ingredients": "",
+          "description": "A blend of aromatic tea and the fruity flavour of lemon.",
+          "sodium": 16.68,
+          "trans_fat": 0.0,
+          "total_fat": 0.12,
+          "protein": 1.08,
+          "name": "Iced Tea",
+          "carbs": 59.28,
+          "total_sugar": 58.08,
+          "tag": "",
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "allergens": [
+            "Milk"
+          ],
+          "ingredients": "Vanilla soft serve, chocolate syrup, milk",
+          "total_sugar": 78.0,
+          "description": "Creamy chocolate shake made with vanilla soft serve and chocolate syrup.",
+          "category": "",
+          "serving_size": "400ml",
+          "chol": 55.0,
+          "trans_fat": 0.0,
+          "added_sugar": 65.0,
+          "name": "Chocolate Shake",
+          "protein": 12.0,
+          "total_fat": 15.0,
+          "energy": 530.0,
+          "sat_fat": 9.0,
+          "sodium": 320.0,
+          "carbs": 87.0,
+          "tag": "Thick and creamy classic."
+        },
+        {
+          "total_sugar": 0.0,
+          "chol": 0.0,
+          "category": "",
+          "protein": 0.0,
+          "sat_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "added_sugar": 0.0,
+          "ingredients": "Purified water",
+          "description": "Refreshing purified drinking water.",
+          "sodium": 0.0,
+          "energy": 0.0,
+          "name": "Bottled Water",
+          "tag": "Hydration on the go.",
+          "serving_size": "500ml",
+          "carbs": 0.0,
+          "trans_fat": 0.0,
+          "total_fat": 0.0
+        },
+        {
+          "added_sugar": 35.0,
+          "serving_size": "415ml",
+          "description": "Blended strawberry and banana with creamy yogurt.",
+          "trans_fat": 0.0,
+          "allergens": [
+            "Milk"
+          ],
+          "tag": "Fruit smoothie treat.",
+          "name": "Strawberry Banana Smoothie",
+          "ingredients": "Strawberry puree, banana puree, low-fat yogurt, ice",
+          "sat_fat": 1.0,
+          "energy": 210.0,
+          "protein": 4.0,
+          "sodium": 45.0,
+          "chol": 5.0,
+          "category": "",
+          "carbs": 46.0,
+          "total_sugar": 42.0,
+          "total_fat": 2.0
+        },
+        {
+          "sat_fat": 0.0,
+          "energy": 15.0,
+          "allergens": [
+            "__none__"
+          ],
+          "description": "Fresh, crisp apple slices. A wholesome choice for any meal.",
+          "chol": 0.0,
+          "protein": 0.0,
+          "serving_size": "34g",
+          "trans_fat": 0.0,
+          "tag": "A fresh, healthy side.",
+          "total_fat": 0.0,
+          "added_sugar": 0.0,
+          "name": "Apple Slices",
+          "ingredients": "Fresh sliced apples",
+          "total_sugar": 3.0,
+          "sodium": 0.0,
+          "category": "",
+          "carbs": 4.0
+        },
+        {
+          "name": "Hot Chocolate",
+          "sodium": 150.0,
+          "energy": 380.0,
+          "carbs": 54.0,
+          "trans_fat": 0.0,
+          "tag": "Warm chocolate comfort.",
+          "chol": 40.0,
+          "protein": 11.0,
+          "added_sugar": 42.0,
+          "serving_size": "355ml",
+          "allergens": [
+            "Milk"
+          ],
+          "category": "",
+          "total_sugar": 48.0,
+          "ingredients": "Steamed milk, chocolate syrup, whipped cream",
+          "description": "Steamed milk with rich chocolate syrup and optional whipped topping.",
+          "sat_fat": 8.0,
+          "total_fat": 14.0
+        },
+        {
+          "trans_fat": 0.13,
+          "chol": 8.55,
+          "total_fat": 6.87,
+          "carbs": 30.42,
+          "allergens": [
+            "Milk"
+          ],
+          "description": "Creamy vanilla soft-serve topped with thick and rich hot fudge.",
+          "added_sugar": 16.9,
+          "serving_size": "132.08g",
+          "sodium": 110.39,
+          "protein": 3.49,
+          "energy": 197.45,
+          "tag": "Much more than ice-cream.",
+          "ingredients": "Soft serve mix (100% diary), Hot fudge topping",
+          "category": "",
+          "total_sugar": 27.01,
+          "sat_fat": 5.16,
+          "name": "Sundae (Chocolate)"
+        },
+        {
+          "tag": "Much more than ice-cream.",
+          "allergens": [
+            "Milk"
+          ],
+          "total_fat": 4.02,
+          "total_sugar": 17.07,
+          "serving_size": "91.79g",
+          "energy": 121.64,
+          "description": "Creamy vanilla soft-serve topped with thick and rich hot fudge.",
+          "protein": 2.25,
+          "carbs": 19.11,
+          "sat_fat": 3.01,
+          "chol": 5.85,
+          "ingredients": "Soft serve mix (100% diary), Hot fudge topping",
+          "added_sugar": 10.78,
+          "category": "",
+          "name": "Sundae (Chocolate)",
+          "sodium": 65.56,
+          "trans_fat": 0.08
+        },
+        {
+          "sodium": 153.15,
+          "name": "Our World Famous Fries",
+          "trans_fat": 0.08,
+          "tag": "The legend among legends.",
+          "category": "",
+          "total_fat": 10.39,
+          "energy": 224.59,
+          "sat_fat": 4.97,
+          "serving_size": "77g",
+          "carbs": 27.08,
+          "protein": 3.38,
+          "allergens": [
+            "__none__"
+          ],
+          "total_sugar": 0.39,
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "ingredients": "Potato and salt",
+          "added_sugar": 0.0,
+          "chol": 0.77
+        },
+        {
+          "total_fat": 20.77,
+          "trans_fat": 0.15,
+          "ingredients": "Potato and salt",
+          "serving_size": "154g",
+          "sat_fat": 9.95,
+          "tag": "The legend among legends.",
+          "carbs": 54.16,
+          "name": "Our World Famous Fries",
+          "protein": 6.76,
+          "sodium": 306.29,
+          "total_sugar": 0.77,
+          "chol": 1.54,
+          "energy": 449.17,
+          "category": "",
+          "added_sugar": 0.0,
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "sat_fat": 7.04,
+          "added_sugar": 0.0,
+          "name": "Our World Famous Fries",
+          "serving_size": "109g",
+          "sodium": 216.79,
+          "energy": 317.92,
+          "total_sugar": 0.55,
+          "tag": "The legend among legends.",
+          "category": "",
+          "description": "The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.",
+          "total_fat": 14.7,
+          "chol": 1.09,
+          "carbs": 38.34,
+          "protein": 4.79,
+          "allergens": [
+            "__none__"
+          ],
+          "trans_fat": 0.11,
+          "ingredients": "Potato and salt"
+        },
+        {
+          "serving_size": "415ml",
+          "protein": 7.0,
+          "carbs": 72.0,
+          "trans_fat": 0.0,
+          "description": "Mocha coffee frappe blended with ice and topped with whipped cream.",
+          "total_fat": 18.0,
+          "total_sugar": 64.0,
+          "energy": 480.0,
+          "allergens": [
+            "Milk"
+          ],
+          "tag": "Frozen chocolate coffee treat.",
+          "chol": 55.0,
+          "sat_fat": 11.0,
+          "added_sugar": 58.0,
+          "category": "",
+          "name": "Mocha Frappe",
+          "ingredients": "Coffee, mocha sauce, ice, whipped cream, milk",
+          "sodium": 180.0
+        },
+        {
+          "name": "Sweet Tea",
+          "allergens": [
+            "__none__"
+          ],
+          "sat_fat": 0.0,
+          "total_sugar": 38.0,
+          "category": "",
+          "protein": 0.0,
+          "chol": 0.0,
+          "tag": "Southern-style sweet tea.",
+          "serving_size": "500ml",
+          "total_fat": 0.0,
+          "energy": 150.0,
+          "sodium": 10.0,
+          "added_sugar": 38.0,
+          "description": "Freshly brewed iced tea sweetened just right.",
+          "carbs": 38.0,
+          "trans_fat": 0.0,
+          "ingredients": "Brewed tea, sugar, water"
+        },
+        {
+          "energy": 450.0,
+          "total_fat": 17.0,
+          "sodium": 170.0,
+          "ingredients": "Coffee, caramel syrup, ice, whipped cream, milk",
+          "allergens": [
+            "Milk"
+          ],
+          "description": "Blended coffee drink with buttery caramel and whipped cream.",
+          "category": "",
+          "total_sugar": 62.0,
+          "tag": "Sweet frozen coffee.",
+          "carbs": 68.0,
+          "trans_fat": 0.0,
+          "serving_size": "415ml",
+          "chol": 50.0,
+          "sat_fat": 10.0,
+          "name": "Caramel Frappe",
+          "protein": 6.0,
+          "added_sugar": 56.0
+        },
+        {
+          "carbs": 41.0,
+          "description": "Rich espresso with steamed milk and French vanilla flavor.",
+          "ingredients": "Espresso, steamed milk, vanilla syrup",
+          "chol": 25.0,
+          "sat_fat": 3.5,
+          "energy": 260.0,
+          "total_fat": 6.0,
+          "serving_size": "355ml",
+          "protein": 9.0,
+          "added_sugar": 32.0,
+          "tag": "Sweet vanilla espresso drink.",
+          "name": "French Vanilla Latte",
+          "total_sugar": 38.0,
+          "sodium": 95.0,
+          "allergens": [
+            "Milk"
+          ],
+          "category": "",
+          "trans_fat": 0.0
+        },
+        {
+          "total_fat": 0.0,
+          "protein": 0.0,
+          "name": "Black Coffee",
+          "trans_fat": 0.0,
+          "description": "Perfectly brewed for any time of the day.",
+          "added_sugar": 0.0,
+          "tag": "",
+          "serving_size": "200ml",
+          "energy": 6.8,
+          "ingredients": "",
+          "category": "",
+          "total_sugar": 0.0,
+          "sat_fat": 0.0,
+          "chol": 0.0,
+          "sodium": 0.0,
+          "carbs": 1.7,
+          "allergens": [
+            "__none__"
+          ]
+        },
+        {
+          "protein": 0.0,
+          "total_fat": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "added_sugar": 0.0,
+          "sat_fat": 0.0,
+          "sodium": 5.0,
+          "energy": 0.0,
+          "chol": 0.0,
+          "total_sugar": 0.0,
+          "tag": "Freshly brewed every day.",
+          "serving_size": "296ml",
+          "ingredients": "100% Arabica coffee, water",
+          "carbs": 0.0,
+          "trans_fat": 0.0,
+          "category": "",
+          "name": "Premium Roast Coffee",
+          "description": "Small cup of medium-roast Arabica coffee."
+        },
+        {
+          "ingredients": "100% Arabica coffee, water",
+          "name": "Premium Roast Coffee",
+          "total_sugar": 0.0,
+          "serving_size": "473ml",
+          "protein": 0.0,
+          "allergens": [
+            "__none__"
+          ],
+          "sat_fat": 0.0,
+          "tag": "Freshly brewed every day.",
+          "description": "Medium-roast coffee made from 100% Arabica beans — smooth and balanced.",
+          "sodium": 10.0,
+          "category": "",
+          "chol": 0.0,
+          "carbs": 0.0,
+          "total_fat": 0.0,
+          "trans_fat": 0.0,
+          "energy": 5.0,
+          "added_sugar": 0.0
+        },
+        {
+          "protein": 2.0,
+          "total_fat": 7.0,
+          "name": "Iced Coffee",
+          "category": "",
+          "carbs": 28.0,
+          "trans_fat": 0.0,
+          "allergens": [
+            "Milk"
+          ],
+          "serving_size": "400ml",
+          "chol": 25.0,
+          "ingredients": "Coffee, cream, liquid sugar",
+          "added_sugar": 22.0,
+          "sat_fat": 4.0,
+          "description": "Chilled premium roast coffee with cream and a touch of sweetness.",
+          "sodium": 45.0,
+          "total_sugar": 26.0,
+          "energy": 180.0,
+          "tag": "Cold and creamy pick-me-up."
+        },
+        {
+          "name": "Cold Coffee",
+          "chol": 27.4,
+          "tag": "",
+          "allergens": [
+            "Milk"
+          ],
+          "total_fat": 11.15,
+          "ingredients": "",
+          "carbs": 40.2,
+          "sodium": 175.0,
+          "trans_fat": 0.0,
+          "category": "",
+          "serving_size": "250ml",
+          "total_sugar": 37.5,
+          "sat_fat": 7.45,
+          "added_sugar": 21.25,
+          "protein": 9.75,
+          "description": "A rich smooth creamy cold coffee made with coffee powder and milk.",
+          "energy": 301.1
+        }
+      ],
+      "documents": [
+        "Side Salad. A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.. Mixed greens, grape tomatoes, shredded carrots. Fresh greens on the side.",
+        "McFlurry (Choco Crunch). Milk-based frozen dessert with chocolate crispies and chocolate dip.. Milk fat, Chocolate. Burgers aren't the only things we're good at.",
+        "McFlurry (Choco Crunch). Milk-based frozen dessert with chocolate crispies and chocolate dip.. Milk fat, Chocolate. Burgers aren't the only things we're good at.",
+        "Orange Juice. The McDonald's Minute Maid Orange Juice is 100% orange juice, loaded with Vitamin C. Available in small and medium sizes.. 100% orange juice from concentrate. Start your day with vitamin C.",
+        "Minute Maid Lemonade. Classic lemonade with real lemon flavor.. Water, high fructose corn syrup, lemon juice concentrate. Tart and refreshing.",
+        "Milk. 1% Low Fat Milk Jug is a wholesome drink choice for your Happy Meal.. Reduced fat milk, vitamin A palmitate, vitamin D3. A wholesome drink choice.",
+        "Chocolate Milk. Fat Free Chocolate Milk Jug is a sweet treat for your Happy Meal.. Reduced fat milk, sugar, cocoa, vitamin A palmitate, vitamin D3. A sweet treat in a jug.",
+        "Fanta Orange. Caffeine-free orange soda with a fruity burst.. Carbonated water, high fructose corn syrup, citric acid, natural flavors. Bright orange soda.",
+        "Dr Pepper. Unique blend of 23 flavors in a bold fountain drink.. Carbonated water, high fructose corn syrup, caramel color, natural and artificial flavors. 23 flavors in one drink.",
+        "Mango Pineapple Smoothie. Tropical mango and pineapple blended with yogurt.. Mango puree, pineapple juice, low-fat yogurt, ice. Tropical fruit blend.",
+        "Cheesy Fries. The all-time favourite fries with a generous dollop of cheesy yet smoky chipotle sauce.. Salted Fries, Smoky Chipotle Sauce. Hi, it’s cheese on this side!",
+        "Diet Coke. Diet Coke with the same great taste and no calories.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Diet Coke. Small Diet Coke — crisp and refreshing.. Carbonated water, caramel color, aspartame, phosphoric acid, natural flavors, caffeine. Zero-calorie cola.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Coca-Cola. Coca-Cola is a refreshing McDonald's soda option that complements all of your menu favorites.. Carbonated water, high fructose corn syrup, caramel color, phosphoric acid, natural flavors, caffeine. The classic refreshment.",
+        "Strawberry Shake. Strawberry-flavored shake blended with vanilla soft serve.. Vanilla soft serve, strawberry syrup, milk. Fruity pink shake.",
+        "Hash Browns. Our Hash Browns are deliciously tasty and perfectly crispy. These shredded potato hash brown patties are prepared so they're fluffy on the inside and crispy and toasty on the outside.. Shredded potatoes, salt, pepper, dextrose. Golden and crispy breakfast side.",
+        "Vanilla Shake. Classic vanilla shake — smooth and sweet.. Vanilla soft serve, milk. Simple vanilla bliss.",
+        "Masala Chai. Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+        "Masala Chai. Masala chai is a smooth and spicy blend of natural tea extract, milk solids, black pepper, fennel, clove and cinnamon.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing.",
+        "Sprite. Sprite is a delicious lemon-lime fountain drink and is available in extra small, small, medium, and large sizes.. Carbonated water, high fructose corn syrup, citric acid, natural flavors, sodium citrate, sodium benzoate. Crisp and refreshing.",
+        "Sundae (Strawberry). Creamy vanilla soft-serve with strawberry topping.. Soft serve mix (100% diary), Strawberry topping. A little zing goes a long way.",
+        "Sundae (Strawberry). Creamy vanilla soft-serve with strawberry topping.. Soft serve mix (100% diary), Strawberry topping. A little zing goes a long way.",
+        "Caramel Macchiato. Freshly steamed milk with vanilla-flavored syrup marked with espresso and caramel drizzle.. Espresso, steamed milk, vanilla syrup, caramel drizzle. Layered espresso favorite.",
+        "Cold Coffee Mcfloat. Rich smooth creamy cold coffee along with sweet vanilla flavoured soft serve mix.",
+        "Iced Tea. A blend of aromatic tea and the fruity flavour of lemon.",
+        "Chocolate Shake. Creamy chocolate shake made with vanilla soft serve and chocolate syrup.. Vanilla soft serve, chocolate syrup, milk. Thick and creamy classic.",
+        "Bottled Water. Refreshing purified drinking water.. Purified water. Hydration on the go.",
+        "Strawberry Banana Smoothie. Blended strawberry and banana with creamy yogurt.. Strawberry puree, banana puree, low-fat yogurt, ice. Fruit smoothie treat.",
+        "Apple Slices. Fresh, crisp apple slices. A wholesome choice for any meal.. Fresh sliced apples. A fresh, healthy side.",
+        "Hot Chocolate. Steamed milk with rich chocolate syrup and optional whipped topping.. Steamed milk, chocolate syrup, whipped cream. Warm chocolate comfort.",
+        "Sundae (Chocolate). Creamy vanilla soft-serve topped with thick and rich hot fudge.. Soft serve mix (100% diary), Hot fudge topping. Much more than ice-cream.",
+        "Sundae (Chocolate). Creamy vanilla soft-serve topped with thick and rich hot fudge.. Soft serve mix (100% diary), Hot fudge topping. Much more than ice-cream.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Our World Famous Fries. The crisp, craveable, fan favourite: our World Famous Fries. These epic fries are crispy and golden on the outside and fluffy on the inside.. Potato and salt. The legend among legends.",
+        "Mocha Frappe. Mocha coffee frappe blended with ice and topped with whipped cream.. Coffee, mocha sauce, ice, whipped cream, milk. Frozen chocolate coffee treat.",
+        "Sweet Tea. Freshly brewed iced tea sweetened just right.. Brewed tea, sugar, water. Southern-style sweet tea.",
+        "Caramel Frappe. Blended coffee drink with buttery caramel and whipped cream.. Coffee, caramel syrup, ice, whipped cream, milk. Sweet frozen coffee.",
+        "French Vanilla Latte. Rich espresso with steamed milk and French vanilla flavor.. Espresso, steamed milk, vanilla syrup. Sweet vanilla espresso drink.",
+        "Black Coffee. Perfectly brewed for any time of the day.",
+        "Premium Roast Coffee. Small cup of medium-roast Arabica coffee.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Premium Roast Coffee. Medium-roast coffee made from 100% Arabica beans — smooth and balanced.. 100% Arabica coffee, water. Freshly brewed every day.",
+        "Iced Coffee. Chilled premium roast coffee with cream and a touch of sweetness.. Coffee, cream, liquid sugar. Cold and creamy pick-me-up.",
+        "Cold Coffee. A rich smooth creamy cold coffee made with coffee powder and milk."
+      ]
+    },
+    {
+      "call": "question_dialog",
+      "question_idx": 10,
+      "step": 1,
+      "client_query": "No croutons in my Caesar salad, please. I'm gluten-free (not allergy, just preference)",
+      "event": "rag",
+      "search_query": "gluten-free Caesar salad",
+      "rewrite_model": "qwen3:0.6b",
+      "retrieval_mode": "vector",
+      "full_nutrition_context": false,
+      "rag_json_spec": {
+        "intent": "details",
+        "compare_metrics": [],
+        "excluded_lexical": [
+          "crouton",
+          "gluten"
+        ],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [],
+        "override_restriction": false,
+        "finalize": false
+      },
+      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "metric": "cosine_distance",
+      "top_k": 101,
+      "distance_threshold": 0.6,
+      "soft_distance_max": 1.15,
+      "allergen_blacklist_tokens": [
+        "Cereal containing gluten"
+      ],
+      "prefer_novel": false,
+      "query_batch": [
+        "gluten-free Caesar salad",
+        "No croutons in my Caesar salad please",
+        "I'm gluten-free (not allergy just preference)"
+      ],
+      "utterance_allergen_exclusions": [
+        "Cereal containing gluten"
+      ],
+      "explicit_restrictions": [],
+      "explicit_allergen_exclusions": [],
+      "rag_json_excluded_ignored": [],
+      "rag_json_lexical": [
+        "crouton",
+        "gluten"
+      ],
+      "rag_json_restrictions": [],
+      "rag_json_requested_items": [],
+      "rag_json_finalize": false,
+      "rag_json_override_restriction": false,
+      "candidates": [
+        {
+          "name": "Side Salad",
+          "distance": 0.5475811958312988,
+          "energy": 15.0
+        },
+        {
+          "name": "McFlurry (Choco Crunch)",
+          "distance": 0.6432040929794312,
+          "energy": 703.17
+        },
+        {
+          "name": "McFlurry (Choco Crunch)",
+          "distance": 0.6432040929794312,
+          "energy": 115.19
+        },
+        {
+          "name": "Minute Maid Lemonade",
+          "distance": 0.6435533165931702,
+          "energy": 180.0
+        },
+        {
+          "name": "Orange Juice",
+          "distance": 0.67723548412323,
+          "energy": 150.0
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.7108002305030823,
+          "energy": 0.0
+        },
+        {
+          "name": "Milk",
+          "distance": 0.7212086319923401,
+          "energy": 100.0
+        },
+        {
+          "name": "Diet Coke",
+          "distance": 0.7238612174987793,
+          "energy": 0.0
+        },
+        {
+          "name": "Bottled Water",
+          "distance": 0.7255207300186157,
+          "energy": 0.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 0.7265768647193909,
+          "energy": 200.0
+        },
+        {
+          "name": "Sprite",
+          "distance": 0.7265768647193909,
+          "energy": 140.0
+        },
+        {
+          "name": "Mango Pineapple Smoothie",
+          "distance": 0.7507849931716919,
+          "energy": 220.0
+        },
+        {
+          "name": "Dr Pepper",
+          "distance": 0.7554377317428589,
+          "energy": 200.0
+        },
+        {
+          "name": "Vanilla Shake",
+          "distance": 0.7571660876274109,
+          "energy": 480.0
+        },
+        {
+          "name": "French Vanilla Latte",
+          "distance": 0.7703433632850647,
+          "energy": 260.0
+        },
+        {
+          "name": "Chocolate Milk",
+          "distance": 0.7738685011863708,
+          "energy": 170.0
+        },
+        {
+          "name": "Sweet Tea",
+          "distance": 0.7779355049133301,
+          "energy": 150.0
+        },
+        {
+          "name": "Strawberry Shake",
+          "distance": 0.7784146070480347,
+          "energy": 500.0
+        },
+        {
+          "name": "Hot Chocolate",
+          "distance": 0.7805420756340027,
+          "energy": 380.0
+        },
+        {
+          "name": "Fanta Orange",
+          "distance": 0.780642032623291,
+          "energy": 210.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.7822731733322144,
+          "energy": 210.0
+        },
+        {
+          "name": "Coca-Cola",
+          "distance": 0.7822731733322144,
+          "energy": 140.0
+        },
+        {
+          "name": "Cheesy Fries",
+          "distance": 0.7875980138778687,
+          "energy": 453.92
+        },
+        {
+          "name": "Strawberry Banana Smoothie",
+          "distance": 0.7943217158317566,
+          "energy": 210.0
+        },
+        {
+          "name": "Caramel Macchiato",
+          "distance": 0.7949905395507812,
+          "energy": 310.0
+        },
+        {
+          "name": "Cold Coffee Mcfloat",
+          "distance": 0.8049367070198059,
+          "energy": 270.05
+        },
+        {
+          "name": "Caramel Frappe",
+          "distance": 0.8080863356590271,
+          "energy": 450.0
+        },
+        {
+          "name": "Black Coffee",
+          "distance": 0.8097367882728577,
+          "energy": 6.8
+        },
+        {
+          "name": "Sundae (Strawberry)",
+          "distance": 0.8101481795310974,
+          "energy": 156.14
+        },
+        {
+          "name": "Sundae (Strawberry)",
+          "distance": 0.8101481795310974,
+          "energy": 100.99
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.8109617233276367,
+          "energy": 224.59
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.8109617233276367,
+          "energy": 449.17
+        },
+        {
+          "name": "Our World Famous Fries",
+          "distance": 0.8109617233276367,
+          "energy": 317.92
+        },
+        {
+          "name": "Masala Chai",
+          "distance": 0.8110151290893555,
+          "energy": 94.23
+        },
+        {
+          "name": "Masala Chai",
+          "distance": 0.8110151290893555,
+          "energy": 54.97
+        },
+        {
+          "name": "Apple Slices",
+          "distance": 0.8140519261360168,
+          "energy": 15.0
+        },
+        {
+          "name": "Iced Tea",
+          "distance": 0.8193328976631165,
+          "energy": 242.52
+        },
+        {
+          "name": "Chocolate Shake",
+          "distance": 0.8235405683517456,
+          "energy": 530.0
+        },
+        {
+          "name": "Mocha Frappe",
+          "distance": 0.8346068859100342,
+          "energy": 480.0
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.8378230929374695,
+          "energy": 5.0
+        },
+        {
+          "name": "Iced Coffee",
+          "distance": 0.8438785672187805,
+          "energy": 180.0
+        },
+        {
+          "name": "Hash Browns",
+          "distance": 0.8463606834411621,
+          "energy": 140.0
+        },
+        {
+          "name": "Sundae (Chocolate)",
+          "distance": 0.846463680267334,
+          "energy": 197.45
+        },
+        {
+          "name": "Sundae (Chocolate)",
+          "distance": 0.846463680267334,
+          "energy": 121.64
+        },
+        {
+          "name": "Premium Roast Coffee",
+          "distance": 0.8464791178703308,
+          "energy": 0.0
+        },
+        {
+          "name": "Cold Coffee",
+          "distance": 0.8803430199623108,
+          "energy": 301.1
+        }
+      ],
+      "excluded_by_constraints": [
+        {
+          "name": "Caesar Salad with Grilled Chicken",
+          "distance": 0.3359190821647644,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "mentioned_in_query": false
+        },
+        {
+          "name": "Side Caesar Salad",
+          "distance": 0.40303319692611694,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "mentioned_in_query": false
+        },
+        {
+          "name": "McSpicy Paneer",
+          "distance": 0.6460453271865845,
+          "allergens": [
+            "Cereal containing gluten"
+          ],
+          "mentioned_in_query": false
+        }
+      ],
+      "grounding_targets": [
+        "Side Salad"
+      ],
+      "grounded_rows": [
+        {
+          "name": "Side Salad",
+          "distance": 0.5475811958312988
+        }
+      ],
+      "best_distance": 0.5475811958312988,
+      "rag_prompt_line_cap": 15,
+      "rag_prompt_lines_included": 1,
+      "outcome": "injected",
+      "injected_hits": [
+        {
+          "name": "Side Salad",
+          "distance": 0.5475811958312988
+        }
+      ],
+      "context_preview": "- Side Salad (~15.0 kcal, allergens: none listed; added sugar: ~0.0 g; total sugar: ~2.0 g; ingredients: Mixed greens, grape tomatoes, shredded carrots)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Caesar Salad with Grilled Chicken (contains: Cereal containing gluten)\n* Side Caesar Salad (contains: Cereal containing gluten)\n* McSpicy Paneer (contains: Cereal containing gluten)\n\nGrounded menu data for named/follow-up items (use these fields; do not guess):\n* Side Salad: ingredients: Mixed greens, grape tomatoes, shredded carrots; allergens: none listed; description: A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots."
+    }
+  ],
+  "llm_trace": [
+    {
+      "event": "rag_json_rewrite",
+      "call": "question_dialog",
+      "question_idx": 10,
+      "step": 1,
+      "model": "qwen3:0.6b",
+      "kind": "rag_structured_json",
+      "rag_json_duration_ms": 1822.6,
+      "raw_response": "{\n  \"intent\": \"details\",\n  \"search_query\": \"gluten-free Caesar salad\",\n  \"compare_metrics\": [],\n  \"excluded_lexical\": [\"crouton\", \"gluten\"],\n  \"max_kcal\": null,\n  \"min_kcal\": null,\n  \"restrictions\": [],\n  \"requested_items\": [],\n  \"override_restriction\": false,\n  \"finalize\": false\n}",
+      "spec": {
+        "compare_metrics": [],
+        "intent": "details",
+        "search_query": "gluten-free Caesar salad",
+        "excluded_allergens": [],
+        "excluded_lexical": [
+          "crouton",
+          "gluten"
+        ],
+        "max_kcal": null,
+        "min_kcal": null,
+        "restrictions": [],
+        "requested_items": [],
+        "override_restriction": false,
+        "finalize": false
+      }
+    },
+    {
+      "event": "llm_call",
+      "agent": "cashier",
+      "model": "qwen3:4b",
+      "kind": "dialog_llm",
+      "messages_count": 1,
+      "duration_ms": 11033.99,
+      "system": "You are a cashier at a McDonald's drive-through. Speak in English.\n\nRULES:\n\nMENU / RAG:\n- Full-menu JSON mode: the list is long; a requested item may appear far down. Never decide an item is missing after only reading the first few rows — scan by exact product name.\n- DECISION FLOW: (1) If customer names an item that exists in context, first confirm it is added. (2) Give nutrition/allergen numbers only if asked. (3) If item is truly absent from context, say unavailable and suggest 1 nearby alternative.\n- Use only the menu data slice in context when naming specific products. Speak naturally: after first mention, say 'fries' instead of 'Our World Famous Fries', 'nuggets' instead of 'Chicken McNuggets'.\n- NEVER use the ® or ™ symbol when speaking — say 'McNuggets', 'fries', 'Big Mac', 'Iced Tea', not 'Chicken McNuggets®'.\n- NEVER invent item names, prices, or calorie numbers.\n- Keep calorie values internal by default. Mention calories ONLY when the customer explicitly asks about calories, nutrition, energy, light/heavy options, or comparison.\n- If no items are in context, ask what type of food the customer wants.\n- If context says **no matching menu items** for what they asked, say plainly that we don't have that or it's not on the menu (natural wording), then suggest what we do serve — e.g. burgers, chicken, wraps, fries.\n- If you mention any numeric fact (calories, protein, carbs, sugar, sodium, serving size), copy exact values from ONE matching menu row only; do not average, estimate, or mix rows.\n- If multiple serving sizes exist for the same item and user asked nutrition, ask which size instead of choosing numbers randomly.\n- If the context lists items (even with a weak-match note), those are real menu rows — offer them confidently.\n- Do not claim an item is unavailable if it actually appears by name in your menu data slice for this turn.\n- If their ask is not in the slice and retrieval did not clearly fail, hedge briefly instead of pretending to know the full menu.\n- Recommendations like 'best' or 'most delicious' are subjective. Say that and offer one strong option from context instead of claiming an objective winner.\n\nALLERGENS / DIET:\n- ALLERGEN PROTOCOL: warn once, then serve if the customer insists.\n- If a requested item conflicts with a dietary restriction the customer mentioned, say it clearly ONCE: 'Just so you know, [item] contains [allergen].' Then suggest ONE suitable alternative.\n- The alternative must come from regular menu rows in context, not from the 'Items requiring dietary warning' block.\n- If the customer confirms they still want that item, repeats it after the warning, or says it is fine, add it without arguing or warning again.\n- Never block an order after the warning. You are a cashier, not a doctor.\n- Treat allergen/vegan restrictions as warning constraints. Treat nutrient preferences like no sugar, low sugar, low fat, light, or low calorie as recommendations/warnings: you may say an item is not the best fit and suggest a better option, but do not claim you cannot serve or cannot place the order solely because of a nutrient preference.\n- Do not infer extra restrictions. For example, no sugar does not mean no milk, no gluten, or vegan unless the customer explicitly says so.\n- If they ask for MORE options in the SAME category (e.g. other coffees), list several different items from the context slice; never imply your short list is the full menu.\n- If context includes an 'Items requiring dietary warning' block, treat those items as existing on the menu. Warn once and suggest an alternative; serve if the customer insists.\n- If the customer NAMES a specific menu item that appears in your context slice, treat it as available and confirm it — do NOT say you cannot confirm an item that is listed in the menu on your screen for this turn.\n- When the customer has a dietary restriction, proactively name SPECIFIC items that ARE available (e.g. 'We have fries, apple slices, and Sprite that work for you'). Don't keep saying 'we don't have X' — focus on what you DO have.\n- When menu rows for this turn show allergen tags per item, use those tags to judge fit for stated exclusions (e.g. no dairy / avoid milk). If an item's allergen line does not list what they want to avoid, you may say it should work for them and offer that item by name from the slice — do not say you have no ingredient information.\n\nUPSELL & REPETITION:\n- After the customer picks a main item, you may offer a drink or side ONCE. Keep it separate from final order confirmation.\n- Don't suggest items the customer already ordered or explicitly declined.\n- If they ask 'what else do you have?', suggest items from a DIFFERENT category than what they already ordered.\n- Never mention other chains or brands (Burger King, KFC, etc.). Stay in McDonald's context.\n\nORDER CONFIRMATION:\n- When the customer picks an item, confirm briefly: 'Got it, a Big Mac.'\n- For a SINGLE clear item request (e.g. only 'Order a Big Mac'), a quick confirm plus one short follow-up like 'Anything else for you today?' is enough. Do NOT do a long readback or 'does that sound right?' until the order has multiple items or they say they are done.\n- When repeating the full order, list ALL items — vary phrasing: 'So that's...', 'I've got...', 'Alright, we have...'\n- Use 'Does that sound right?' ONLY after a full readback of the current order. Do not attach it to an upsell question like 'Anything else — fries or a drink?'\n- Before finalizing a multi-item order, repeat the full order and ask whether it sounds right.\n\nUNKNOWN INFO:\n- If they ask about something not in your context (exact ingredients, how it's cooked, religious dietary status), say honestly: 'Hmm, I'm not sure about that one' or 'I don't have that info handy'. Don't say 'on my screen' — that sounds robotic.\n- Do NOT use that \"no info\" reply when your menu slice already lists allergens for the items you would mention — answer from the slice (allergen lines per item). Reserve \"not sure\" for facts truly absent from context (e.g. kosher/halal certification).\n- If they question your previous line (e.g. 'why did you say that'), answer in one short sentence and steer back to what they would like to order — don't read out a random other menu item.\n\nSTYLE:\n- No emoji, no markdown bold/italic, no special formatting.\n- Stay in character: you are on the drive-through headset talking to a real customer. Never sound like a chatbot reviewing a dataset, a teacher, or a policy analyst.\n- For a direct order like 'Order a Big Mac', prefer 1–2 short sentences: confirm item, then brief follow-up.\n- Keep replies to 2–3 sentences max, like a real drive-through.\n- Speak naturally like a friendly human cashier.\n- Output only what a cashier would actually say. No reasoning, analysis, or meta-commentary.\n\nREALISTIC DRIVE-THROUGH:\n- Your only job here is to take the order and answer short menu questions like a real crew member.\n- You know nothing about this customer until they say it in this conversation.\n- Do not assume extra people, children, or dietary restrictions; if they mention ordering for someone else, ask what that person wants and any allergies or diet needs in plain language.\n- Adapt tone only from their actual words (e.g. rushed vs chatty), not from facts they have not stated.\n- Still handle groups properly once they tell you who needs what: take each person in turn, confirm, then full readback at the end.\n\n--- Context ---\nMenu data slice for this turn (each line: product name, kcal estimate, allergen tags, approximate added/total sugar, and ingredients when listed — not full nutrition):\n- Side Salad (allergens: none listed; added sugar: ~0.0 g; total sugar: ~2.0 g; ingredients: Mixed greens, grape tomatoes, shredded carrots)\n\nItems requiring dietary warning this turn (they exist on menu but may conflict with the customer's stated restrictions):\n* Caesar Salad with Grilled Chicken (contains: Cereal containing gluten)\n* Side Caesar Salad (contains: Cereal containing gluten)\n* McSpicy Paneer (contains: Cereal containing gluten)\n\nGrounded menu data for named/follow-up items (use these fields; do not guess):\n* Side Salad: ingredients: Mixed greens, grape tomatoes, shredded carrots; allergens: none listed; description: A fresh mix of greens including baby spinach, baby kale, lollo rossa, red leaf lettuce, red oak and red tango. Topped with grape tomatoes and shredded carrots.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "No croutons in my Caesar salad, please. I'm gluten-free (not allergy, just preference)"
+        }
+      ],
+      "response": "I see you want a gluten-free Caesar salad without croutons. Our regular Caesar salads contain gluten from croutons, so we don't have a gluten-free version. But we do have a Side Salad that's naturally gluten-free and perfect for your preference—no croutons, just fresh greens and veggies. Would you like that instead?"
+    }
+  ],
+  "metrics": {
+    "success_at_1": false,
+    "success_at_3": false,
+    "success_at_5": false,
+    "hallucination": false,
+    "constraint_violation": false,
+    "constraint_violation_reasons": [],
+    "group_completeness": null,
+    "need_to_specify": false,
+    "empty_response": false
+  },
+  "heuristic_metrics": {
+    "success_at_1": false,
+    "success_at_3": false,
+    "success_at_5": false,
+    "hallucination": false,
+    "constraint_violation": false,
+    "constraint_violation_reasons": [],
+    "group_completeness": null
+  },
+  "metric_sources": {
+    "success_at_1": "heuristic_fallback",
+    "success_at_3": "heuristic_fallback",
+    "success_at_5": "heuristic_fallback",
+    "hallucination": "judge",
+    "constraint_violation": "heuristic_fallback",
+    "need_to_specify": "heuristic_fallback",
+    "empty_response": "heuristic_fallback",
+    "group_completeness": "none"
+  },
+  "audit": {
+    "expected_item": "Side Caesar Salad",
+    "expected_item_in_menu": true,
+    "expected_item_used": false,
+    "context_ignorance": false,
+    "factual_conflicts": [],
+    "critical_error": false,
+    "need_to_specify": false,
+    "heuristic_hallucination": false
+  },
+  "judge": {
+    "raw_response": "{\n  \"hallucination\": false,\n  \"final_label\": \"success\"\n}",
+    "parsed": {
+      "hallucination": false,
+      "final_label": "success"
+    },
+    "vs_heuristic": {
+      "disagreement_count": 0,
+      "disagreements": [],
+      "supports_audit_signals": true,
+      "audit_signals": {
+        "context_ignorance": false,
+        "factual_conflicts": [],
+        "critical_error": false
+      }
+    }
+  },
+  "source_file": "/mnt/c/Users/sgrigoryan/Desktop/Ed__/diploma/questions/lexical_questions.json",
+  "source_index": 10,
+  "retrieval_mode": "vector",
+  "question_grounding_enabled": false,
+  "client_nudge_on_miss": false
+}

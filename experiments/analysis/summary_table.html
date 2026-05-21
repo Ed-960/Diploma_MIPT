@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Сравнение: без RAG и RAG</title>
+  <style>
+    :root {
+      --bg: #f0f2f7;
+      --card: #ffffff;
+      --text: #1c2333;
+      --muted: #5a6578;
+      --border: #d8dee9;
+      --norag: #2e5a8c;
+      --rag: #c25621;
+      --good: #0b6e45;
+      --bad: #a82a22;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 1.5rem 1rem 2.5rem;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    h1 {
+      font-size: 1.4rem; font-weight: 700; margin: 0 0 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .lead { color: var(--muted); font-size: 0.95rem; max-width: 52rem; margin-bottom: 1.25rem; }
+    .hero {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.75rem; margin-bottom: 1.5rem;
+    }
+    .hero .box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    }
+    .hero .t { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .hero .n { font-size: 1.75rem; font-weight: 800; margin-top: 0.25rem; line-height: 1.1; }
+    .hero .sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.35rem; }
+    .hero .norag { color: var(--norag); }
+    .hero .rag { color: var(--rag); }
+    h2 { font-size: 1.05rem; margin: 0 0 0.65rem; font-weight: 650; }
+    .table-wrap {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    th {
+      text-align: left; font-size: 0.72rem; font-weight: 650;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+      background: linear-gradient(180deg,#eef1f7,#e6ebf4);
+    }
+    th.num, td.num { text-align: right; }
+    th.th-plain { text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
+    th.mode-nr { color: var(--norag); }
+    th.mode-r { color: var(--rag); }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:nth-child(even) { background: #fafbfd; }
+    .cat { font-weight: 600; max-width: 14rem; }
+    .dim { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .big { font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+    .ciwrap { display: block; margin-top: 0.15rem; }
+    .ci { font-size: 0.68rem; color: var(--muted); font-weight: 400; }
+    .cell-nr .big { color: var(--norag); }
+    .cell-r .big { color: var(--rag); }
+    .delta-good { color: var(--good); font-weight: 800; }
+    .delta-bad { color: var(--bad); font-weight: 800; }
+    .delta-neutral { color: var(--muted); font-weight: 600; }
+    .sig-yes { color: var(--good); font-weight: 700; }
+    .sig-no { color: var(--muted); font-weight: 600; }
+    tr.total td { background: linear-gradient(90deg,#e8f4fc,#f2f7ff); font-weight: 600; }
+    details {
+      margin-top: 1.5rem; background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.5rem 1rem 1rem;
+      font-size: 0.85rem; color: var(--muted);
+    }
+    details summary { cursor: pointer; font-weight: 600; color: var(--text); padding: 0.35rem 0; }
+    details code { font-size: 0.78rem; background: #eef1f6; padding: 0.1rem 0.35rem; border-radius: 4px; }
+    .foot { margin-top: 1.25rem; font-size: 0.78rem; color: var(--muted); }
+    @media print { body { background: #fff; } .hero .box, .table-wrap { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Два режима: без RAG (полный JSON в промпте) и RAG (поиск фрагментов)</h1>
+    <p class="lead">
+      На одних и тех же формулировках вопросов сравниваются ответы кассира **без RAG** (полное меню в контексте)
+      и **с RAG** (векторный поиск по меню). Ниже — доля «цель достигнута» по правилам эксперимента и доля ответов,
+      которые <strong>судья LLM</strong>, видя диалог и меню, пометила как проблемные
+      (в данных это поле <code>hallucination</code> в <code>metrics</code>).
+    </p>
+
+    <div class="hero">
+      <div class="box">
+        <div class="t">Всего диалогов в сравнении</div>
+        <div class="n">1331</div>
+      </div>
+      <div class="box">
+        <div class="t"><span class="norag">Без RAG</span> — цель достигнута</div>
+        <div class="n norag">54.55%</div>
+        <div class="sub">интервал 95%: 51.9–57.2%</div>
+      </div>
+      <div class="box">
+        <div class="t"><span class="rag">RAG</span> — цель достигнута</div>
+        <div class="n rag">70.62%</div>
+        <div class="sub">интервал 95%: 68.1–73.0%</div>
+      </div>
+      <div class="box">
+        <div class="t">Сдвиг в пользу RAG</div>
+        <div class="n delta-good">+16.07 п.п.</div>
+        <div class="sub">статистически значимо (p &lt; 0.05)</div>
+      </div>
+      <div class="box">
+        <div class="t">Судья LLM</div>
+        <div class="n"><span class="norag">14.88%</span> → <span class="rag">4.73%</span></div>
+        <div class="sub">без RAG → RAG (по флагу <code>hallucination</code>)</div>
+      </div>
+    </div>
+
+    <h2>По типам вопросов</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Тип сценария</th>
+            <th class="num th-plain" title="Сколько уникальных вопросов-диалогов в строке: один question_id — одна цепочка без RAG и одна с RAG (парное сравнение).">Число диалогов</th>
+            <th class="num th-plain mode-nr" title="Режим без RAG (полное меню в промпте). Доля ответов, где цель достигнута (метрика success_at_1).">Без RAG</th>
+            <th class="num th-plain mode-r" title="Режим с RAG (поиск фрагментов меню). Доля, где цель достигнута.">RAG</th>
+            <th class="num th-plain" title="По метрике «цель достигнута»: доля в RAG минус доля без RAG. Процентный пункт — абсолютная разница двух процентов (например, 80% и 66% → 14 п.п.), это не относительный прирост.">RAG − Без RAG<br/><span class="dim" style="font-weight:400;text-transform:none;letter-spacing:0">в процентных пунктах</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="cat">Аллергены / исключения</td><td class="num dim">305</td><td class="num cell-nr"><span class="big">44.26%</span></td><td class="num cell-r"><span class="big">71.8%</span></td><td class="num delta-good">+27.54</td></tr><tr><td class="cat">Диетические ограничения</td><td class="num dim">223</td><td class="num cell-nr"><span class="big">53.81%</span></td><td class="num cell-r"><span class="big">59.64%</span></td><td class="num delta-good">+5.83</td></tr><tr><td class="cat">Заказ на несколько человек</td><td class="num dim">159</td><td class="num cell-nr"><span class="big">52.83%</span></td><td class="num cell-r"><span class="big">62.26%</span></td><td class="num delta-good">+9.43</td></tr><tr><td class="cat">Разговорная речь: исключения и уточнения («без лука», «уберите соус»)</td><td class="num dim">144</td><td class="num cell-nr"><span class="big">40.28%</span></td><td class="num cell-r"><span class="big">77.78%</span></td><td class="num delta-good">+37.5</td></tr><tr><td class="cat">Смешанный сценарий</td><td class="num dim">175</td><td class="num cell-nr"><span class="big">14.29%</span></td><td class="num cell-r"><span class="big">36.0%</span></td><td class="num delta-good">+21.71</td></tr><tr><td class="cat">Простой заказ (название блюда)</td><td class="num dim">325</td><td class="num cell-nr"><span class="big">93.54%</span></td><td class="num cell-r"><span class="big">96.62%</span></td><td class="num delta-good">+3.08</td></tr>
+          <tr class="total">
+            <td class="cat">Все типы вместе</td>
+            <td class="num dim">1331</td>
+            <td class="cell-nr num"><span class="big">54.55%</span></td>
+            <td class="cell-r num"><span class="big">70.62%</span></td>
+            <td class="num delta-good">+16.07</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <details>
+      <summary>Как считалось (для текста диплома)</summary>
+      <p style="margin-top:0.6rem">
+        <strong>«Цель достигнута»</strong> — в коде метрика <code>success_at_1</code>:
+        ожидаемое блюдо из банка вопросов входит в число первых упоминаний позиций меню в финальной реплике кассира.
+      </p>
+      <p>
+        Первая числовая колонка — <strong>число диалогов</strong> (уникальных вопросов) в строке; далее доля «цель достигнута» в колонках
+        <strong>Без RAG</strong> и <strong>RAG</strong>, затем разница в процентных пунктах (<strong>RAG − Без RAG</strong>).
+        В этой HTML-таблице намеренно только эти столбцы (удобнее для слайда).
+        Доли по флагу <code>hallucination</code> у судьи LLM по режимам и столбец «значимо» (McNemar по цели) —
+        в <code>summary_table.md</code> (тот же прогон <code>make reports</code> / <code>analyze_question_experiments</code>).
+        Для малых выборок отсутствие значимости по McNemar не означает отсутствие эффекта.
+      </p>
+    </details>
+
+    <p class="foot">Файл пересоздаётся при каждом запуске анализа вопросов.</p>
+  </div>
+</body>
+</html>

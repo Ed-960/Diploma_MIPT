@@ -1137,11 +1137,19 @@ def detect_constraint_violation(
             continue
         ctype = str(raw.get("type") or "").strip().lower()
         value = str(raw.get("value") or "").strip().lower()
+        # Per-person constraints (group orders): cannot map mentioned_items → member heuristically.
+        if str(raw.get("for") or "").strip():
+            continue
         if ctype == "allergen":
             alias = _ALLERGEN_ALIASES.get(value, value)
+            allergen_name_norm = _normalize_allergen_token(value)
             for name in mentioned_items:
                 item = menu_by_name.get(name)
                 if not item:
+                    continue
+                # Menu row literally named "Milk" etc. is often picked up from dialogue
+                # ("allergic to milk") rather than a recommendation — skip that match.
+                if allergen_name_norm and normalize_name(name) == allergen_name_norm:
                     continue
                 if alias and alias in item.allergens:
                     reasons.append(f"{name} contains allergen '{value}'")

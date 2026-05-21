@@ -168,6 +168,40 @@ def test_detect_hallucination_for_unknown_recommendation() -> None:
     assert hall is True
 
 
+def test_detect_constraint_violation_skips_per_person_for_field() -> None:
+    menu = {
+        "Cheeseburger": _fake_item(
+            name="Cheeseburger",
+            allergens={"milk"},
+            ingredients="beef, cheese",
+        )
+    }
+    violated, reasons = detect_constraint_violation(
+        expected_constraints=[
+            {"type": "allergen", "for": "child6", "value": "Milk"},
+        ],
+        mentioned_items=["Cheeseburger"],
+        menu_by_name=menu,
+    )
+    assert violated is False
+    assert reasons == []
+
+
+def test_detect_constraint_violation_skips_menu_row_named_like_allergen_token() -> None:
+    """False positive: extractor adds menu item 'Milk' when dialogue only mentions milk allergy."""
+    menu = {
+        "Milk": _fake_item(name="Milk", allergens={"milk"}),
+        "Apple Slices": _fake_item(name="Apple Slices", allergens=set()),
+    }
+    violated, reasons = detect_constraint_violation(
+        expected_constraints=[{"type": "allergen", "for": "child6", "value": "Milk"}],
+        mentioned_items=["Milk", "Apple Slices"],
+        menu_by_name=menu,
+    )
+    assert violated is False
+    assert reasons == []
+
+
 def test_detect_constraint_violation_allergen_and_exclude() -> None:
     menu = {
         "Cheesy Fries": _fake_item(

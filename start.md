@@ -190,7 +190,6 @@ make question-experiment-norag-smoke-ollama
 
 .venv-wsl/bin/python scripts/apply_llm_mode.py ollama .venv-wsl/bin/python scripts/run_question_experiment.py --output_dir experiments/no_rag_questions --max_dialog_turns 4 --trace_verbose
 
-
 //
 
 make question-experiment-vector-api OUT_QUESTIONS_VECTOR=experiments/my_vec_rag MAX_QUESTIONS=100
@@ -205,43 +204,74 @@ make question-experiment-vector-ollama OUT_QUESTIONS_VECTOR=experiments/my_vec_r
 Make — переменная QUESTION_CATEGORY: одна категория или несколько через запятую (без пробелов вокруг запятой надёжнее):
 
 make question-experiment-vector-ollama \
-  OUT_QUESTIONS_VECTOR=experiments/my_vec_rag \
-  QUESTION_CATEGORY=simple \
-  MAX_QUESTIONS=50
+ OUT_QUESTIONS_VECTOR=experiments/my_vec_rag \
+ QUESTION_CATEGORY=simple \
+ MAX_QUESTIONS=50
 Несколько категорий:
 
 make question-experiment-vector-ollama \
-  OUT_QUESTIONS_VECTOR=experiments/my_vec_rag \
-  QUESTION_CATEGORY=simple,diet \
-  MAX_QUESTIONS=100
+ OUT_QUESTIONS_VECTOR=experiments/my_vec_rag \
+ QUESTION_CATEGORY=simple,diet \
+ MAX_QUESTIONS=100
 То же для no-RAG:
 
 make question-experiment-norag-ollama \
-  OUT_QUESTIONS=experiments/my_norag \
-  QUESTION_CATEGORY=allergy \
-  MAX_QUESTIONS=30
+ OUT_QUESTIONS=experiments/my_norag \
+ QUESTION_CATEGORY=allergy \
+ MAX_QUESTIONS=30
 Порядок действий скрипта: загрузить все файлы из банка → отфильтровать по категориям → при MAX_QUESTIONS>0 взять только первые N из отфильтрованного списка.
 
 CLI напрямую
 python scripts/run_question_experiment.py \
-  --retrieval_mode vector \
-  --output_dir experiments/my_vec_rag \
-  --categories simple \
-  --max_questions 50 \
-  --trace_verbose
+ --retrieval_mode vector \
+ --output_dir experiments/my_vec_rag \
+ --categories simple \
+ --max_questions 50 \
+ --trace_verbose
 
-  //
+//
 
-make question-experiment-norag-ollama-simple   MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_simple_50
+make question-experiment-norag-ollama-simple MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_simple_50
 make question-experiment-norag-ollama-allergy MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_allergy_50
-make question-experiment-norag-ollama-diet    MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_diet_50
+make question-experiment-norag-ollama-diet MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_diet_50
 make question-experiment-norag-ollama-lexical MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_lexical_50
-make question-experiment-norag-ollama-mixed   MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_mixed_50
-make question-experiment-norag-ollama-group   MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_group_50
+make question-experiment-norag-ollama-mixed MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_mixed_50
+make question-experiment-norag-ollama-group MAX_QUESTIONS=50 OUT_QUESTIONS=experiments/norag_group_50
 
-make question-experiment-vector-ollama-simple   MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_simple_50
+make question-experiment-vector-ollama-simple MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_simple_50
 make question-experiment-vector-ollama-allergy MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_allergy_50
-make question-experiment-vector-ollama-diet   MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_diet_50
+make question-experiment-vector-ollama-diet MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_diet_50
 make question-experiment-vector-ollama-lexical MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_lexical_50
-make question-experiment-vector-ollama-mixed   MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_mixed_50
-make question-experiment-vector-ollama-group   MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_group_50
+make question-experiment-vector-ollama-mixed MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_mixed_50
+make question-experiment-vector-ollama-group MAX_QUESTIONS=50 OUT_QUESTIONS_VECTOR=experiments/vec_rag_group_50
+
+//
+
+# Анализ (norag*<cat>, vec_rag*<cat>; метрики из поля metrics в JSON):
+
+make reports
+
+# Только rows.json в norag*\*/vec_rag*\* (без incremental) → experiments/analysis_rows/
+
+make reports-rows
+
+# analyze-question-experiments — шаг 1 из reports (incremental + rows)
+
+# analyze-question-experiments-rows — то же, только rows.json
+
+# Починить expected_item=null в group (без перегенерации диалогов):
+
+make repair-group-experiment-nulls
+make repair-group-rescore
+make rejudge-group
+
+# Итоги: experiments/analysis/ или experiments/analysis_rows/
+
+# (не summary.json в каталоге прогона — часто только последний resume-батч)
+
+make sum-experiment-tables
+
+// RAGAS
+
+make ragas-question-metrics
+make ragas-question-metrics-sum
